@@ -12,6 +12,7 @@ class CropSeasonFirst:
     """
 
     def __init__(self, csrb, config):
+        
         self.csrb = csrb
         self.config = config
 
