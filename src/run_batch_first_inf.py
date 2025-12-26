@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import os
 import sys
 import json
@@ -7,9 +9,12 @@ import pandas as pd
 # path setup
 # --------------------------------------------------
 SRC_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(SRC_DIR, ".."))
+PROJECT_ROOT = os.path.abspath(os.path.join(SRC_DIR, ".."))
 
-from model.crop_season import CropSeasonFirst
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from model.crop_season_only import CropSeasonFirst
 from model.config import config
 
 # --------------------------------------------------
@@ -24,7 +29,7 @@ RB_FILES = [
     "NN_JF_2024_grape_rb.json",
 ]
 
-DATA_DIR = os.path.join(SRC_DIR, "..", "data")
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 
 # --------------------------------------------------
 # result container
@@ -48,36 +53,35 @@ for rb_name in RB_FILES:
     year = rb.get("year", "NA")
     bbch_53 = pd.to_datetime(rb.get("HHCH_53"), errors="coerce")
 
-    # ---------- run model (NO OUTPUT) ----------
-    crop_season = CropSeasonFirst(
-        csrb=rb,
-        config=config
-    )
+    # --------------------------------------------------
+    # run FIRST infection model (full biological process)
+    # --------------------------------------------------
+    crop_season = CropSeasonFirst(csrb=rb, config=config)
+    crop_season.simulate()
 
-    crop_season.simulate(base_output_dir=None)
+    df = crop_season.get_oil_spot_on_leaf()
 
-    df = crop_season.cohort_results
-
+    # --------------------------------------------------
+    # extract FIRST effective infection window (USAGE LAYER)
+    # --------------------------------------------------
     if df is None or df.empty:
-        results.append([city, year, bbch_53, None, None])
-        continue
-
-    # ---------- filter effective infection ----------
-    df_eff = df[
-        (df["infection_effective"] == True) &
-        (df["oil_spot_start"].notna()) &
-        (df["oil_spot_end"].notna())
-    ].copy()
-
-    if bbch_53 is not None:
-        df_eff = df_eff[df_eff["oil_spot_start"] >= bbch_53]
-
-    if df_eff.empty:
         oil_start, oil_end = None, None
     else:
-        first = df_eff.sort_values("oil_spot_start").iloc[0]
-        oil_start = first["oil_spot_start"]
-        oil_end = first["oil_spot_end"]
+        df_eff = df[
+            df["oil_spot_start"].notna() &
+            df["oil_spot_end"].notna()
+        ].copy()
+
+        # apply phenology gate at usage level
+        if pd.notna(bbch_53):
+            df_eff = df_eff[df_eff["oil_spot_start"] >= bbch_53]
+
+        if df_eff.empty:
+            oil_start, oil_end = None, None
+        else:
+            first = df_eff.sort_values("oil_spot_start").iloc[0]
+            oil_start = first["oil_spot_start"]
+            oil_end = first["oil_spot_end"]
 
     results.append([
         city,
