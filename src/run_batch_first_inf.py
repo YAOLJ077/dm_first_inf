@@ -46,7 +46,7 @@ for rb_name in RB_FILES:
         print(f"⚠️ File not found: {rb_name}")
         continue
 
-    with open(rb_path, "r") as f:
+    with open(rb_path, "r", encoding="utf-8") as f:
         rb = json.load(f)
 
     city = rb.get("Place", "NA")
@@ -59,20 +59,18 @@ for rb_name in RB_FILES:
     crop_season = CropSeasonFirst(csrb=rb, config=config)
     crop_season.simulate()
 
-    df = crop_season.get_oil_spot_on_leaf()
+    # ==================================================
+    # USAGE LAYER: read FINAL survivor-only state
+    # ==================================================
+    df = crop_season.primary_chain
 
-    # --------------------------------------------------
-    # extract FIRST effective infection window (USAGE LAYER)
-    # --------------------------------------------------
     if df is None or df.empty:
         oil_start, oil_end = None, None
-    else:
-        df_eff = df[
-            df["oil_spot_start"].notna() &
-            df["oil_spot_end"].notna()
-        ].copy()
 
-        # apply phenology gate at usage level
+    else:
+        df_eff = df.copy()
+
+        # ---------- phenology gate (INTENTIONALLY HERE) ----------
         if pd.notna(bbch_53):
             df_eff = df_eff[df_eff["oil_spot_start"] >= bbch_53]
 

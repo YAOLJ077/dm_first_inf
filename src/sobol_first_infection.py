@@ -45,7 +45,7 @@ from model.config import config
 # ======================================================
 # GLOBAL SETTINGS
 # ======================================================
-N_JOBS = min(60, os.cpu_count())
+N_JOBS = min(4, os.cpu_count())
 RANDOM_SEED = 42
 PENALTY_DAYS = 30.0      # 30 days penalty (DOY scale)
 SAMPLE_SIZES = [64]
