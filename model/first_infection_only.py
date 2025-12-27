@@ -1,10 +1,12 @@
 import pandas as pd
+import numpy as np
 import math
 
 
 class FirstInfection:
     """
     FIRST infection model
+    (engine-optimized, biology-identical)
     """
 
     def __init__(self, cs, config):
@@ -12,14 +14,15 @@ class FirstInfection:
         self.cs = cs
         self.cfg = config
 
-        self.wh = cs.weather_hourly.copy()
-        self.wd = cs.weather_daily.copy()
+        # ===== weather =====
+        self.wh = cs.weather_hourly
+        self.wd = cs.weather_daily
 
-        # ===============================
-        # Rossi fixed parameters
-        # ===============================
-        self._NIGHT_TIME = {"start": 20, "end": 8}
+        # ===== TIME INDEX (CRITICAL FIX) =====
+        # MUST be numpy datetime64 for searchsorted
+        self.time_index = self.wh["datetime"].to_numpy(dtype="datetime64[ns]")
 
+        # ===== Rossi fixed parameters =====
         self._ATTACHED_MORTALITY = {
             "a0": 9.27, "a1": 1.12, "a2": 0.04,
             "start_hour": 8, "end_hour": 18
@@ -34,10 +37,42 @@ class FirstInfection:
             "a2": 59.9, "b2": 4.55, "c2": 0.095
         }
 
+        # ===== precompute meteorology =====
+        self._precompute_weather_fields()
+        self._build_daily_index()
+
+    # ======================================================
+    # PRECOMPUTE WEATHER FIELDS
+    # ======================================================
+    def _precompute_weather_fields(self):
+
+        wh = self.wh
+
+        hour = wh["datetime"].dt.hour.values
+        self.is_night = (hour >= 20) | (hour < 8)
+
+        T = wh["air_temp"].values
+        RH = wh["relative_humidity"].values
+
+        self.VPD = (
+            0.6108 * np.exp((17.27 * T) / (T + 237.3))
+            * (1 - RH / 100)
+        )
+
+        self.wet = wh["precip_acc_period_adjusted"].values > 0
+
+    def _build_daily_index(self):
+        """cache hourly indices per day"""
+        dates = self.wh["date"].values
+        self.day_to_idxs = {
+            d: np.where(dates == d)[0] for d in np.unique(dates)
+        }
+
     # ======================================================
     # S1–S2. ATTACHED INVENTORY + DISPERSAL
     # ======================================================
     def stage_attached_and_dispersal(self):
+
         cfg = self.cfg
         sp = cfg["sporulation"]
         disp = cfg["dispersal"]
@@ -45,23 +80,18 @@ class FirstInfection:
         k = 0.2
 
         attached_pool = 0.0
-        current_sporulation_start = None
         cohorts = []
         cohort_num = 0
 
         h = self.wh.copy()
-        night = self._NIGHT_TIME
+        h["is_night"] = self.is_night
+        h["wet_night"] = h["relative_humidity"] >= cfg["mp_tmp"]["rh_wet_night"]
 
-        h["is_night"] = (
-            (h.datetime.dt.hour >= night["start"]) |
-            (h.datetime.dt.hour < night["end"])
-        )
-        h["wet"] = h.relative_humidity >= cfg["mp_tmp"]["rh_wet_night"]
+        night_wet = h[h.is_night & h.wet_night]
 
-        night_wet = h[h.is_night & h.wet]
         d = (
             night_wet.groupby("date")
-            .agg(MP=("wet", "sum"), TMP=("air_temp", "mean"))
+            .agg(MP=("wet_night", "sum"), TMP=("air_temp", "mean"))
             .reset_index()
         )
 
@@ -71,60 +101,44 @@ class FirstInfection:
         inventory = []
 
         for _, day in wd.iterrows():
-            date = day.datetime.date()
+            date = day.datetime
 
             if day.MP >= sp["MP_min"] and sp["Tmin"] < day.TMP < sp["Tmax"]:
-
-                if attached_pool == 0:
-                    nh = h[h.datetime.dt.date == date].copy()
-                    nh = nh[nh.is_night & nh.wet]
-                    nh["MP_cum"] = nh.wet.cumsum()
-                    hit = nh[nh.MP_cum == sp["MP_min"]]
-                    current_sporulation_start = (
-                        hit.iloc[0].datetime if not hit.empty else day.datetime
-                    )
-
                 fT = ((day.TMP - sp["Tmin"]) / (sp["Topt"] - sp["Tmin"])) * \
                      ((sp["Tmax"] - day.TMP) / (sp["Tmax"] - sp["Topt"]))
                 fM = 1 - math.exp(-k * day.MP)
                 attached_pool += max(0.0, min(1.0, fT * fM))
 
-            for _, hr in self.wh[self.wh.datetime.dt.date == date].iterrows():
+            for i in self.day_to_idxs[date]:
+                hr = self.wh.iloc[i]
 
-                if self._ATTACHED_MORTALITY["start_hour"] <= hr.datetime.hour <= self._ATTACHED_MORTALITY["end_hour"]:
-                    VPD = (
-                        0.6108 * math.exp((17.27 * hr.air_temp) / (hr.air_temp + 237.3))
-                        * (1 - hr.relative_humidity / 100)
-                    )
+                if 8 <= hr.datetime.hour <= 18:
                     lam = max(
                         0.0,
                         self._ATTACHED_MORTALITY["a0"]
-                        - self._ATTACHED_MORTALITY["a1"] * VPD
-                        + self._ATTACHED_MORTALITY["a2"] * VPD**2
+                        - self._ATTACHED_MORTALITY["a1"] * self.VPD[i]
+                        + self._ATTACHED_MORTALITY["a2"] * self.VPD[i] ** 2
                     ) / 24.0
                     attached_pool *= math.exp(-lam)
 
                 if attached_pool < th:
                     continue
 
-                dispersal_type = None
                 if hr.precip_acc_period_adjusted >= disp["rain_min"]:
-                    dispersal_type = "rain"
+                    dtype = "rain"
                 elif hr.get("wind_speed", 0) >= disp["wind_min"]:
-                    dispersal_type = "wind"
+                    dtype = "wind"
+                else:
+                    continue
 
-                if dispersal_type:
-                    cohorts.append({
-                        "Num": cohort_num,
-                        "sporulation_start": current_sporulation_start,
-                        "sporulation_end": hr.datetime,
-                        "dispersal_datetime": hr.datetime,
-                        "dispersal_type": dispersal_type,
-                        "airborne_amount": attached_pool
-                    })
-                    cohort_num += 1
-                    attached_pool = 0.0
-                    current_sporulation_start = None
+                cohorts.append({
+                    "Num": cohort_num,
+                    "dispersal_datetime": hr.datetime,
+                    "dispersal_type": dtype,
+                    "airborne_amount": attached_pool
+                })
+                cohort_num += 1
+                attached_pool = 0.0
 
             inventory.append({
                 "date": day.datetime,
@@ -138,175 +152,179 @@ class FirstInfection:
     # S3. DEPOSITION
     # ======================================================
     def stage_deposition(self):
+
         dep = self.cfg["deposition"]
         cohorts = self.cs.dispersal_cohorts.copy()
 
-        cohorts["deposition_datetime"] = None
-        cohorts["deposited_amount"] = None
+        dep_dt, dep_amt = [], []
 
-        for idx, c in cohorts.iterrows():
+        for _, c in cohorts.iterrows():
+
             if c.dispersal_type == "rain":
-                cohorts.loc[idx, "deposition_datetime"] = c.dispersal_datetime
-                cohorts.loc[idx, "deposited_amount"] = c.airborne_amount
-            elif c.dispersal_type == "wind":
-                wh_after = self.wh[self.wh.datetime > c.dispersal_datetime]
-                rain = wh_after[
-                    wh_after.precip_acc_period_adjusted >= dep["rain_min"]
-                ]
-                if not rain.empty:
-                    cohorts.loc[idx, "deposition_datetime"] = rain.iloc[0].datetime
-                    cohorts.loc[idx, "deposited_amount"] = c.airborne_amount
+                dep_dt.append(c.dispersal_datetime)
+                dep_amt.append(c.airborne_amount)
+            else:
+                idx = np.searchsorted(
+                    self.time_index,
+                    np.datetime64(c.dispersal_datetime)
+                )
+                rain_idx = np.where(
+                    self.wh.iloc[idx:]["precip_acc_period_adjusted"].values
+                    >= dep["rain_min"]
+                )[0]
 
-        self.cs.deposition = cohorts.dropna(subset=["deposition_datetime"]).reset_index(drop=True)
+                if len(rain_idx) == 0:
+                    dep_dt.append(pd.NaT)
+                    dep_amt.append(np.nan)
+                else:
+                    dep_dt.append(
+                        self.wh.iloc[idx + rain_idx[0]].datetime
+                    )
+                    dep_amt.append(c.airborne_amount)
+
+        cohorts["deposition_datetime"] = dep_dt
+        cohorts["deposited_amount"] = dep_amt
+
+        self.cs.deposition = cohorts.dropna(
+            subset=["deposition_datetime"]
+        ).reset_index(drop=True)
 
     # ======================================================
     # S4. DETACHED SURVIVAL
     # ======================================================
     def stage_detached_survival(self):
+
         p = self._DETACHED_MORTALITY
         th = self.cfg["thresholds"]["min_spores"]
 
         cohorts = self.cs.deposition.copy()
-        cohorts["detached_alive_end"] = None
+        alive_end = []
 
-        for idx, c in cohorts.iterrows():
+        for _, c in cohorts.iterrows():
+
             D = c.deposited_amount
-            for _, h in self.wh[self.wh.datetime >= c.deposition_datetime].iterrows():
-                if 8 <= h.datetime.hour <= 18:
-                    VPD = (
-                        0.6108 * math.exp((17.27 * h.air_temp) / (h.air_temp + 237.3))
-                        * (1 - h.relative_humidity / 100)
-                    )
+            start = np.searchsorted(
+                self.time_index,
+                np.datetime64(c.deposition_datetime)
+            )
+
+            end_time = self.wh.datetime.iloc[-1]
+
+            for i in range(start, len(self.wh)):
+                hr = self.wh.iloc[i]
+                if 8 <= hr.datetime.hour <= 18:
                     lam = max(
                         0.0,
-                        p["b0"] - p["b1"] * VPD + p["b2"] * VPD**2
+                        p["b0"] - p["b1"] * self.VPD[i]
+                        + p["b2"] * self.VPD[i] ** 2
                     ) / 24.0
                     D *= math.exp(-lam)
                     if D < th:
-                        cohorts.loc[idx, "detached_alive_end"] = h.datetime
+                        end_time = hr.datetime
                         break
 
-            if pd.isna(cohorts.loc[idx, "detached_alive_end"]):
-                cohorts.loc[idx, "detached_alive_end"] = self.wh.datetime.iloc[-1]
+            alive_end.append(end_time)
 
+        cohorts["detached_alive_end"] = alive_end
         self.cs.detached_survival = cohorts.reset_index(drop=True)
 
     # ======================================================
-    # S5–S7. PRIMARY CHAIN (SURVIVOR-ONLY)
+    # S5–S7. PRIMARY CHAIN (EARLY STOP)
     # ======================================================
     def stage_primary_chain(self):
 
         inf = self.cfg["infection"]
         inc = self.cfg["incubation"]
-        mol = self.cfg["zoospore_alive"]
         inc_fix = self._INCUBATION_PARAMS
 
-        cohorts = self.cs.detached_survival.copy()
-        successful = []
+        results = []
+        earliest_infection = None
 
-        for _, c in cohorts.iterrows():
+        for _, c in self.cs.detached_survival.iterrows():
 
-            # ---------- zoospore release ----------
-            wh = self.wh[
-                (self.wh.datetime >= c.deposition_datetime) &
-                (self.wh.datetime <= c.detached_alive_end)
-            ].copy()
+            start = np.searchsorted(
+                self.time_index,
+                np.datetime64(c.deposition_datetime)
+            )
+            end = np.searchsorted(
+                self.time_index,
+                np.datetime64(c.detached_alive_end)
+            )
 
-            wh["wet"] = wh.precip_acc_period_adjusted > 0
-            wh["grp"] = (wh.wet != wh.wet.shift()).cumsum()
+            wet = self.wet[start:end]
+            if not wet.any():
+                continue
 
+            grp = np.cumsum(wet != np.roll(wet, 1))
             release_time = None
-            for _, gp in wh[wh.wet].groupby("grp"):
-                gp = gp.copy()
-                gp["WDh"] = range(1, len(gp) + 1)
-                gp["TWDh"] = gp.air_temp.expanding().mean()
-                WDmin = gp["TWDh"].apply(
-                    lambda T: math.exp((-1.022 + 19.634) / T) if T > 0 else math.inf
-                )
-                if (gp["WDh"] >= WDmin).any():
-                    release_time = gp.loc[(gp["WDh"] >= WDmin).idxmax(), "datetime"]
+
+            for g in np.unique(grp[wet]):
+                idxs = np.where((grp == g) & wet)[0]
+                T = self.wh.iloc[start:end].iloc[idxs]["air_temp"].values
+                WD = np.arange(1, len(idxs) + 1)
+                TWD = np.cumsum(T) / WD
+
+                with np.errstate(divide="ignore"):
+                    WDmin = np.exp((-1.022 + 19.634) / TWD)
+
+                if (WD >= WDmin).any():
+                    release_time = self.wh.iloc[
+                        start + idxs[np.argmax(WD >= WDmin)]
+                    ].datetime
                     break
 
             if release_time is None:
                 continue
 
-            # ---------- zoospore survival ----------
-            ceil_release = release_time.ceil("h")
-            wh2 = self.wh[self.wh.datetime > ceil_release].copy()
-
-            wh2["VPD"] = wh2.apply(
-                lambda x: (1 - x.relative_humidity / 100)
-                * 6.11
-                * math.exp((17.47 * x.air_temp) / (239 + x.air_temp)),
-                axis=1
+            start2 = np.searchsorted(
+                self.time_index,
+                np.datetime64(release_time)
             )
-
-            wh2["alive"] = wh2.apply(
-                lambda x: 1 if (
-                    x.precip_acc_period_adjusted >= mol["rain"]
-                    or x.VPD <= mol["vpd"]
-                ) else 0,
-                axis=1
-            )
-
-            dead = wh2[wh2.alive == 0]
-            alive_end = dead.iloc[0].datetime if not dead.empty else self.wh.datetime.iloc[-1]
-
-            # ---------- infection ----------
-            wh3 = self.wh[
-                (self.wh.datetime >= release_time) &
-                (self.wh.datetime <= alive_end)
-            ].copy()
-
-            wh3["wet"] = wh3.precip_acc_period_adjusted > 0
-            wh3["grp"] = (wh3.wet != wh3.wet.shift()).cumsum()
+            wet2 = self.wet[start2:]
+            grp2 = np.cumsum(wet2 != np.roll(wet2, 1))
 
             infection_time = None
-            for _, gp in wh3[wh3.wet].groupby("grp"):
-                gp = gp.copy()
-                gp["WDh"] = range(1, len(gp) + 1)
-                gp["TWDh"] = gp.air_temp.expanding().mean()
-                if (gp["WDh"] * gp["TWDh"] >= inf["infection_condition"]).any():
-                    infection_time = gp.loc[
-                        (gp["WDh"] * gp["TWDh"] >= inf["infection_condition"]).idxmax(),
-                        "datetime"
-                    ]
+            for g in np.unique(grp2[wet2]):
+                idxs = np.where((grp2 == g) & wet2)[0]
+                T = self.wh.iloc[start2:].iloc[idxs]["air_temp"].values
+                WD = np.arange(1, len(idxs) + 1)
+                TWD = np.cumsum(T) / WD
+
+                if (WD * TWD >= inf["infection_condition"]).any():
+                    infection_time = self.wh.iloc[
+                        start2 + idxs[np.argmax(WD * TWD >= inf["infection_condition"])]
+                    ].datetime
                     break
 
             if infection_time is None:
                 continue
 
-            # ---------- incubation ----------
-            wh4 = self.wh[self.wh.datetime >= infection_time].copy()
+            if earliest_infection is None:
+                earliest_infection = infection_time
+            elif infection_time >= earliest_infection:
+                break
 
-            wh4["INC1"] = 1 / (
-                24 * (inc_fix["a1"] - inc_fix["b1"] * wh4.air_temp + inc_fix["c1"] * wh4.air_temp**2)
-            )
-            wh4["INC2"] = 1 / (
-                24 * (inc_fix["a2"] - inc_fix["b2"] * wh4.air_temp + inc_fix["c2"] * wh4.air_temp**2)
-            )
+            sub = self.wh[self.wh.datetime >= infection_time]
+            T = sub["air_temp"].values
 
-            wh4["INC1_cum"] = wh4.INC1.cumsum()
-            wh4["INC2_cum"] = wh4.INC2.cumsum()
+            INC1 = 1 / (24 * (inc_fix["a1"] - inc_fix["b1"] * T + inc_fix["c1"] * T ** 2))
+            INC2 = 1 / (24 * (inc_fix["a2"] - inc_fix["b2"] * T + inc_fix["c2"] * T ** 2))
 
-            oil_spot_start = wh4.loc[
-                wh4.INC1_cum >= inc["spl_end"], "datetime"
-            ].min()
+            c1 = np.cumsum(INC1)
+            c2 = np.cumsum(INC2)
 
-            oil_spot_end = wh4.loc[
-                wh4.INC2_cum >= inc["spl_end"], "datetime"
-            ].min()
+            idx1 = np.where(c1 >= inc["spl_end"])[0]
+            idx2 = np.where(c2 >= inc["spl_end"])[0]
 
-            if pd.isna(oil_spot_start) or pd.isna(oil_spot_end):
+            if len(idx1) == 0 or len(idx2) == 0:
                 continue
 
-            # ===== SUCCESSFUL COHORT =====
-            row = c.copy()
-            row["zoospore_release_datetime"] = release_time
-            row["infection_datetime"] = infection_time
-            row["oil_spot_start"] = oil_spot_start
-            row["oil_spot_end"] = oil_spot_end
+            results.append({
+                **c.to_dict(),
+                "zoospore_release_datetime": release_time,
+                "infection_datetime": infection_time,
+                "oil_spot_start": sub.iloc[idx1[0]].datetime,
+                "oil_spot_end": sub.iloc[idx2[0]].datetime
+            })
 
-            successful.append(row)
-
-        self.cs.primary_chain = pd.DataFrame(successful).reset_index(drop=True)
+        self.cs.primary_chain = pd.DataFrame(results)
