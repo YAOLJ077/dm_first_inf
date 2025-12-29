@@ -2,18 +2,19 @@
 """
 Sobol sensitivity analysis for FIRST infection model (ONLY architecture)
 ========================================================================
-- Parallel over Sobol samples
-- Memory-only simulation (NO stage outputs)
-- FIRST infection EVENT based on:
-    primary_chain_unique
-- Error defined on FIRST effective oil-spot window (DOY-based)
+Enhancements:
+- MAE (absolute error)
+- Signed error (early / late bias)
+- Failure rate (no FIRST infection event)
+- Sobol analysis on all three metrics
+- Memory-only simulation
 """
 
 import os
 import sys
 import json
 import copy
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 import numpy as np
 import pandas as pd
@@ -46,10 +47,10 @@ from model.config import config
 # ======================================================
 # GLOBAL SETTINGS
 # ======================================================
-N_JOBS = min(2, os.cpu_count())
+N_JOBS = min(32, os.cpu_count())
 RANDOM_SEED = 42
 PENALTY_DAYS = 30.0
-SAMPLE_SIZES = [32]
+SAMPLE_SIZES = [512, 1024, 2048]
 
 # ======================================================
 # PARAMETER SPACE (UNCHANGED)
@@ -73,9 +74,6 @@ PARAM_RANGES = {
 # LOAD ACTUAL DATA
 # ======================================================
 def load_actual() -> pd.DataFrame:
-    if not os.path.exists(ACTUAL_DATA_PATH):
-        raise FileNotFoundError(ACTUAL_DATA_PATH)
-
     df = pd.read_excel(ACTUAL_DATA_PATH)
     df["first_infection_date"] = pd.to_datetime(df["first_infection_date"])
     return df
@@ -99,14 +97,14 @@ def to_doy(dt) -> int:
     return pd.to_datetime(dt).dayofyear
 
 # ======================================================
-# ERROR FUNCTION (EVENT-BASED, DOY)
+# ERROR FUNCTION (EVENT-BASED)
 # ======================================================
 def calc_error(actual_date, event_df: pd.DataFrame) -> float:
     """
-    Compare observed FIRST infection date with
-    simulated FIRST infection EVENT window.
+    Signed error in DOY:
+    negative → simulated earlier
+    positive → simulated later
     """
-
     if event_df is None or event_df.empty:
         return np.nan
 
@@ -140,7 +138,11 @@ def load_rb_cached(rb_path: str) -> dict:
 # ======================================================
 # SOBOL EVALUATION
 # ======================================================
-def evaluate(X: np.ndarray, param_names: List[str], actual_df: pd.DataFrame) -> np.ndarray:
+def evaluate(
+    X: np.ndarray,
+    param_names: List[str],
+    actual_df: pd.DataFrame
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
 
     rows = list(actual_df.itertuples(index=False))
     n_samples = len(X)
@@ -148,19 +150,24 @@ def evaluate(X: np.ndarray, param_names: List[str], actual_df: pd.DataFrame) -> 
     def run_one_sample(i):
 
         cfg = apply_params(config, X[i], param_names)
-        errs = []
+
+        signed_errs = []
+        abs_errs = []
+        n_total = 0
+        n_valid = 0
 
         for row in rows:
             key = f"{row.plot}_{row.variety}_{row.first_infection_date.year}"
             rb_path = os.path.join(DATA_DIR, f"{key}_grape_rb.json")
-
             if not os.path.exists(rb_path):
                 continue
+
+            n_total += 1
 
             try:
                 rb = load_rb_cached(rb_path)
                 cs = CropSeasonFirst(csrb=rb, config=cfg)
-                cs.simulate()   # memory-only
+                cs.simulate()
 
                 e = calc_error(
                     row.first_infection_date,
@@ -168,17 +175,23 @@ def evaluate(X: np.ndarray, param_names: List[str], actual_df: pd.DataFrame) -> 
                 )
 
                 if np.isfinite(e):
-                    errs.append(abs(e))
+                    signed_errs.append(e)
+                    abs_errs.append(abs(e))
+                    n_valid += 1
 
             except Exception:
                 continue
 
-        if len(errs) == 0:
-            return PENALTY_DAYS
+        if n_valid == 0:
+            return PENALTY_DAYS, PENALTY_DAYS, 1.0
 
-        return float(np.mean(errs))
+        return (
+            float(np.mean(abs_errs)),                # MAE
+            float(np.mean(signed_errs)),             # signed bias
+            1.0 - n_valid / max(1, n_total)          # failure rate
+        )
 
-    Y = Parallel(
+    results = Parallel(
         n_jobs=N_JOBS,
         backend="loky",
         batch_size=1,
@@ -188,7 +201,8 @@ def evaluate(X: np.ndarray, param_names: List[str], actual_df: pd.DataFrame) -> 
         for i in tqdm(range(n_samples), desc="Sobol samples")
     )
 
-    return np.asarray(Y, dtype=float)
+    results = np.asarray(results)
+    return results[:, 0], results[:, 1], results[:, 2]
 
 # ======================================================
 # MAIN
@@ -212,35 +226,34 @@ def main():
         print(f"\n=== Sobol N={N} ===")
 
         X = sobol_sample.sample(problem, N, calc_second_order=False)
-        Y = evaluate(X, param_names, actual_df)
+        Y_mae, Y_signed, Y_fail = evaluate(X, param_names, actual_df)
 
-        print(
-            "Y summary:",
-            "NaN =", np.isnan(Y).sum(),
-            "Inf =", np.isinf(Y).sum(),
-            "Std =", np.std(Y)
-        )
+        for label, Y in zip(
+            ["MAE", "Signed", "Failure"],
+            [Y_mae, Y_signed, Y_fail]
+        ):
+            print(f"{label}: mean={np.mean(Y):.2f}, std={np.std(Y):.2f}")
 
-        Si = sobol_analyze.analyze(
-            problem,
-            Y,
-            calc_second_order=False,
-            print_to_console=True
-        )
+            Si = sobol_analyze.analyze(
+                problem,
+                Y,
+                calc_second_order=False,
+                print_to_console=False
+            )
 
-        df = pd.DataFrame({
-            "Parameter": param_names,
-            "S1": Si["S1"],
-            "ST": Si["ST"],
-        }).sort_values("ST", ascending=False)
+            df = pd.DataFrame({
+                "Parameter": param_names,
+                "S1": Si["S1"],
+                "ST": Si["ST"],
+            }).sort_values("ST", ascending=False)
 
-        out = os.path.join(
-            RESULT_DIR,
-            f"sobol_first_inf_ONLY_DOY_N{N}.xlsx"
-        )
+            out = os.path.join(
+                RESULT_DIR,
+                f"sobol_first_inf_ONLY_{label}_N{N}.xlsx"
+            )
 
-        df.to_excel(out, index=False)
-        print(f"Saved: {out}")
+            df.to_excel(out, index=False)
+            print(f"Saved: {out}")
 
 if __name__ == "__main__":
     main()
