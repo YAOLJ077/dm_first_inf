@@ -30,6 +30,45 @@ RB_FILES = [
 ]
 
 DATA_DIR = os.path.join(PROJECT_ROOT, "data")
+ACTUAL_DATA_PATH = os.path.join(DATA_DIR, "actual_data.xlsx")
+
+# --------------------------------------------------
+# load actual FIRST infection data
+# --------------------------------------------------
+actual_df = pd.read_excel(ACTUAL_DATA_PATH)
+actual_df["bbch_date"] = pd.to_datetime(actual_df["bbch_date"], errors="coerce")
+actual_df["first_infection_date"] = pd.to_datetime(
+    actual_df["first_infection_date"], errors="coerce"
+)
+
+# --------------------------------------------------
+# utility: DOY
+# --------------------------------------------------
+def to_doy(dt):
+    if pd.isna(dt):
+        return None
+    return pd.to_datetime(dt).dayofyear
+
+# --------------------------------------------------
+# utility: signed error (DOY, event-based)
+# --------------------------------------------------
+def calc_signed_error(actual_date, oil_start, oil_end):
+    if pd.isna(actual_date) or pd.isna(oil_start) or pd.isna(oil_end):
+        return None
+
+    doy_actual = to_doy(actual_date)
+    doy_start = to_doy(oil_start)
+    doy_end = to_doy(oil_end)
+
+    if doy_actual is None or doy_start is None or doy_end is None:
+        return None
+
+    if doy_end < doy_actual:
+        return doy_end - doy_actual      # negative → model earlier
+    elif doy_start > doy_actual:
+        return doy_start - doy_actual    # positive → model later
+    else:
+        return 0.0
 
 # --------------------------------------------------
 # result container
@@ -50,29 +89,40 @@ for rb_name in RB_FILES:
         rb = json.load(f)
 
     city = rb.get("Place", "NA")
-    year = rb.get("year", "NA")
-    bbch_53 = pd.to_datetime(rb.get("HHCH_53"), errors="coerce")
+    year = rb.get("year", None)
 
     # --------------------------------------------------
-    # run FIRST infection model (full biological process)
+    # find actual data row (plot + year)
+    # --------------------------------------------------
+    row_act = actual_df[
+        (actual_df["plot"] == city) &
+        (actual_df["first_infection_date"].dt.year == year)
+    ]
+
+    if row_act.empty:
+        bbch_date = None
+        actual_date = None
+    else:
+        row_act = row_act.iloc[0]
+        bbch_date = row_act["bbch_date"]
+        actual_date = row_act["first_infection_date"]
+
+    # --------------------------------------------------
+    # run FIRST infection model
     # --------------------------------------------------
     crop_season = CropSeasonFirst(csrb=rb, config=config)
     crop_season.simulate()
 
-    # ==================================================
-    # USAGE LAYER: read FINAL survivor-only state
-    # ==================================================
     df = crop_season.primary_chain
 
     if df is None or df.empty:
         oil_start, oil_end = None, None
-
     else:
         df_eff = df.copy()
 
-        # ---------- phenology gate (INTENTIONALLY HERE) ----------
-        if pd.notna(bbch_53):
-            df_eff = df_eff[df_eff["oil_spot_start"] >= bbch_53]
+        # ---------- phenology gate: observed BBCH date ----------
+        if pd.notna(bbch_date):
+            df_eff = df_eff[df_eff["oil_spot_start"] >= bbch_date]
 
         if df_eff.empty:
             oil_start, oil_end = None, None
@@ -81,12 +131,19 @@ for rb_name in RB_FILES:
             oil_start = first["oil_spot_start"]
             oil_end = first["oil_spot_end"]
 
+    # --------------------------------------------------
+    # compute signed error
+    # --------------------------------------------------
+    error = calc_signed_error(actual_date, oil_start, oil_end)
+
     results.append([
         city,
         year,
-        bbch_53,
+        bbch_date,
         oil_start,
-        oil_end
+        oil_end,
+        actual_date,
+        error
     ])
 
 # --------------------------------------------------
@@ -95,13 +152,15 @@ for rb_name in RB_FILES:
 out_df = pd.DataFrame(
     results,
     columns=[
-        "city",
+        "plot",
         "year",
-        "date_bbch_53",
+        "bbch_date_actual",
         "oil_spot_start",
-        "oil_spot_end"
+        "oil_spot_end",
+        "actual_first_infection",
+        "signed_error_DOY"
     ]
 )
 
-print("\n=== First infection summary (current parameter set) ===")
+print("\n=== First infection summary (model vs actual) ===")
 print(out_df.to_string(index=False))

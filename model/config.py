@@ -1,7 +1,7 @@
 config = {
 
     "mp_tmp": {
-        "rh_wet_night": 90    # 夜间湿润度判定阈值（决定夜晚是否、何时达到湿润标准）
+        "rh_wet_night": 80    # 95 夜间湿润度判定阈值（决定夜晚是否、何时达到湿润标准）
     },
 
     "sporulation": {
@@ -29,7 +29,7 @@ config = {
 
 
     "infection": {
-        "infection_condition": 60   # WDh × TWDh
+        "infection_condition": 80   # WDh × TWDh
     },
 
 
