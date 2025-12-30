@@ -205,7 +205,7 @@ class FirstInfection:
             D = c.deposited_amount
             start = np.searchsorted(
                 self.time_index,
-                np.datetime64(c.deposition_datetime)
+                np.datetime64(c.dispersal_datetime)
             )
 
             end_time = self.wh.datetime.iloc[-1]
@@ -250,6 +250,8 @@ class FirstInfection:
                 self.time_index,
                 np.datetime64(c.detached_alive_end)
             )
+            if start >= end:
+                continue
 
             wet = self.wet[start:end]
             if not wet.any():

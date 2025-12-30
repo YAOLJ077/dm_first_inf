@@ -164,3 +164,20 @@ out_df = pd.DataFrame(
 
 print("\n=== First infection summary (model vs actual) ===")
 print(out_df.to_string(index=False))
+
+# --------------------------------------------------
+# summary statistics
+# --------------------------------------------------
+valid_errors = out_df["signed_error_DOY"].dropna()
+
+if valid_errors.empty:
+    print("\n⚠️ No valid error values to compute MAE.")
+else:
+    mae = valid_errors.abs().mean()
+    mean_signed = valid_errors.mean()
+
+    print("\n=== Error summary ===")
+    print(f"Number of valid cases : {len(valid_errors)}")
+    print(f"Mean signed error (DOY): {mean_signed:.2f}")
+    print(f"MAE (DOY)              : {mae:.2f}")
+
