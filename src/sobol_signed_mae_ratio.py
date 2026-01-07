@@ -21,10 +21,10 @@ os.makedirs(OUT_DIR, exist_ok=True)
 # INPUT FILES (N=2048)
 # ======================================================
 MAE_FILE = os.path.join(
-    SOBOL_DIR, "sobol_first_inf_ONLY_MAE_N2048.xlsx"
+    SOBOL_DIR, "sobol_first_inf_ONLY_MAE_N2048_process_change.xlsx"
 )
 SIGNED_FILE = os.path.join(
-    SOBOL_DIR, "sobol_first_inf_ONLY_Signed_N2048.xlsx"
+    SOBOL_DIR, "sobol_first_inf_ONLY_Signed_N2048_process_change.xlsx"
 )
 
 # ======================================================
@@ -67,8 +67,8 @@ df = df.sort_values("ST_ratio_Signed_over_MAE", ascending=False)
 # ======================================================
 # SAVE
 # ======================================================
-out_csv = os.path.join(OUT_DIR, "sobol_ST_ratio_signed_over_mae_N2048.csv")
-out_xlsx = os.path.join(OUT_DIR, "sobol_ST_ratio_signed_over_mae_N2048.xlsx")
+out_csv = os.path.join(OUT_DIR, "sobol_ST_ratio_signed_over_mae_N2048_process_change.csv")
+out_xlsx = os.path.join(OUT_DIR, "sobol_ST_ratio_signed_over_mae_N2048_process_change.xlsx")
 
 df.to_csv(out_csv, index=False)
 df.to_excel(out_xlsx, index=False)

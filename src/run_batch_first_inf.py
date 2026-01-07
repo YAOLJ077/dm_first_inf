@@ -14,7 +14,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(SRC_DIR, ".."))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from model.crop_season_only import CropSeasonFirst
+from model.crop_season import CropSeasonFirst
 from model.config import config
 
 # --------------------------------------------------

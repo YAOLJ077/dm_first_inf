@@ -55,19 +55,19 @@ os.makedirs(FIG_DIR, exist_ok=True)
 # LOAD DATA
 # ======================================================
 df_mae_all = pd.read_excel(
-    os.path.join(SOBOL_DIR, "sobol_first_inf_ONLY_MAE_N2048.xlsx")
+    os.path.join(SOBOL_DIR, "sobol_first_inf_ONLY_MAE_N2048_process_change.xlsx")
 )
 df_signed_all = pd.read_excel(
-    os.path.join(SOBOL_DIR, "sobol_first_inf_ONLY_Signed_N2048.xlsx")
+    os.path.join(SOBOL_DIR, "sobol_first_inf_ONLY_Signed_N2048_process_change.xlsx")
 )
 df_ratio_all = pd.read_csv(
-    os.path.join(DERIVED_DIR, "sobol_ST_ratio_signed_over_mae_N2048.csv")
+    os.path.join(DERIVED_DIR, "sobol_ST_ratio_signed_over_mae_N2048_process_change.csv")
 )
 
 # ======================================================
 # (a)
 # ======================================================
-df_a = df_mae_all.sort_values("ST", ascending=False).head(8).copy()
+df_a = df_mae_all.sort_values("ST", ascending=False).head(11).copy()
 df_a["abbr"] = df_a["Parameter"].apply(param_to_abbr)
 order_a = df_a["abbr"].tolist()
 
@@ -89,7 +89,7 @@ df_c = df_ratio_all.copy()
 RATIO_COL = "ST_ratio_Signed_over_MAE"
 
 # 1️⃣ 删 Parameter（第一道闸）
-DROP_PARAMS = {"STOP", "STMA", "ZVPD", "ZARA"}
+DROP_PARAMS = {"ZARA"}
 df_c = df_c[~df_c["Parameter"].isin(DROP_PARAMS)].copy()
 
 # 2️⃣ 只保留合法 role
@@ -177,7 +177,7 @@ for ax in axes:
 
 plt.tight_layout(h_pad=0.8)
 
-out_png = os.path.join(FIG_DIR, "Fig_Sobol_Combined_FINAL.png")
+out_png = os.path.join(FIG_DIR, "Fig_Sobol_Combined_FINAL_process_change.png")
 plt.savefig(out_png, dpi=300, format="png", bbox_inches="tight")
 
 plt.show()

@@ -1,0 +1,4 @@
+fold,baseline_mae,obs_gated_mae,n_baseline,n_obs,delta_mae
+1,8.0,8.0,1,1,0.0
+2,5.0,5.0,1,1,0.0
+3,7.0,158.0,1,1,-151.0

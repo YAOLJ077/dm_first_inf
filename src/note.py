@@ -25,3 +25,112 @@ S8: SUZ ----- Zoospore Survival Period
 S9: INF ----- Infection Event
 S10: Incubation -----Oil Spot
 '''
+
+
+'''
+For each sporangia cohort:
+
+  ┌─[A] sporangia alive window (from dispersal → sporangia_alive_end)
+  │
+  │   ┌─[B] deposition must occur inside [A]
+  │   │
+  │   │   ┌─[C] zoospore release
+  │   │   │   - only inside [A]
+  │   │   │   - requires leaf wetness
+  │   │   │   - requires WD ≥ WDmin(TWD)
+  │   │   │
+  │   │   │   ┌─[D] zoospore survival window (SUZ)
+  │   │   │   │   - start = release_datetime
+  │   │   │   │   - end   = first dry leaf
+  │   │   │   │
+  │   │   │   │   ┌─[E] infection
+  │   │   │   │   │   - only inside SUZ
+  │   │   │   │   │   - WD x TWD ≥ threshold
+  │   │   │   │   │
+  │   │   │   │   └─ success → incubation
+
+'''
+
+'''
+时间 ─────────────────────────────────────────────────────────────────▶
+
+[Attached pool on leaf]
+        │
+        │  夜间湿润 + Tmin < T < Tmax
+        ▼
+┌──────────────────────┐
+│ Sporulation (S1)     │  ← 累积 attached_pool
+└──────────────────────┘
+        │
+        │  rain ≥ dispersal.rain_min
+        │  或 wind ≥ dispersal.wind_min
+        ▼
+┌──────────────────────┐
+│ Dispersal event      │  ← dispersal_datetime
+│ (rain / wind)        │
+└──────────────────────┘
+        │
+        │  S4:脱离态孢子囊存活开始
+        │  （连续死亡,VPD 驱动）
+        ▼
+┌────────────────────────────────────────────┐
+│ Sporangia survival window (S4)              │
+│ D(t+1)=D(t)*exp(-λ(VPD))                     │
+│                                              │
+│ 有效窗口：                                  │
+│ [dispersal_datetime , sporangia_alive_end]  │
+└────────────────────────────────────────────┘
+        │
+        │  若是 wind-dispersal:
+        │  需要 rain ≥ deposition.rain_min
+        ▼
+┌──────────────────────┐
+│ Deposition           │  ← deposition_datetime
+│ (rain gate)          │
+└──────────────────────┘
+        │
+        │  ⚠ 注意：释放只能在 sporangia 仍活着时发生
+        ▼
+┌────────────────────────────────────────────┐
+│ Zoospore release window (S5)                 │
+│ 条件：                                      │
+│  - leaf wet (rain 或 VPD ≤ thr)              │
+│  - WD ≥ exp((-1.022+19.634)/TWD)              │
+│                                              │
+│ 释放时间： zoospore_release_datetime         │
+└────────────────────────────────────────────┘
+        │
+        │  释放瞬间 → 游动孢子诞生
+        ▼
+┌────────────────────────────────────────────┐
+│ Zoospore survival window (SUZ, S6)           │
+│ 条件：                                      │
+│  - leaf wet (rain 或 VPD ≤ thr)              │
+│                                              │
+│ 有效窗口：                                  │
+│ [release_datetime , suz_end]                 │
+│ suz_end = 第一次“叶片变干”的时刻            │
+└────────────────────────────────────────────┘
+        │
+        │  ⚠ infection 必须发生在 SUZ 内
+        ▼
+┌────────────────────────────────────────────┐
+│ Infection window (S7)                        │
+│ 条件：                                      │
+│  - leaf wet                                 │
+│  - WD x TWD ≥ infection_condition           │
+│                                              │
+│ infection_datetime                          │
+└────────────────────────────────────────────┘
+        │
+        │
+        ▼
+┌──────────────────────┐
+│ Incubation           │
+│ (thermal accumulation)│
+└──────────────────────┘
+        │
+        ▼
+ oil_spot_start  ──►  oil_spot_end
+
+'''

@@ -1,20 +1,20 @@
 {
   "best_params": {
-    "mp_tmp__rh_wet_night": 80.0,
+    "mp_tmp__rh_wet_night": 96.0,
     "sporulation__MP_min": 3.0,
     "sporulation__Tmin": 8.0,
     "sporulation__Topt": 20.0,
-    "sporulation__Tmax": 30.0,
-    "dispersal__rain_min": 2.0,
-    "dispersal__wind_min": 2.0,
-    "deposition__rain_min": 8.0,
+    "sporulation__Tmax": 28.0,
+    "dispersal__rain_min": 16.0,
+    "dispersal__wind_min": 4.0,
+    "deposition__rain_min": 10.0,
     "zoospore_alive__rain": 2.0,
-    "zoospore_alive__vpd": 2.0,
-    "infection__infection_condition": 66.66666666666667,
-    "incubation__spl_end": 1.2
+    "zoospore_alive__vpd": 1.0,
+    "infection__infection_condition": 200.0,
+    "incubation__spl_end": 1.5
   },
-  "train_mae": 17.0,
-  "train_rmse": 19.63415391607186,
-  "val_mae": 34.0,
-  "val_rmse": 46.69047011971501
+  "train_mae": 6.5,
+  "train_rmse": 6.670832032063167,
+  "val_mae": 7.0,
+  "val_rmse": 7.0
 }

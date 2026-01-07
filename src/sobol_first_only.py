@@ -41,33 +41,33 @@ ACTUAL_DATA_PATH = os.path.join(DATA_DIR, "actual_data.xlsx")
 RESULT_DIR = os.path.join(PROJECT_ROOT, "result", "sobol")
 os.makedirs(RESULT_DIR, exist_ok=True)
 
-from model.crop_season_only import CropSeasonFirst
+from model.crop_season import CropSeasonFirst
 from model.config import config
 
 # ======================================================
 # GLOBAL SETTINGS
 # ======================================================
-N_JOBS = min(32, os.cpu_count())
+N_JOBS = min(64, os.cpu_count())
 RANDOM_SEED = 42
-PENALTY_DAYS = 30.0
-SAMPLE_SIZES = [512, 1024, 2048]
+PENALTY_DAYS = 60.0
+SAMPLE_SIZES = [2048]
 
 # ======================================================
 # PARAMETER SPACE (UNCHANGED)
 # ======================================================
 PARAM_RANGES = {
-    "mp_tmp__rh_wet_night": (75, 95),
-    "sporulation__MP_min": (2, 8),
-    "sporulation__Tmin": (5, 15),
-    "sporulation__Topt": (15, 25),
+    "mp_tmp__rh_wet_night": (85, 98),
+    "sporulation__MP_min": (2, 5),
+    "sporulation__Tmin": (8, 15),
+    "sporulation__Topt": (18, 24),
     "sporulation__Tmax": (25, 35),
-    "dispersal__rain_min": (1.0, 6.0),
-    "dispersal__wind_min": (1.0, 6.0),
-    "deposition__rain_min": (1.0, 6.0),
-    "zoospore_alive__rain": (1.0, 6.0),
-    "zoospore_alive__vpd": (1.0, 6.0),
-    "infection__infection_condition": (40, 120),
-    "incubation__spl_end": (0.8, 1.2),
+    "dispersal__rain_min": (6.0, 15.0),
+    "dispersal__wind_min": (3.0, 12.0),
+    "deposition__rain_min": (2.0, 10.0),
+    "zoospore_alive__rain": (1.0, 3.0),
+    "zoospore_alive__vpd": (1.0, 3.0),
+    "infection__infection_condition": (50, 200),
+    "incubation__spl_end": (1.0, 1.5)
 }
 
 # ======================================================
@@ -249,7 +249,7 @@ def main():
 
             out = os.path.join(
                 RESULT_DIR,
-                f"sobol_first_inf_ONLY_{label}_N{N}.xlsx"
+                f"sobol_first_inf_ONLY_{label}_N{N}_process_change.xlsx"
             )
 
             df.to_excel(out, index=False)

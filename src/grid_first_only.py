@@ -46,14 +46,14 @@ ACTUAL_DATA_PATH = os.path.join(DATA_DIR, "actual_data.xlsx")
 OUT_DIR = os.path.join(PROJECT_ROOT, "result", "grid")
 os.makedirs(OUT_DIR, exist_ok=True)
 
-from model.crop_season_only import CropSeasonFirst
+from model.crop_season import CropSeasonFirst
 from model.config import config as BASE_CONFIG
 
 # ======================================================
 # GLOBAL SETTINGS
 # ======================================================
 RANDOM_SEED = 42
-PENALTY_DAYS = 30.0
+PENALTY_DAYS = 60.0
 
 N_CPUS = min(128, os.cpu_count() or 64)
 BATCH_SIZE = 2000
@@ -79,18 +79,18 @@ if not ray.is_initialized():
 # Multiple values -> tuned
 # ======================================================
 PARAM_GRID = {
-    "mp_tmp__rh_wet_night": np.linspace(80, 95, 4),
-    "sporulation__MP_min": np.linspace(3, 6, 4),
-    "sporulation__Tmin": np.linspace(8, 14, 4),
+    "mp_tmp__rh_wet_night": np.linspace(90, 98, 5),
+    "sporulation__MP_min": np.linspace(3, 5, 3),
+    "sporulation__Tmin": [8],
     "sporulation__Topt": [20],
-    "sporulation__Tmax": [30],
-    "dispersal__rain_min": np.linspace(2.0, 6.0, 3),
-    "dispersal__wind_min": np.linspace(2.0, 6.0, 3),
-    "deposition__rain_min": np.linspace(2.0, 10.0, 5),
+    "sporulation__Tmax": np.linspace(28, 34, 3),
+    "dispersal__rain_min": np.linspace(8.0, 16.0, 5),
+    "dispersal__wind_min": np.linspace(4.0, 12.0, 5),
+    "deposition__rain_min": np.linspace(4.0, 10.0, 4),
     "zoospore_alive__rain": [2.0],
-    "zoospore_alive__vpd": np.linspace(2.0, 4.0, 2),
-    "infection__infection_condition": np.linspace(40, 80, 4),
-    "incubation__spl_end": np.linspace(0.8, 1.2, 4)
+    "zoospore_alive__vpd": np.linspace(1, 3, 5),
+    "infection__infection_condition": np.linspace(120, 200, 5),
+    "incubation__spl_end": [1.5]
 }
 
 # PARAM_GRID = {
