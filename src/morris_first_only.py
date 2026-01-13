@@ -49,15 +49,16 @@ RANDOM_SEED = 42
 PENALTY_DAYS = 60.0
 
 # Morris settings
-N_TRAJ = 128
+N_TRAJ_LIST = [256, 512]
 NUM_LEVELS = 6
+SEEDS = [42, 123, 2024]
 OPT_TRAJ = None  # set int to optimize trajectories
 
 # ======================================================
 # PARAMETER SPACE
 # ======================================================
 PARAM_RANGES = {
-    "mp_tmp__rh_wet_night": (85, 95),
+    "mp_tmp__rh_wet_night": (85, 98),
     "sporulation__MP_min": (3, 6),
     "sporulation__Tmin": (8, 15),
     "sporulation__Topt": (18, 24),
@@ -198,7 +199,6 @@ def evaluate(
 # MAIN
 # ======================================================
 def main():
-    np.random.seed(RANDOM_SEED)
     actual_df = load_actual()
 
     param_names = list(PARAM_RANGES.keys())
@@ -210,42 +210,70 @@ def main():
         "bounds": bounds
     }
 
-    print(f"\n=== Morris N_TRAJ={N_TRAJ}, NUM_LEVELS={NUM_LEVELS} ===")
+    summary_rows = []
 
-    X = morris_sample.sample(
-        problem,
-        N_TRAJ,
-        num_levels=NUM_LEVELS,
-        optimal_trajectories=OPT_TRAJ,
-        seed=RANDOM_SEED
-    )
+    for n_traj in N_TRAJ_LIST:
+        for seed in SEEDS:
+            np.random.seed(seed)
+            print(
+                f"\n=== Morris N_TRAJ={n_traj}, "
+                f"NUM_LEVELS={NUM_LEVELS}, SEED={seed} ==="
+            )
 
-    Y_mae, Y_signed = evaluate(X, param_names, actual_df)
+            X = morris_sample.sample(
+                problem,
+                n_traj,
+                num_levels=NUM_LEVELS,
+                optimal_trajectories=OPT_TRAJ,
+                seed=seed
+            )
 
-    for label, Y in [("MAE", Y_mae), ("Signed", Y_signed)]:
-        print(f"{label}: mean={np.mean(Y):.2f}, std={np.std(Y):.2f}")
+            Y_mae, Y_signed = evaluate(X, param_names, actual_df)
 
-        Si = morris_analyze.analyze(
-            problem,
-            X,
-            Y,
-            num_levels=NUM_LEVELS,
-            print_to_console=False
-        )
+            for label, Y in [("MAE", Y_mae), ("Signed", Y_signed)]:
+                print(f"{label}: mean={np.mean(Y):.2f}, std={np.std(Y):.2f}")
 
-        df = pd.DataFrame({
-            "Parameter": param_names,
-            "mu": Si["mu"],
-            "mu_star": Si["mu_star"],
-            "sigma": Si["sigma"],
-        }).sort_values("mu_star", ascending=False)
+                Si = morris_analyze.analyze(
+                    problem,
+                    X,
+                    Y,
+                    num_levels=NUM_LEVELS,
+                    print_to_console=False
+                )
 
-        out = os.path.join(
+                df = pd.DataFrame({
+                    "Parameter": param_names,
+                    "mu": Si["mu"],
+                    "mu_star": Si["mu_star"],
+                    "sigma": Si["sigma"],
+                }).sort_values("mu_star", ascending=False)
+
+                out = os.path.join(
+                    RESULT_DIR,
+                    f"morris_first_inf_ONLY_{label}_N{n_traj}_seed{seed}.xlsx"
+                )
+                df.to_excel(out, index=False)
+                print(f"Saved: {out}")
+
+                for _, r in df.iterrows():
+                    summary_rows.append({
+                        "N_TRAJ": n_traj,
+                        "seed": seed,
+                        "metric": label,
+                        "Parameter": r["Parameter"],
+                        "mu": r["mu"],
+                        "mu_star": r["mu_star"],
+                        "sigma": r["sigma"],
+                    })
+
+    if summary_rows:
+        summary_df = pd.DataFrame(summary_rows)
+        summary_out = os.path.join(
             RESULT_DIR,
-            f"morris_first_inf_ONLY_{label}_N{N_TRAJ}.xlsx"
+            "morris_first_inf_summary.csv"
         )
-        df.to_excel(out, index=False)
-        print(f"Saved: {out}")
+        summary_df.to_csv(summary_out, index=False)
+        print(f"Saved: {summary_out}")
 
 if __name__ == "__main__":
     main()
