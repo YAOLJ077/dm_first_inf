@@ -26,7 +26,7 @@ class FirstInfection:
         # ===== Rossi fixed parameters =====
         self._ATTACHED_MORTALITY = {
             "a0": 9.27, "a1": 1.12, "a2": 0.04,
-            "start_hour": 8, "end_hour": 18
+            "start_hour": 8, "end_hour": 20
         }
 
         self._DETACHED_MORTALITY = {
@@ -52,7 +52,7 @@ class FirstInfection:
         RH = wh["relative_humidity"].values
 
         self.VPD = (
-            0.6108 * np.exp((17.27 * T) / (T + 237.3))
+            6.11 * np.exp((17.47 * T) / (239 + T))
             * (1 - RH / 100)
         )
 
@@ -254,7 +254,7 @@ class FirstInfection:
 
         # primary-style leaf wetness (USED ONLY FOR SURVIVAL GATES)
         moisture_of_leaf = (
-            (self.wh["precip_acc_period_adjusted"].values >= rain_thr)
+            (self.wh["precip_acc_period_adjusted"].values > rain_thr)
             | (self.VPD <= vpd_thr)
         )
 
@@ -336,6 +336,7 @@ class FirstInfection:
                 np.datetime64(suz_end)
             )
 
+            wh_window = self.wh.iloc[start2:end2]
             wet2 = moisture_of_leaf[start2:end2]
             if not wet2.any():
                 continue
@@ -346,7 +347,7 @@ class FirstInfection:
             for g in np.unique(grp2[wet2]):
                 idxs = np.where((grp2 == g) & wet2)[0]
 
-                T = self.wh.iloc[start2:end2].iloc[idxs]["air_temp"].values
+                T = wh_window.iloc[idxs]["air_temp"].values
                 WD = np.arange(1, len(idxs) + 1)
                 TWD = np.cumsum(T) / WD
 
@@ -394,4 +395,3 @@ class FirstInfection:
             })
 
         self.cs.primary_chain = pd.DataFrame(results)
-

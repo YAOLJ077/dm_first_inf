@@ -16,6 +16,12 @@ class CropSeasonFirst:
         self.bbch_53_datetime = pd.to_datetime(
             csrb.get("HHCH_53"), errors="coerce"
         )
+        # Allow incubation period before BBCH53 by shifting the gate earlier.
+        self.bbch_53_gate_start = (
+            self.bbch_53_datetime - pd.Timedelta(days=7)
+            if pd.notna(self.bbch_53_datetime)
+            else pd.NaT
+        )
 
         # ===== weather =====
         self.weather_hourly = pd.DataFrame(csrb["weather_hourly"])
@@ -26,9 +32,10 @@ class CropSeasonFirst:
             self.weather_hourly["datetime"].dt.normalize()
         )
 
-        if pd.notna(self.bbch_53_datetime):
+
+        if pd.notna(self.bbch_53_gate_start):
             self.weather_hourly = self.weather_hourly[
-                self.weather_hourly["datetime"] >= self.bbch_53_datetime
+                self.weather_hourly["datetime"] >= self.bbch_53_gate_start
             ].reset_index(drop=True)
 
         self.weather_daily = (
@@ -72,17 +79,20 @@ class CropSeasonFirst:
 
         df = self.primary_chain.copy()
 
-        if pd.notna(self.bbch_53_datetime):
-            df["infection_effective_bbch53"] = (
-                df["oil_spot_start"] >= self.bbch_53_datetime
-            )
-        else:
-            df["infection_effective_bbch53"] = True
+        # ---------- ensure column exists ----------
+        if "infection_effective_bbch53" not in df.columns:
+            if pd.notna(self.bbch_53_gate_start):
+                df["infection_effective_bbch53"] = (
+                    df["oil_spot_start"] >= self.bbch_53_gate_start
+                )
+            else:
+                df["infection_effective_bbch53"] = True
 
         self.primary_chain = df
         self.primary_chain_gated = df[
             df["infection_effective_bbch53"]
         ].reset_index(drop=True)
+
 
     # ==================================================
     def collapse_equivalent_cohorts(self):

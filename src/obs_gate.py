@@ -37,8 +37,11 @@ class SporeObsGateWindow:
         self.w_zero = w_zero
 
         # ---------- load ----------
-        df = pd.read_csv(obs_file, sep=r"\s+|,", engine="python")
-        df["date"] = pd.to_datetime(df["date"])
+        if obs_file.lower().endswith(".xlsx"):
+            df = pd.read_excel(obs_file)
+        else:
+            df = pd.read_csv(obs_file, sep=r"\s+|,", engine="python")
+
 
         # ---------- filter site-year ----------
         df = df[(df["site"] == site) & (df["year"] == year)].copy()
