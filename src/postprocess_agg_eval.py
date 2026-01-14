@@ -92,13 +92,35 @@ def compute_mae(rows: List[pd.Series], cfg: dict, penalty: float = 90.0) -> floa
     return float(np.mean(errs))
 
 
+def detect_top_tag() -> str:
+    candidates = []
+    for pat in ("best_val_params_top*pct_agg.json", "kfold_detailed_top*pct.csv", "kfold_summary_top*pct.json"):
+        for path in glob.glob(os.path.join(OUT_DIR, pat)):
+            base = os.path.basename(path)
+            if "top" in base and "pct" in base:
+                tag = base.split("top", 1)[1].split("pct", 1)[0]
+                candidates.append(f"{tag}pct")
+    if not candidates:
+        return "5pct"
+    # Prefer the largest percentage if multiple are present.
+    def _tag_val(t: str) -> float:
+        try:
+            return float(t.replace("pct", ""))
+        except ValueError:
+            return -1.0
+    candidates = sorted(set(candidates), key=_tag_val, reverse=True)
+    return candidates[0]
+
+
 def method_a_weighted_mean(kfold: int = 3) -> Dict[str, float]:
     agg_path = os.path.join(OUT_DIR, "best_train_params_agg.json")
     if not os.path.exists(agg_path):
-        raise FileNotFoundError(f"Missing agg params: {agg_path}")
+        return {"status": "missing", "reason": f"Missing agg params: {agg_path}"}
     with open(agg_path) as f:
         agg = json.load(f)
-    params = agg["params_weighted_mean"]
+    params = agg.get("params_weighted_mean") or agg.get("params_weighted_median") or agg.get("params_mean")
+    if not params:
+        return {"status": "missing", "reason": f"No params_* field found in {agg_path}"}
 
     df = load_actual()
     kf = KFold(n_splits=kfold, shuffle=True, random_state=42)
@@ -107,14 +129,18 @@ def method_a_weighted_mean(kfold: int = 3) -> Dict[str, float]:
         val_rows = [r for r in df.iloc[va].itertuples(index=False)]
         cfg = apply_params(BASE_CONFIG, params)
         fold_mae.append(compute_mae(val_rows, cfg))
-    return {"val_mae_mean": float(np.mean(fold_mae)), "val_mae_std": float(np.std(fold_mae))}
+    return {
+        "status": "ok",
+        "val_mae_mean": float(np.mean(fold_mae)),
+        "val_mae_std": float(np.std(fold_mae)),
+    }
 
 
 def method_b_top_pool_global(tag: str) -> Dict[str, float]:
     pattern = os.path.join(OUT_DIR, f"fold_*_train_top_pool.csv")
     files = sorted([p for p in glob.glob(pattern)])
     if not files:
-        raise FileNotFoundError(f"No pool files found: {pattern}")
+        return {"status": "missing", "reason": f"No pool files found: {pattern}"}
 
     df_all = []
     for fp in files:
@@ -122,35 +148,37 @@ def method_b_top_pool_global(tag: str) -> Dict[str, float]:
         df_all.append(df)
     pool = pd.concat(df_all, ignore_index=True)
     if pool.empty:
-        return {"best_val_mae": np.nan}
+        return {"status": "missing", "reason": "Top pool is empty."}
 
     df = load_actual()
     rows = [r for r in df.itertuples(index=False)]
 
     best = {"mae": 1e9, "params": None}
     for _, row in pool.iterrows():
-        params = {
-            k.replace("config/", ""): row[k]
-            for k in row.index
-            if k not in ("trial_number", "train_mae", "val_mae")
-        }
+        params = {}
+        for k in row.index:
+            if k in ("trial_number", "train_mae", "val_mae"):
+                continue
+            key = k.replace("config/", "")
+            params[key] = row[k]
         cfg = apply_params(BASE_CONFIG, params)
         mae = compute_mae(rows, cfg)
         if mae < best["mae"]:
             best["mae"] = mae
             best["params"] = params
 
-    return {"tag": tag, "global_mae": float(best["mae"]), "params": best["params"]}
+    return {
+        "status": "ok",
+        "tag": tag,
+        "global_mae": float(best["mae"]),
+        "params": best["params"],
+    }
 
 
 def main():
     out = {}
     out["method_a_weighted_mean"] = method_a_weighted_mean(kfold=3)
-
-    if os.path.exists(os.path.join(OUT_DIR, "best_val_params_top5pct_agg.json")):
-        tag = "top5pct"
-    else:
-        tag = "top1pct"
+    tag = detect_top_tag()
     out["method_b_top_pool_global"] = method_b_top_pool_global(tag)
 
     out_path = os.path.join(OUT_DIR, "postprocess_agg_eval.json")
