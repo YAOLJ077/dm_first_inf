@@ -51,7 +51,7 @@ from model.config import config
 # SETTINGS
 # ======================================================
 PENALTY_DAYS = 90.0
-N_JOBS = min(64, os.cpu_count())
+N_JOBS = 64
 RANDOM_SEED = 42
 
 # Base ranges from Morris settings
@@ -237,7 +237,8 @@ def main():
         type=str,
         default=os.path.join(PROJECT_ROOT, "result", "ray_results")
     )
-    parser.add_argument("--quiet", action="store_true")
+    parser.add_argument("--quiet", action="store_true", default=True)
+    parser.add_argument("--no-quiet", dest="quiet", action="store_false")
     parser.add_argument("--progress-interval", type=float, default=5.0)
     parser.add_argument("--train-top-k", type=int, default=100)
     parser.add_argument("--train-top-pct", type=float, default=1.0)
@@ -295,11 +296,13 @@ def main():
             storage=optuna_storage,
             study_name=f"first_inf_mae_fold_{fold_id}"
         )
-        if args.max_concurrent > 0:
-            optuna_search = ConcurrencyLimiter(
-                optuna_search,
-                max_concurrent=args.max_concurrent
-            )
+        max_conc = args.max_concurrent
+        if max_conc <= 0:
+            max_conc = max(1, args.n_jobs // max(1, args.cpus_per_trial))
+        optuna_search = ConcurrencyLimiter(
+            optuna_search,
+            max_concurrent=max_conc
+        )
 
         def trainable(cfg):
             model_cfg = apply_params(config, cfg)
