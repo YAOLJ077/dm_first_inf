@@ -138,17 +138,21 @@ def short_trial_dirname(trial):
 
 
 class ProgressOnlyCallback(Callback):
-    def __init__(self, total: int, interval_s: float = 5.0):
+    def __init__(self, total: int, interval_s: float = 5.0, prefix: str = ""):
         self.total = total
         self.interval_s = interval_s
         self._last_ts = 0.0
+        self.prefix = prefix
 
     def on_trial_result(self, iteration, trials, trial, result, **info):
         done = sum(t.status == "TERMINATED" for t in trials)
         now = time.time()
         if now - self._last_ts >= self.interval_s:
             self._last_ts = now
-            print(f"Progress: {done}/{self.total} trials completed", flush=True)
+            msg = f"Progress: {done}/{self.total} trials completed"
+            if self.prefix:
+                msg = f"{self.prefix} {msg}"
+            print(msg, flush=True)
 
 def define_search_space(trial: optuna.Trial) -> Dict[str, float]:
     """
