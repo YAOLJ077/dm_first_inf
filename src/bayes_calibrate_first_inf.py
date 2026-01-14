@@ -45,7 +45,7 @@ from model.config import config
 # ======================================================
 # SETTINGS
 # ======================================================
-PENALTY_DAYS = 90.0
+PENALTY_DAYS = 120.0
 N_JOBS = 64
 RANDOM_SEED = 42
 
@@ -237,7 +237,7 @@ def main():
     parser.add_argument("--no-quiet", dest="quiet", action="store_false")
     parser.add_argument("--progress-interval", type=float, default=5.0)
     parser.add_argument("--train-top-k", type=int, default=100)
-    parser.add_argument("--train-top-pct", type=float, default=1.0)
+    parser.add_argument("--train-top-pct", type=float, default=5.0)
     parser.add_argument("--kfold", type=int, default=3)
     args = parser.parse_args()
 
@@ -388,11 +388,39 @@ def main():
         "best_val_train_mae": overall_best["best_val_train_mae"],
     }
 
-    with open(os.path.join(RESULT_DIR, "best_params.json"), "w") as f:
+    best_path = os.path.join(RESULT_DIR, "best_params.json")
+    with open(best_path, "w") as f:
         json.dump(best_out, f, indent=2)
 
+    train_out = {
+        "train_mae": best_out["best_train_mae"],
+        "val_mae": best_out["best_train_val_mae"],
+        "params": best_out["best_train_params"],
+    }
+
+    if args.train_top_pct > 0:
+        tag = f"top{args.train_top_pct:g}pct"
+    else:
+        tag = f"topk{args.train_top_k}"
+
+    val_out = {
+        "train_mae": best_out["best_val_train_mae"],
+        "val_mae": best_out["best_val_mae"],
+        "params": best_out["best_val_params"],
+    }
+
+    train_path = os.path.join(RESULT_DIR, "best_train_params.json")
+    val_path = os.path.join(RESULT_DIR, f"best_val_params_{tag}.json")
+
+    with open(train_path, "w") as f:
+        json.dump(train_out, f, indent=2)
+    with open(val_path, "w") as f:
+        json.dump(val_out, f, indent=2)
+
     print(f"Saved nested summary: {summary_out}")
-    print(f"Saved best params to: {os.path.join(RESULT_DIR, 'best_params.json')}")
+    print(f"Saved best params to: {best_path}")
+    print(f"Saved train-best params: {train_path}")
+    print(f"Saved val-best params ({tag}): {val_path}")
 
     ray.shutdown()
 
