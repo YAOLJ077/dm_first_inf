@@ -199,7 +199,11 @@ def main():
     parser.add_argument("--n-startup", type=int, default=600)
     parser.add_argument("--seed", type=int, default=RANDOM_SEED)
     parser.add_argument("--n-jobs", type=int, default=N_JOBS)
-    parser.add_argument("--storage-path", type=str, default=os.path.join(PROJECT_ROOT, "ray_results"))
+    parser.add_argument(
+        "--storage-path",
+        type=str,
+        default=os.path.join(PROJECT_ROOT, "result", "ray_results")
+    )
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args()
 
@@ -234,6 +238,11 @@ def main():
     log_to_file = False
     if args.quiet:
         os.environ.pop("AIR_VERBOSITY", None)
+        reporter = CLIReporter(
+            parameter_columns=[],
+            metric_columns=["mae"],
+            max_progress_rows=1
+        )
         verbose = 0
         log_to_file = True
 
