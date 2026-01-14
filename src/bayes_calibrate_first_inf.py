@@ -126,15 +126,21 @@ def apply_params(base_cfg: dict, values: Dict[str, float]) -> dict:
     return cfg
 
 
-def define_search_space(trial: optuna.Trial, ranges: Dict[str, Tuple[float, float]]) -> Dict[str, float]:
+_GLOBAL_RANGES: Dict[str, Tuple[float, float]] = {}
+
+def short_trial_dirname(trial):
+    return f"trial_{trial.trial_id}"
+
+
+def define_search_space(trial: optuna.Trial) -> Dict[str, float]:
     """
     Optuna define-by-run search space with Tmin < Topt < Tmax.
     """
     params = {}
 
-    tmin_lo, tmin_hi = ranges["sporulation__Tmin"]
-    topt_lo, topt_hi = ranges["sporulation__Topt"]
-    tmax_lo, tmax_hi = ranges["sporulation__Tmax"]
+    tmin_lo, tmin_hi = _GLOBAL_RANGES["sporulation__Tmin"]
+    topt_lo, topt_hi = _GLOBAL_RANGES["sporulation__Topt"]
+    tmax_lo, tmax_hi = _GLOBAL_RANGES["sporulation__Tmax"]
 
     Tmin = trial.suggest_float("sporulation__Tmin", tmin_lo, tmin_hi)
     Topt = trial.suggest_float(
@@ -152,7 +158,7 @@ def define_search_space(trial: optuna.Trial, ranges: Dict[str, Tuple[float, floa
     params["sporulation__Topt"] = Topt
     params["sporulation__Tmax"] = Tmax
 
-    for k, (lo, hi) in ranges.items():
+    for k, (lo, hi) in _GLOBAL_RANGES.items():
         if k in ("sporulation__Tmin", "sporulation__Topt", "sporulation__Tmax"):
             continue
         params[k] = trial.suggest_float(k, lo, hi)
@@ -197,6 +203,7 @@ def main():
     args = parser.parse_args()
 
     ranges = build_param_ranges()
+    _GLOBAL_RANGES.update(ranges)
     actual_df = load_actual()
     rows = list(actual_df.itertuples(index=False))
 
@@ -213,7 +220,7 @@ def main():
 
     optuna_storage = InMemoryStorage()
     optuna_search = OptunaSearch(
-        space=lambda trial: define_search_space(trial, ranges),
+        space=define_search_space,
         sampler=sampler,
         metric="mae",
         mode="min",
@@ -234,7 +241,8 @@ def main():
         resources_per_trial={"cpu": 1},
         progress_reporter=reporter,
         storage_path=args.storage_path,
-        trial_dirname_creator=lambda t: f"trial_{t.trial_id}",
+        trial_dirname_creator=short_trial_dirname,
+        checkpoint_config=tune.CheckpointConfig(checkpoint_at_end=False),
         verbose=1
     )
 
