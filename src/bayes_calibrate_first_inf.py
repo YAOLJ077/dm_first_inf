@@ -16,7 +16,6 @@ import pandas as pd
 
 import ray
 from ray import tune
-from ray.air import session
 from ray.tune import CLIReporter
 from ray.tune.search.optuna import OptunaSearch
 import optuna
@@ -201,6 +200,7 @@ def main():
     parser.add_argument("--seed", type=int, default=RANDOM_SEED)
     parser.add_argument("--n-jobs", type=int, default=N_JOBS)
     parser.add_argument("--storage-path", type=str, default=os.path.join(PROJECT_ROOT, "ray_results"))
+    parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args()
 
     ranges = build_param_ranges()
@@ -217,7 +217,7 @@ def main():
     def trainable(cfg):
         model_cfg = apply_params(config, cfg)
         mae = loocv_mae(model_cfg, rows)
-        session.report({"mae": mae})
+        tune.report({"mae": mae})
 
     optuna_storage = InMemoryStorage()
     optuna_search = OptunaSearch(
@@ -229,7 +229,13 @@ def main():
         study_name="first_inf_mae_loocv"
     )
 
-    reporter = CLIReporter(metric_columns=["mae", "training_iteration"])
+    reporter = CLIReporter(metric_columns=["mae"])
+    verbose = 1
+    log_to_file = False
+    if args.quiet:
+        os.environ.pop("AIR_VERBOSITY", None)
+        verbose = 0
+        log_to_file = True
 
     ray.init(num_cpus=args.n_jobs, include_dashboard=False)
 
@@ -244,7 +250,8 @@ def main():
         storage_path=args.storage_path,
         trial_dirname_creator=short_trial_dirname,
         checkpoint_config=tune.CheckpointConfig(checkpoint_at_end=False),
-        verbose=1
+        log_to_file=log_to_file,
+        verbose=verbose
     )
 
     best_trial = analysis.get_best_trial(metric="mae", mode="min", scope="all")
