@@ -20,6 +20,7 @@ import pandas as pd
 import ray
 from ray import tune
 from ray.tune import CLIReporter, Callback
+from ray.tune.search import ConcurrencyLimiter
 from ray.tune.search.optuna import OptunaSearch
 import optuna
 from optuna.samplers import TPESampler
@@ -216,6 +217,8 @@ def main():
     parser.add_argument("--n-startup", type=int, default=600)
     parser.add_argument("--seed", type=int, default=RANDOM_SEED)
     parser.add_argument("--n-jobs", type=int, default=N_JOBS)
+    parser.add_argument("--cpus-per-trial", type=int, default=1)
+    parser.add_argument("--max-concurrent", type=int, default=0)
     parser.add_argument(
         "--storage-path",
         type=str,
@@ -250,6 +253,11 @@ def main():
         storage=optuna_storage,
         study_name="first_inf_mae_loocv"
     )
+    if args.max_concurrent > 0:
+        optuna_search = ConcurrencyLimiter(
+            optuna_search,
+            max_concurrent=args.max_concurrent
+        )
 
     reporter = CLIReporter(metric_columns=["mae"])
     verbose = 1
@@ -269,7 +277,7 @@ def main():
         num_samples=args.n_trials,
         search_alg=optuna_search,
         config={},
-        resources_per_trial={"cpu": 1},
+        resources_per_trial={"cpu": args.cpus_per_trial},
         progress_reporter=reporter,
         storage_path=args.storage_path,
         trial_dirname_creator=short_trial_dirname,
