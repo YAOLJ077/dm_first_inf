@@ -184,7 +184,7 @@ def define_search_space(trial: optuna.Trial) -> Dict[str, float]:
     return params
 
 
-def loocv_mae(cfg: dict, rows: List[pd.Series]) -> float:
+def loocv_mae(cfg: dict, rows: List[pd.Series]) -> Tuple[float, float]:
     errors = []
     for row in rows:
         key = f"{row.plot}_{row.variety}_{row.first_infection_date.year}"
@@ -206,9 +206,18 @@ def loocv_mae(cfg: dict, rows: List[pd.Series]) -> float:
             errors.append(PENALTY_DAYS)
 
     if not errors:
-        return PENALTY_DAYS
+        return PENALTY_DAYS, PENALTY_DAYS
 
-    return float(np.mean(errors))
+    val_mae = float(np.mean(errors))
+    if len(errors) <= 1:
+        train_mae = val_mae
+    else:
+        total = float(np.sum(errors))
+        train_mae = float(
+            np.mean([(total - e) / (len(errors) - 1) for e in errors])
+        )
+
+    return train_mae, val_mae
 
 
 def main():
@@ -226,6 +235,8 @@ def main():
     )
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--progress-interval", type=float, default=5.0)
+    parser.add_argument("--train-top-k", type=int, default=100)
+    parser.add_argument("--train-top-pct", type=float, default=0.0)
     args = parser.parse_args()
 
     ranges = build_param_ranges()
@@ -236,19 +247,20 @@ def main():
     sampler = TPESampler(
         seed=args.seed,
         multivariate=True,
-        n_startup_trials=args.n_startup
+        n_startup_trials=args.n_startup,
+        warn_independent_sampling=False
     )
 
     def trainable(cfg):
         model_cfg = apply_params(config, cfg)
-        mae = loocv_mae(model_cfg, rows)
-        tune.report({"mae": mae})
+        train_mae, val_mae = loocv_mae(model_cfg, rows)
+        tune.report({"train_mae": train_mae, "val_mae": val_mae})
 
     optuna_storage = InMemoryStorage()
     optuna_search = OptunaSearch(
         space=define_search_space,
         sampler=sampler,
-        metric="mae",
+        metric="train_mae",
         mode="min",
         storage=optuna_storage,
         study_name="first_inf_mae_loocv"
@@ -259,7 +271,7 @@ def main():
             max_concurrent=args.max_concurrent
         )
 
-    reporter = CLIReporter(metric_columns=["mae"])
+    reporter = CLIReporter(metric_columns=["train_mae"])
     verbose = 1
     log_to_file = False
     callbacks = [ProgressOnlyCallback(args.n_trials, args.progress_interval)]
@@ -287,12 +299,14 @@ def main():
         verbose=verbose
     )
 
-    best_trial = analysis.get_best_trial(metric="mae", mode="min", scope="all")
+    best_trial = analysis.get_best_trial(metric="train_mae", mode="min", scope="all")
     best_cfg = best_trial.config
-    best_value = best_trial.last_result["mae"]
+    best_train = best_trial.last_result.get("train_mae")
+    best_value = best_trial.last_result.get("val_mae", best_train)
 
     best_out = {
-        "value": float(best_value),
+        "train_mae": float(best_train),
+        "val_mae": float(best_value),
         "params": best_cfg
     }
 
@@ -302,7 +316,39 @@ def main():
     df_trials = analysis.results_df
     df_trials.to_csv(os.path.join(RESULT_DIR, "trials.csv"), index=False)
 
-    print(f"Best MAE (LOOCV): {best_out['value']:.2f}")
+    # --------------------------------------------------
+    # two-stage selection: filter by train_mae, then pick min val_mae
+    # --------------------------------------------------
+    pool = df_trials.dropna(subset=["train_mae", "val_mae"]).copy()
+    pool = pool.sort_values("train_mae", ascending=True)
+    if args.train_top_pct > 0:
+        n_keep = max(1, int(len(pool) * args.train_top_pct / 100.0))
+    else:
+        n_keep = min(args.train_top_k, len(pool))
+
+    pool = pool.head(n_keep)
+    pool_out = os.path.join(RESULT_DIR, "train_top_pool.csv")
+    pool.to_csv(pool_out, index=False)
+
+    if not pool.empty:
+        best_val_row = pool.sort_values("val_mae", ascending=True).iloc[0]
+        best_out["train_top_pool"] = {
+            "size": int(len(pool)),
+            "best_val_mae": float(best_val_row["val_mae"]),
+            "best_val_train_mae": float(best_val_row["train_mae"]),
+            "best_val_params": {
+                k.replace("config/", ""): best_val_row[k]
+                for k in best_val_row.index
+                if k.startswith("config/")
+            },
+        }
+        print(f"Best Train MAE (avg): {best_out['train_mae']:.2f}")
+        print(f"Val MAE at best train: {best_out['val_mae']:.2f}")
+        print(f"Best Val MAE within train-top pool: {best_val_row['val_mae']:.2f}")
+        print(f"Saved train-top pool: {pool_out}")
+    else:
+        print(f"Best Train MAE (avg): {best_out['train_mae']:.2f}")
+        print(f"Val MAE at best train: {best_out['val_mae']:.2f}")
     print(f"Saved best params to: {os.path.join(RESULT_DIR, 'best_params.json')}")
 
     ray.shutdown()
