@@ -184,7 +184,7 @@ def define_search_space(trial: optuna.Trial) -> Dict[str, float]:
     return params
 
 
-def loocv_mae(cfg: dict, rows: List[pd.Series]) -> Tuple[float, float]:
+def compute_mae(cfg: dict, rows: List[pd.Series]) -> float:
     errors = []
     for row in rows:
         key = f"{row.plot}_{row.variety}_{row.first_infection_date.year}"
@@ -206,18 +206,18 @@ def loocv_mae(cfg: dict, rows: List[pd.Series]) -> Tuple[float, float]:
             errors.append(PENALTY_DAYS)
 
     if not errors:
-        return PENALTY_DAYS, PENALTY_DAYS
+        return PENALTY_DAYS
 
-    val_mae = float(np.mean(errors))
-    if len(errors) <= 1:
-        train_mae = val_mae
-    else:
-        total = float(np.sum(errors))
-        train_mae = float(
-            np.mean([(total - e) / (len(errors) - 1) for e in errors])
-        )
+    return float(np.mean(errors))
 
-    return train_mae, val_mae
+
+def build_folds(n: int, k: int) -> List[List[int]]:
+    if k <= 1 or k > n:
+        k = n
+    folds = [[] for _ in range(k)]
+    for i, idx in enumerate(range(n)):
+        folds[i % k].append(idx)
+    return folds
 
 
 def main():
@@ -237,6 +237,7 @@ def main():
     parser.add_argument("--progress-interval", type=float, default=5.0)
     parser.add_argument("--train-top-k", type=int, default=100)
     parser.add_argument("--train-top-pct", type=float, default=0.0)
+    parser.add_argument("--kfold", type=int, default=3)
     args = parser.parse_args()
 
     ranges = build_param_ranges()
@@ -244,37 +245,9 @@ def main():
     actual_df = load_actual()
     rows = list(actual_df.itertuples(index=False))
 
-    sampler = TPESampler(
-        seed=args.seed,
-        multivariate=True,
-        n_startup_trials=args.n_startup,
-        warn_independent_sampling=False
-    )
-
-    def trainable(cfg):
-        model_cfg = apply_params(config, cfg)
-        train_mae, val_mae = loocv_mae(model_cfg, rows)
-        tune.report({"train_mae": train_mae, "val_mae": val_mae})
-
-    optuna_storage = InMemoryStorage()
-    optuna_search = OptunaSearch(
-        space=define_search_space,
-        sampler=sampler,
-        metric="train_mae",
-        mode="min",
-        storage=optuna_storage,
-        study_name="first_inf_mae_loocv"
-    )
-    if args.max_concurrent > 0:
-        optuna_search = ConcurrencyLimiter(
-            optuna_search,
-            max_concurrent=args.max_concurrent
-        )
-
     reporter = CLIReporter(metric_columns=["train_mae"])
     verbose = 1
     log_to_file = False
-    callbacks = [ProgressOnlyCallback(args.n_trials, args.progress_interval)]
     if args.quiet:
         os.environ.pop("AIR_VERBOSITY", None)
         reporter = None
@@ -283,72 +256,145 @@ def main():
 
     ray.init(num_cpus=args.n_jobs, include_dashboard=False)
 
-    analysis = tune.run(
-        trainable,
-        name="first_inf_mae_loocv",
-        num_samples=args.n_trials,
-        search_alg=optuna_search,
-        config={},
-        resources_per_trial={"cpu": args.cpus_per_trial},
-        progress_reporter=reporter,
-        storage_path=args.storage_path,
-        trial_dirname_creator=short_trial_dirname,
-        checkpoint_config=tune.CheckpointConfig(checkpoint_at_end=False),
-        callbacks=callbacks,
-        log_to_file=log_to_file,
-        verbose=verbose
-    )
+    n_samples = len(rows)
+    k = args.kfold if args.kfold > 0 else n_samples
+    folds = build_folds(n_samples, k)
 
-    best_trial = analysis.get_best_trial(metric="train_mae", mode="min", scope="all")
-    best_cfg = best_trial.config
-    best_train = best_trial.last_result.get("train_mae")
-    best_value = best_trial.last_result.get("val_mae", best_train)
+    fold_rows = []
+    overall_best = {
+        "best_train_params": None,
+        "best_train_mae": None,
+        "best_train_val_mae": None,
+        "best_val_params": None,
+        "best_val_mae": None,
+        "best_val_train_mae": None,
+    }
+
+    for fold_id, val_idx in enumerate(folds, start=1):
+        train_idx = [i for i in range(n_samples) if i not in val_idx]
+        train_rows = [rows[i] for i in train_idx]
+        val_rows = [rows[i] for i in val_idx]
+
+        sampler = TPESampler(
+            seed=args.seed + fold_id,
+            multivariate=True,
+            n_startup_trials=args.n_startup,
+            warn_independent_sampling=False
+        )
+
+        optuna_storage = InMemoryStorage()
+        optuna_search = OptunaSearch(
+            space=define_search_space,
+            sampler=sampler,
+            metric="train_mae",
+            mode="min",
+            storage=optuna_storage,
+            study_name=f"first_inf_mae_fold_{fold_id}"
+        )
+        if args.max_concurrent > 0:
+            optuna_search = ConcurrencyLimiter(
+                optuna_search,
+                max_concurrent=args.max_concurrent
+            )
+
+        def trainable(cfg):
+            model_cfg = apply_params(config, cfg)
+            train_mae = compute_mae(model_cfg, train_rows)
+            val_mae = compute_mae(model_cfg, val_rows)
+            tune.report({"train_mae": train_mae, "val_mae": val_mae})
+
+        callbacks = [
+            ProgressOnlyCallback(
+                args.n_trials,
+                args.progress_interval,
+                prefix=f"[Fold {fold_id}/{k}]"
+            )
+        ]
+
+        analysis = tune.run(
+            trainable,
+            name=f"first_inf_mae_fold_{fold_id}",
+            num_samples=args.n_trials,
+            search_alg=optuna_search,
+            config={},
+            resources_per_trial={"cpu": args.cpus_per_trial},
+            progress_reporter=reporter,
+            storage_path=args.storage_path,
+            trial_dirname_creator=short_trial_dirname,
+            checkpoint_config=tune.CheckpointConfig(checkpoint_at_end=False),
+            callbacks=callbacks,
+            log_to_file=log_to_file,
+            verbose=verbose
+        )
+
+        df_trials = analysis.results_df
+        fold_trials_path = os.path.join(RESULT_DIR, f"fold_{fold_id}_trials.csv")
+        df_trials.to_csv(fold_trials_path, index=False)
+
+        best_trial = analysis.get_best_trial(metric="train_mae", mode="min", scope="all")
+        best_cfg = best_trial.config
+        best_train = best_trial.last_result.get("train_mae")
+        best_val = best_trial.last_result.get("val_mae", best_train)
+
+        pool = df_trials.dropna(subset=["train_mae", "val_mae"]).copy()
+        pool = pool.sort_values("train_mae", ascending=True)
+        if args.train_top_pct > 0:
+            n_keep = max(1, int(len(pool) * args.train_top_pct / 100.0))
+        else:
+            n_keep = min(args.train_top_k, len(pool))
+        pool = pool.head(n_keep)
+
+        pool_out = os.path.join(RESULT_DIR, f"fold_{fold_id}_train_top_pool.csv")
+        pool.to_csv(pool_out, index=False)
+
+        best_val_row = None
+        if not pool.empty:
+            best_val_row = pool.sort_values("val_mae", ascending=True).iloc[0]
+
+        fold_rows.append({
+            "fold": fold_id,
+            "train_mae_best_train": float(best_train),
+            "val_mae_at_best_train": float(best_val),
+            "train_mae_best_val": float(best_val_row["train_mae"]) if best_val_row is not None else np.nan,
+            "val_mae_best_val": float(best_val_row["val_mae"]) if best_val_row is not None else np.nan,
+        })
+
+        if overall_best["best_train_mae"] is None or best_train < overall_best["best_train_mae"]:
+            overall_best["best_train_mae"] = float(best_train)
+            overall_best["best_train_val_mae"] = float(best_val)
+            overall_best["best_train_params"] = best_cfg
+
+        if best_val_row is not None:
+            if overall_best["best_val_mae"] is None or best_val_row["val_mae"] < overall_best["best_val_mae"]:
+                overall_best["best_val_mae"] = float(best_val_row["val_mae"])
+                overall_best["best_val_train_mae"] = float(best_val_row["train_mae"])
+                overall_best["best_val_params"] = {
+                    k.replace("config/", ""): best_val_row[k]
+                    for k in best_val_row.index
+                    if k.startswith("config/")
+                }
+
+    summary_df = pd.DataFrame(fold_rows)
+    summary_out = os.path.join(RESULT_DIR, "nested_loocv_summary.csv")
+    summary_df.to_csv(summary_out, index=False)
 
     best_out = {
-        "train_mae": float(best_train),
-        "val_mae": float(best_value),
-        "params": best_cfg
+        "nested_loocv_avg_train_mae": float(summary_df["train_mae_best_train"].mean()),
+        "nested_loocv_avg_val_mae": float(summary_df["val_mae_at_best_train"].mean()),
+        "nested_loocv_avg_train_mae_best_val": float(summary_df["train_mae_best_val"].mean()),
+        "nested_loocv_avg_val_mae_best_val": float(summary_df["val_mae_best_val"].mean()),
+        "best_train_params": overall_best["best_train_params"],
+        "best_train_mae": overall_best["best_train_mae"],
+        "best_train_val_mae": overall_best["best_train_val_mae"],
+        "best_val_params": overall_best["best_val_params"],
+        "best_val_mae": overall_best["best_val_mae"],
+        "best_val_train_mae": overall_best["best_val_train_mae"],
     }
 
     with open(os.path.join(RESULT_DIR, "best_params.json"), "w") as f:
         json.dump(best_out, f, indent=2)
 
-    df_trials = analysis.results_df
-    df_trials.to_csv(os.path.join(RESULT_DIR, "trials.csv"), index=False)
-
-    # --------------------------------------------------
-    # two-stage selection: filter by train_mae, then pick min val_mae
-    # --------------------------------------------------
-    pool = df_trials.dropna(subset=["train_mae", "val_mae"]).copy()
-    pool = pool.sort_values("train_mae", ascending=True)
-    if args.train_top_pct > 0:
-        n_keep = max(1, int(len(pool) * args.train_top_pct / 100.0))
-    else:
-        n_keep = min(args.train_top_k, len(pool))
-
-    pool = pool.head(n_keep)
-    pool_out = os.path.join(RESULT_DIR, "train_top_pool.csv")
-    pool.to_csv(pool_out, index=False)
-
-    if not pool.empty:
-        best_val_row = pool.sort_values("val_mae", ascending=True).iloc[0]
-        best_out["train_top_pool"] = {
-            "size": int(len(pool)),
-            "best_val_mae": float(best_val_row["val_mae"]),
-            "best_val_train_mae": float(best_val_row["train_mae"]),
-            "best_val_params": {
-                k.replace("config/", ""): best_val_row[k]
-                for k in best_val_row.index
-                if k.startswith("config/")
-            },
-        }
-        print(f"Best Train MAE (avg): {best_out['train_mae']:.2f}")
-        print(f"Val MAE at best train: {best_out['val_mae']:.2f}")
-        print(f"Best Val MAE within train-top pool: {best_val_row['val_mae']:.2f}")
-        print(f"Saved train-top pool: {pool_out}")
-    else:
-        print(f"Best Train MAE (avg): {best_out['train_mae']:.2f}")
-        print(f"Val MAE at best train: {best_out['val_mae']:.2f}")
+    print(f"Saved nested summary: {summary_out}")
     print(f"Saved best params to: {os.path.join(RESULT_DIR, 'best_params.json')}")
 
     ray.shutdown()
