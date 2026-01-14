@@ -31,6 +31,11 @@ OUT_DIR = os.path.join(PROJECT_ROOT, "result", "calibration")
 from model.crop_season import CropSeasonFirst
 from model.config import config as BASE_CONFIG
 
+try:
+    import ray  # type: ignore
+except Exception:
+    ray = None
+
 
 def load_actual() -> pd.DataFrame:
     df = pd.read_excel(ACTUAL_DATA_PATH)
@@ -68,10 +73,19 @@ def apply_params(base_cfg: dict, params: Dict[str, float]) -> dict:
     return cfg
 
 
-def compute_mae(rows: List[pd.Series], cfg: dict, penalty: float = 90.0) -> float:
+def _row_get(row, key: str):
+    if isinstance(row, dict):
+        return row.get(key)
+    return getattr(row, key)
+
+
+def compute_mae(rows: List, cfg: dict, penalty: float = 90.0) -> float:
     errs = []
     for row in rows:
-        key = f"{row.plot}_{row.variety}_{row.first_infection_date.year}"
+        plot = _row_get(row, "plot")
+        variety = _row_get(row, "variety")
+        date = _row_get(row, "first_infection_date")
+        key = f"{plot}_{variety}_{pd.to_datetime(date).year}"
         rb_path = os.path.join(DATA_DIR, f"{key}_grape_rb.json")
         if not os.path.exists(rb_path):
             continue
@@ -156,32 +170,69 @@ def method_b_top_pool_global(tag: str) -> Dict[str, float]:
         return {"status": "missing", "reason": "Top pool is empty."}
 
     df = load_actual()
-    rows = [r for r in df.itertuples(index=False)]
+    rows = [r._asdict() for r in df.itertuples(index=False)]
 
     best = {"mae": 1e9, "params": None}
     cache: Dict[str, float] = {}
-    total = int(len(pool))
-    printed = 0
-    for idx, row in pool.iterrows():
+    unique = {}
+    for _, row in pool.iterrows():
         params = {}
         for k in row.index:
             if k in ("trial_number", "train_mae", "val_mae"):
                 continue
             key = k.replace("config/", "")
             params[key] = row[k]
-        cfg = apply_params(BASE_CONFIG, params)
         cache_key = _params_key(params)
-        if cache_key in cache:
-            mae = cache[cache_key]
-        else:
+        if cache_key not in unique:
+            unique[cache_key] = params
+
+    total = int(len(unique))
+    if total == 0:
+        return {"status": "missing", "reason": "Top pool is empty."}
+
+    if ray is not None:
+        if not ray.is_initialized():
+            ray.init(num_cpus=128, ignore_reinit_error=True, include_dashboard=False, log_to_driver=False)
+
+        @ray.remote
+        def eval_params_remote(params, rows_dicts):
+            cfg = apply_params(BASE_CONFIG, params)
+            return compute_mae(rows_dicts, cfg)
+
+        futures = {}
+        for k, params in unique.items():
+            futures[k] = eval_params_remote.remote(params, rows)
+
+        done = 0
+        while futures:
+            done_ids, _ = ray.wait(list(futures.values()), num_returns=1)
+            finished = done_ids[0]
+            for k, fut in list(futures.items()):
+                if fut == finished:
+                    mae = ray.get(fut)
+                    cache[k] = mae
+                    params = unique[k]
+                    if mae < best["mae"]:
+                        best["mae"] = mae
+                        best["params"] = params
+                    done += 1
+                    if done % 10 == 0 or done == total:
+                        print(f"[method_b] Progress: {done}/{total} | best_mae={best['mae']:.3f}", flush=True)
+                    del futures[k]
+                    break
+        ray.shutdown()
+    else:
+        done = 0
+        for k, params in unique.items():
+            cfg = apply_params(BASE_CONFIG, params)
             mae = compute_mae(rows, cfg)
-            cache[cache_key] = mae
-        if mae < best["mae"]:
-            best["mae"] = mae
-            best["params"] = params
-        if (printed == 0) or (printed < total and (idx + 1) % 50 == 0) or (idx + 1 == total):
-            print(f"[method_b] Progress: {idx + 1}/{total} | best_mae={best['mae']:.3f}", flush=True)
-            printed = idx + 1
+            cache[k] = mae
+            if mae < best["mae"]:
+                best["mae"] = mae
+                best["params"] = params
+            done += 1
+            if done % 10 == 0 or done == total:
+                print(f"[method_b] Progress: {done}/{total} | best_mae={best['mae']:.3f}", flush=True)
 
     return {
         "status": "ok",
