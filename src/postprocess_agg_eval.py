@@ -136,6 +136,11 @@ def method_a_weighted_mean(kfold: int = 3) -> Dict[str, float]:
     }
 
 
+def _params_key(params: Dict[str, float]) -> str:
+    parts = [f"{k}={params[k]:.6g}" for k in sorted(params.keys())]
+    return "|".join(parts)
+
+
 def method_b_top_pool_global(tag: str) -> Dict[str, float]:
     pattern = os.path.join(OUT_DIR, f"fold_*_train_top_pool.csv")
     files = sorted([p for p in glob.glob(pattern)])
@@ -154,7 +159,10 @@ def method_b_top_pool_global(tag: str) -> Dict[str, float]:
     rows = [r for r in df.itertuples(index=False)]
 
     best = {"mae": 1e9, "params": None}
-    for _, row in pool.iterrows():
+    cache: Dict[str, float] = {}
+    total = int(len(pool))
+    printed = 0
+    for idx, row in pool.iterrows():
         params = {}
         for k in row.index:
             if k in ("trial_number", "train_mae", "val_mae"):
@@ -162,10 +170,18 @@ def method_b_top_pool_global(tag: str) -> Dict[str, float]:
             key = k.replace("config/", "")
             params[key] = row[k]
         cfg = apply_params(BASE_CONFIG, params)
-        mae = compute_mae(rows, cfg)
+        cache_key = _params_key(params)
+        if cache_key in cache:
+            mae = cache[cache_key]
+        else:
+            mae = compute_mae(rows, cfg)
+            cache[cache_key] = mae
         if mae < best["mae"]:
             best["mae"] = mae
             best["params"] = params
+        if (printed == 0) or (printed < total and (idx + 1) % 50 == 0) or (idx + 1 == total):
+            print(f"[method_b] Progress: {idx + 1}/{total} | best_mae={best['mae']:.3f}", flush=True)
+            printed = idx + 1
 
     return {
         "status": "ok",
