@@ -457,47 +457,90 @@ def main():
     else:
         tag = f"topk{args.train_top_k}"
 
-    avg_summary = {
-        "nested_kfold_avg_train_mae": float(summary_df["train_mae_best_train"].mean()),
-        "nested_kfold_avg_val_mae": float(summary_df["val_mae_at_best_train"].mean()),
-        "nested_kfold_avg_train_mae_best_val": float(summary_df["train_mae_best_val"].mean()),
-        "nested_kfold_avg_val_mae_best_val": float(summary_df["val_mae_best_val"].mean()),
+    def simple_mean_params(param_list: List[Dict[str, float]]) -> Dict[str, float]:
+        if not param_list:
+            return {}
+        keys = sorted(param_list[0].keys())
+        out = {}
+        for k in keys:
+            vals = [p[k] for p in param_list]
+            out[k] = float(np.mean(vals))
+        tmin = out.get("sporulation__Tmin")
+        topt = out.get("sporulation__Topt")
+        tmax = out.get("sporulation__Tmax")
+        if tmin is not None and topt is not None and tmax is not None:
+            tmin, topt, tmax = sorted([tmin, topt, tmax])
+            out["sporulation__Tmin"] = tmin
+            out["sporulation__Topt"] = topt
+            out["sporulation__Tmax"] = tmax
+        return out
+
+    # per-fold best params outputs
+    for i, params in enumerate(fold_best_train_params, start=1):
+        out_path = os.path.join(RESULT_DIR, f"best_params_train_fold{i}.json")
+        with open(out_path, "w") as f:
+            json.dump(params, f, indent=2)
+    for i, params in enumerate(fold_best_val_params, start=1):
+        out_path = os.path.join(RESULT_DIR, f"best_params_top{tag}_fold{i}.json")
+        with open(out_path, "w") as f:
+            json.dump(params, f, indent=2)
+
+    # kfold detail and summary
+    kfold_detail_train = summary_df[["fold", "train_mae_best_train", "val_mae_at_best_train"]].copy()
+    kfold_detail_train.columns = ["fold", "train_mae", "val_mae"]
+    kfold_detail_val = summary_df[["fold", "train_mae_best_val", "val_mae_best_val"]].copy()
+    kfold_detail_val.columns = ["fold", "train_mae", "val_mae"]
+
+    kfold_detail_train_path = os.path.join(RESULT_DIR, "kfold_detailed_train.csv")
+    kfold_detail_val_path = os.path.join(RESULT_DIR, f"kfold_detailed_top{tag}.csv")
+    kfold_detail_train.to_csv(kfold_detail_train_path, index=False)
+    kfold_detail_val.to_csv(kfold_detail_val_path, index=False)
+
+    kfold_summary_train = {
+        "train_mae_mean": float(kfold_detail_train["train_mae"].mean()),
+        "train_mae_std": float(kfold_detail_train["train_mae"].std()),
+        "val_mae_mean": float(kfold_detail_train["val_mae"].mean()),
+        "val_mae_std": float(kfold_detail_train["val_mae"].std()),
+        "n_folds": int(len(kfold_detail_train)),
+    }
+    kfold_summary_val = {
+        "train_mae_mean": float(kfold_detail_val["train_mae"].mean()),
+        "train_mae_std": float(kfold_detail_val["train_mae"].std()),
+        "val_mae_mean": float(kfold_detail_val["val_mae"].mean()),
+        "val_mae_std": float(kfold_detail_val["val_mae"].std()),
+        "n_folds": int(len(kfold_detail_val)),
     }
 
-    avg_summary_path = os.path.join(RESULT_DIR, "nested_kfold_avg_summary.json")
-    with open(avg_summary_path, "w") as f:
-        json.dump(avg_summary, f, indent=2)
+    kfold_summary_train_path = os.path.join(RESULT_DIR, "kfold_summary_train.json")
+    kfold_summary_val_path = os.path.join(RESULT_DIR, f"kfold_summary_top{tag}.json")
+    with open(kfold_summary_train_path, "w") as f:
+        json.dump(kfold_summary_train, f, indent=2)
+    with open(kfold_summary_val_path, "w") as f:
+        json.dump(kfold_summary_val, f, indent=2)
 
-    fold_best_mae = summary_df[
-        ["fold", "train_mae_best_train", "val_mae_at_best_train", "train_mae_best_val", "val_mae_best_val"]
-    ].copy()
-    fold_best_path = os.path.join(RESULT_DIR, "fold_best_mae.csv")
-    fold_best_mae.to_csv(fold_best_path, index=False)
-
-    train_agg_out = {
-        "train_mae_avg": avg_summary["nested_kfold_avg_train_mae"],
-        "val_mae_avg": avg_summary["nested_kfold_avg_val_mae"],
+    # aggregates (weighted median/mean/simple mean)
+    train_agg = {
         "params_weighted_median": agg_train_params,
         "params_weighted_mean": agg_train_params_mean,
+        "params_mean": simple_mean_params(fold_best_train_params),
     }
-    val_agg_out = {
-        "train_mae_avg": avg_summary["nested_kfold_avg_train_mae_best_val"],
-        "val_mae_avg": avg_summary["nested_kfold_avg_val_mae_best_val"],
+    val_agg = {
         "params_weighted_median": agg_val_params,
         "params_weighted_mean": agg_val_params_mean,
+        "params_mean": simple_mean_params(fold_best_val_params),
     }
-
     train_agg_path = os.path.join(RESULT_DIR, "best_train_params_agg.json")
-    val_agg_path = os.path.join(RESULT_DIR, f"best_val_params_{tag}_agg.json")
-
+    val_agg_path = os.path.join(RESULT_DIR, f"best_val_params_top{tag}_agg.json")
     with open(train_agg_path, "w") as f:
-        json.dump(train_agg_out, f, indent=2)
+        json.dump(train_agg, f, indent=2)
     with open(val_agg_path, "w") as f:
-        json.dump(val_agg_out, f, indent=2)
+        json.dump(val_agg, f, indent=2)
 
     print(f"Saved per-fold summary: {summary_out}")
-    print(f"Saved fold best mae: {fold_best_path}")
-    print(f"Saved avg summary: {avg_summary_path}")
+    print(f"Saved kfold detail train: {kfold_detail_train_path}")
+    print(f"Saved kfold detail top{tag}: {kfold_detail_val_path}")
+    print(f"Saved kfold summary train: {kfold_summary_train_path}")
+    print(f"Saved kfold summary top{tag}: {kfold_summary_val_path}")
     print(f"Saved train aggregates: {train_agg_path}")
     print(f"Saved val aggregates ({tag}): {val_agg_path}")
 
