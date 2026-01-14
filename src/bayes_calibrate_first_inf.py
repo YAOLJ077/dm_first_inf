@@ -13,8 +13,11 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 
+import ray
+from ray import tune
+from ray.tune import CLIReporter
+from ray.tune.search.optuna import OptunaSearch
 import optuna
 from optuna.samplers import TPESampler
 
@@ -122,10 +125,12 @@ def apply_params(base_cfg: dict, values: Dict[str, float]) -> dict:
     return cfg
 
 
-def suggest_params(trial: optuna.Trial, ranges: Dict[str, Tuple[float, float]]) -> Dict[str, float]:
+def define_search_space(trial: optuna.Trial, ranges: Dict[str, Tuple[float, float]]) -> Dict[str, float]:
+    """
+    Optuna define-by-run search space with Tmin < Topt < Tmax.
+    """
     params = {}
 
-    # Temperature constraints: Tmin < Topt < Tmax
     tmin_lo, tmin_hi = ranges["sporulation__Tmin"]
     topt_lo, topt_hi = ranges["sporulation__Topt"]
     tmax_lo, tmax_hi = ranges["sporulation__Tmax"]
@@ -193,54 +198,58 @@ def main():
     actual_df = load_actual()
     rows = list(actual_df.itertuples(index=False))
 
-    study_name = "first_inf_mae_loocv"
-    storage = f"sqlite:///{os.path.join(RESULT_DIR, 'optuna_mae_loocv.db')}"
-
     sampler = TPESampler(
         seed=args.seed,
         multivariate=True,
         n_startup_trials=args.n_startup
     )
-    study = optuna.create_study(
-        study_name=study_name,
-        storage=storage,
-        load_if_exists=True,
-        direction="minimize",
-        sampler=sampler
+
+    def trainable(cfg):
+        model_cfg = apply_params(config, cfg)
+        mae = loocv_mae(model_cfg, rows)
+        tune.report(mae=mae)
+
+    optuna_search = OptunaSearch(
+        space=lambda trial: define_search_space(trial, ranges),
+        sampler=sampler,
+        metric="mae",
+        mode="min"
     )
 
-    pbar = tqdm(total=args.n_trials, desc="Optuna trials")
+    reporter = CLIReporter(metric_columns=["mae", "training_iteration"])
 
-    def _callback(study: optuna.Study, trial: optuna.Trial):
-        pbar.update(1)
+    ray.init(num_cpus=args.n_jobs, include_dashboard=False)
 
-    def objective(trial: optuna.Trial) -> float:
-        params = suggest_params(trial, ranges)
-        cfg = apply_params(config, params)
-        return loocv_mae(cfg, rows)
-
-    study.optimize(
-        objective,
-        n_trials=args.n_trials,
-        n_jobs=args.n_jobs,
-        callbacks=[_callback]
+    analysis = tune.run(
+        trainable,
+        name="first_inf_mae_loocv",
+        num_samples=args.n_trials,
+        search_alg=optuna_search,
+        config={},
+        resources_per_trial={"cpu": 1},
+        progress_reporter=reporter,
+        verbose=1
     )
-    pbar.close()
 
-    best = study.best_trial
+    best_trial = analysis.get_best_trial(metric="mae", mode="min", scope="all")
+    best_cfg = best_trial.config
+    best_value = best_trial.last_result["mae"]
+
     best_out = {
-        "value": best.value,
-        "params": best.params
+        "value": float(best_value),
+        "params": best_cfg
     }
 
     with open(os.path.join(RESULT_DIR, "best_params.json"), "w") as f:
         json.dump(best_out, f, indent=2)
 
-    df_trials = study.trials_dataframe()
+    df_trials = analysis.results_df
     df_trials.to_csv(os.path.join(RESULT_DIR, "trials.csv"), index=False)
 
-    print(f"Best MAE (LOOCV): {best.value:.2f}")
+    print(f"Best MAE (LOOCV): {best_out['value']:.2f}")
     print(f"Saved best params to: {os.path.join(RESULT_DIR, 'best_params.json')}")
+
+    ray.shutdown()
 
 
 if __name__ == "__main__":
