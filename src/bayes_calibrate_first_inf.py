@@ -16,6 +16,7 @@ import pandas as pd
 
 import ray
 from ray import tune
+from ray.air import session
 from ray.tune import CLIReporter
 from ray.tune.search.optuna import OptunaSearch
 import optuna
@@ -216,7 +217,7 @@ def main():
     def trainable(cfg):
         model_cfg = apply_params(config, cfg)
         mae = loocv_mae(model_cfg, rows)
-        tune.report(mae=mae)
+        session.report({"mae": mae})
 
     optuna_storage = InMemoryStorage()
     optuna_search = OptunaSearch(
