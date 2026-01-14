@@ -193,7 +193,7 @@ def main():
     parser.add_argument("--n-startup", type=int, default=600)
     parser.add_argument("--seed", type=int, default=RANDOM_SEED)
     parser.add_argument("--n-jobs", type=int, default=N_JOBS)
-    parser.add_argument("--local-dir", type=str, default=os.path.join(PROJECT_ROOT, "ray_results"))
+    parser.add_argument("--storage-path", type=str, default=os.path.join(PROJECT_ROOT, "ray_results"))
     args = parser.parse_args()
 
     ranges = build_param_ranges()
@@ -233,7 +233,7 @@ def main():
         config={},
         resources_per_trial={"cpu": 1},
         progress_reporter=reporter,
-        local_dir=args.local_dir,
+        storage_path=args.storage_path,
         trial_dirname_creator=lambda t: f"trial_{t.trial_id}",
         verbose=1
     )
