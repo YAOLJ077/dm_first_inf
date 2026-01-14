@@ -1,0 +1,14 @@
+{
+  "sporulation__Tmin": 9.476216261977024,
+  "sporulation__Topt": 20.600497696409512,
+  "sporulation__Tmax": 29.73105353797002,
+  "mp_tmp__rh_wet_night": 91.05456134892464,
+  "sporulation__MP_min": 2.9996973731989134,
+  "dispersal__rain_min": 12.139729875771486,
+  "dispersal__wind_min": 6.491031138439278,
+  "deposition__rain_min": 5.014261118570126,
+  "zoospore_alive__rain": 4.919996370169439,
+  "zoospore_alive__vpd": 2.3577437143676754,
+  "infection__infection_condition": 49.51631381537406,
+  "incubation__spl_end": 1.3175292971072927
+}

@@ -1,0 +1,18 @@
+{
+  "train_mae": 4.0,
+  "val_mae": 5.5,
+  "params": {
+    "sporulation__Tmin": 16.247442469685144,
+    "sporulation__Topt": 17.16574147603112,
+    "sporulation__Tmax": 26.07583524574012,
+    "mp_tmp__rh_wet_night": 88.2971539054502,
+    "sporulation__MP_min": 3.9464823736470103,
+    "dispersal__rain_min": 11.984501426524805,
+    "dispersal__wind_min": 6.744560664488359,
+    "deposition__rain_min": 3.7757998785044657,
+    "zoospore_alive__rain": 4.472151384063784,
+    "zoospore_alive__vpd": 1.9373041625503422,
+    "infection__infection_condition": 62.46261454082442,
+    "incubation__spl_end": 1.105170497265195
+  }
+}

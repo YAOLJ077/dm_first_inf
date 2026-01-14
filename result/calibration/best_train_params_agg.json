@@ -1,0 +1,44 @@
+{
+  "params_weighted_median": {
+    "deposition__rain_min": 4.711051774357465,
+    "dispersal__rain_min": 12.103163582951924,
+    "dispersal__wind_min": 6.424511868823599,
+    "incubation__spl_end": 1.455672044963322,
+    "infection__infection_condition": 57.21280887863557,
+    "mp_tmp__rh_wet_night": 84.7671712754237,
+    "sporulation__MP_min": 3.21959194201054,
+    "sporulation__Tmax": 29.806313091629182,
+    "sporulation__Tmin": 6.8809283045494904,
+    "sporulation__Topt": 20.167008989755242,
+    "zoospore_alive__rain": 4.088167568308847,
+    "zoospore_alive__vpd": 2.0677097031613947
+  },
+  "params_weighted_mean": {
+    "deposition__rain_min": 6.400215334050992,
+    "dispersal__rain_min": 9.802216593524442,
+    "dispersal__wind_min": 8.325889363915449,
+    "incubation__spl_end": 1.2811805859825118,
+    "infection__infection_condition": 74.37019261968027,
+    "mp_tmp__rh_wet_night": 85.80194847181716,
+    "sporulation__MP_min": 3.236128984290666,
+    "sporulation__Tmax": 30.5844294787206,
+    "sporulation__Tmin": 8.737625750355862,
+    "sporulation__Topt": 20.865379175093228,
+    "zoospore_alive__rain": 4.045103868548311,
+    "zoospore_alive__vpd": 1.9099811689174455
+  },
+  "params_mean": {
+    "deposition__rain_min": 8.71320954750392,
+    "dispersal__rain_min": 8.016306408692644,
+    "dispersal__wind_min": 10.581211552816484,
+    "incubation__spl_end": 1.1210070247318897,
+    "infection__infection_condition": 118.79860163144764,
+    "mp_tmp__rh_wet_night": 88.32064946726972,
+    "sporulation__MP_min": 3.130783382902757,
+    "sporulation__Tmax": 31.928609136882116,
+    "sporulation__Tmin": 10.804191483811005,
+    "sporulation__Topt": 20.488602065937677,
+    "zoospore_alive__rain": 4.51546806855129,
+    "zoospore_alive__vpd": 1.9691801496241332
+  }
+}
