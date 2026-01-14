@@ -20,6 +20,7 @@ from ray.tune import CLIReporter
 from ray.tune.search.optuna import OptunaSearch
 import optuna
 from optuna.samplers import TPESampler
+from optuna.storages import InMemoryStorage
 
 # ======================================================
 # Make project root importable
@@ -209,11 +210,14 @@ def main():
         mae = loocv_mae(model_cfg, rows)
         tune.report(mae=mae)
 
+    optuna_storage = InMemoryStorage()
     optuna_search = OptunaSearch(
         space=lambda trial: define_search_space(trial, ranges),
         sampler=sampler,
         metric="mae",
-        mode="min"
+        mode="min",
+        storage=optuna_storage,
+        study_name="first_inf_mae_loocv"
     )
 
     reporter = CLIReporter(metric_columns=["mae", "training_iteration"])
