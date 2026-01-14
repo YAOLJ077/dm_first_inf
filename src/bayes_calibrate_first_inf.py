@@ -300,10 +300,6 @@ def main():
                 if fut in done_ids:
                     train_mae, val_mae = ray.get(fut)
                     study.tell(trial, train_mae)
-                    if hasattr(trial, "set_user_attr"):
-                        trial.set_user_attr("val_mae", float(val_mae))
-                    else:
-                        trial.user_attrs["val_mae"] = float(val_mae)
                     trial_rows.append({
                         "trial_number": trial.number,
                         "train_mae": float(train_mae),
@@ -331,7 +327,11 @@ def main():
         best_trial = study.best_trial
         best_train = float(best_trial.value)
         best_cfg = best_trial.params
-        best_val = float(study.trials[best_trial.number].user_attrs.get("val_mae", best_train))
+        best_val = best_train
+        for r in trial_rows:
+            if r["trial_number"] == best_trial.number:
+                best_val = float(r["val_mae"])
+                break
 
         pool = df_trials.dropna(subset=["train_mae", "val_mae"]).copy()
         pool = pool.sort_values("train_mae", ascending=True)
