@@ -240,7 +240,7 @@ def main():
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--progress-interval", type=float, default=5.0)
     parser.add_argument("--train-top-k", type=int, default=100)
-    parser.add_argument("--train-top-pct", type=float, default=0.0)
+    parser.add_argument("--train-top-pct", type=float, default=1.0)
     parser.add_argument("--kfold", type=int, default=3)
     args = parser.parse_args()
 
