@@ -20,7 +20,6 @@ import pandas as pd
 import ray
 from ray import tune
 from ray.tune import CLIReporter, Callback
-from ray.tune.search import ConcurrencyLimiter
 from ray.tune.search.optuna import OptunaSearch
 import optuna
 from optuna.samplers import TPESampler
@@ -299,10 +298,6 @@ def main():
         max_conc = args.max_concurrent
         if max_conc <= 0:
             max_conc = max(1, args.n_jobs // max(1, args.cpus_per_trial))
-        optuna_search = ConcurrencyLimiter(
-            optuna_search,
-            max_concurrent=max_conc
-        )
 
         def trainable(cfg):
             model_cfg = apply_params(config, cfg)
