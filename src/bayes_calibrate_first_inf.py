@@ -331,7 +331,8 @@ def main():
             checkpoint_config=tune.CheckpointConfig(checkpoint_at_end=False),
             callbacks=callbacks,
             log_to_file=log_to_file,
-            verbose=verbose
+            verbose=verbose,
+            max_concurrent_trials=max_conc
         )
 
         df_trials = analysis.results_df
