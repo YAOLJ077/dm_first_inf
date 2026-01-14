@@ -16,11 +16,12 @@ import pandas as pd
 
 import ray
 from ray import tune
-from ray.tune import CLIReporter
+from ray.tune import CLIReporter, Callback
 from ray.tune.search.optuna import OptunaSearch
 import optuna
 from optuna.samplers import TPESampler
 from optuna.storages import InMemoryStorage
+import time
 
 # ======================================================
 # Make project root importable
@@ -132,6 +133,19 @@ def short_trial_dirname(trial):
     return f"trial_{trial.trial_id}"
 
 
+class ProgressOnlyCallback(Callback):
+    def __init__(self, total: int, interval_s: float = 5.0):
+        self.total = total
+        self.interval_s = interval_s
+        self._last_ts = 0.0
+
+    def on_trial_result(self, iteration, trials, trial, result, **info):
+        done = sum(t.status == "TERMINATED" for t in trials)
+        now = time.time()
+        if now - self._last_ts >= self.interval_s:
+            self._last_ts = now
+            print(f"Progress: {done}/{self.total} trials completed")
+
 def define_search_space(trial: optuna.Trial) -> Dict[str, float]:
     """
     Optuna define-by-run search space with Tmin < Topt < Tmax.
@@ -236,13 +250,11 @@ def main():
     reporter = CLIReporter(metric_columns=["mae"])
     verbose = 1
     log_to_file = False
+    callbacks = []
     if args.quiet:
         os.environ.pop("AIR_VERBOSITY", None)
-        reporter = CLIReporter(
-            parameter_columns=[],
-            metric_columns=["mae"],
-            max_progress_rows=1
-        )
+        reporter = None
+        callbacks = [ProgressOnlyCallback(args.n_trials)]
         verbose = 0
         log_to_file = True
 
@@ -259,6 +271,7 @@ def main():
         storage_path=args.storage_path,
         trial_dirname_creator=short_trial_dirname,
         checkpoint_config=tune.CheckpointConfig(checkpoint_at_end=False),
+        callbacks=callbacks,
         log_to_file=log_to_file,
         verbose=verbose
     )
