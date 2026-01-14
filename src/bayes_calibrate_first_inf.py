@@ -18,12 +18,8 @@ import numpy as np
 import pandas as pd
 
 import ray
-from ray import tune
-from ray.tune import CLIReporter, Callback
-from ray.tune.search.optuna import OptunaSearch
 import optuna
 from optuna.samplers import TPESampler
-from optuna.storages import InMemoryStorage
 import time
 
 # ======================================================
@@ -136,22 +132,15 @@ def short_trial_dirname(trial):
     return f"trial_{trial.trial_id}"
 
 
-class ProgressOnlyCallback(Callback):
-    def __init__(self, total: int, interval_s: float = 5.0, prefix: str = ""):
-        self.total = total
-        self.interval_s = interval_s
-        self._last_ts = 0.0
-        self.prefix = prefix
-
-    def on_trial_result(self, iteration, trials, trial, result, **info):
-        done = sum(t.status == "TERMINATED" for t in trials)
-        now = time.time()
-        if now - self._last_ts >= self.interval_s:
-            self._last_ts = now
-            msg = f"Progress: {done}/{self.total} trials completed"
-            if self.prefix:
-                msg = f"{self.prefix} {msg}"
-            print(msg, flush=True)
+def _progress_print(done: int, total: int, running: int, prefix: str, last_ts: float, interval_s: float) -> float:
+    now = time.time()
+    if now - last_ts >= interval_s:
+        msg = f"Progress: {done}/{total} completed | running: {running}"
+        if prefix:
+            msg = f"{prefix} {msg}"
+        print(msg, flush=True)
+        return now
+    return last_ts
 
 def define_search_space(trial: optuna.Trial) -> Dict[str, float]:
     """
@@ -223,6 +212,14 @@ def build_folds(n: int, k: int) -> List[List[int]]:
     return folds
 
 
+@ray.remote
+def eval_params(params: Dict[str, float], train_rows: List[pd.Series], val_rows: List[pd.Series]) -> Tuple[float, float]:
+    model_cfg = apply_params(config, params)
+    train_mae = compute_mae(model_cfg, train_rows)
+    val_mae = compute_mae(model_cfg, val_rows)
+    return train_mae, val_mae
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--n-trials", type=int, default=6000)
@@ -248,15 +245,6 @@ def main():
     _GLOBAL_RANGES.update(ranges)
     actual_df = load_actual()
     rows = list(actual_df.itertuples(index=False))
-
-    reporter = CLIReporter(metric_columns=["train_mae"])
-    verbose = 1
-    log_to_file = False
-    if args.quiet:
-        os.environ.pop("AIR_VERBOSITY", None)
-        reporter = None
-        verbose = 0
-        log_to_file = True
 
     ray.init(num_cpus=args.n_jobs, include_dashboard=False)
 
@@ -286,58 +274,61 @@ def main():
             warn_independent_sampling=False
         )
 
-        optuna_storage = InMemoryStorage()
-        optuna_search = OptunaSearch(
-            space=define_search_space,
+        study = optuna.create_study(
             sampler=sampler,
-            metric="train_mae",
-            mode="min",
-            storage=optuna_storage,
-            study_name=f"first_inf_mae_fold_{fold_id}"
+            direction="minimize"
         )
         max_conc = args.max_concurrent
         if max_conc <= 0:
             max_conc = max(1, args.n_jobs // max(1, args.cpus_per_trial))
 
-        def trainable(cfg):
-            model_cfg = apply_params(config, cfg)
-            train_mae = compute_mae(model_cfg, train_rows)
-            val_mae = compute_mae(model_cfg, val_rows)
-            tune.report({"train_mae": train_mae, "val_mae": val_mae})
+        pending = []
+        completed = 0
+        last_ts = 0.0
+        prefix = f"[Fold {fold_id}/{k}]"
+        trial_rows = []
 
-        callbacks = [
-            ProgressOnlyCallback(
+        while completed < args.n_trials:
+            while len(pending) < max_conc and completed + len(pending) < args.n_trials:
+                trial = study.ask()
+                params = define_search_space(trial)
+                fut = eval_params.remote(params, train_rows, val_rows)
+                pending.append((trial, params, fut))
+
+            done_ids, _ = ray.wait([f for _, _, f in pending], num_returns=1)
+            for trial, params, fut in list(pending):
+                if fut in done_ids:
+                    train_mae, val_mae = ray.get(fut)
+                    study.tell(trial, train_mae)
+                    study.set_trial_user_attr(trial.number, "val_mae", val_mae)
+                    trial_rows.append({
+                        "trial_number": trial.number,
+                        "train_mae": float(train_mae),
+                        "val_mae": float(val_mae),
+                        **params
+                    })
+                    pending.remove((trial, params, fut))
+                    completed += 1
+                    break
+
+            running = len(pending)
+            last_ts = _progress_print(
+                completed,
                 args.n_trials,
-                args.progress_interval,
-                prefix=f"[Fold {fold_id}/{k}]"
+                running,
+                prefix,
+                last_ts,
+                args.progress_interval
             )
-        ]
 
-        analysis = tune.run(
-            trainable,
-            name=f"first_inf_mae_fold_{fold_id}",
-            num_samples=args.n_trials,
-            search_alg=optuna_search,
-            config={},
-            resources_per_trial={"cpu": args.cpus_per_trial},
-            progress_reporter=reporter,
-            storage_path=args.storage_path,
-            trial_dirname_creator=short_trial_dirname,
-            checkpoint_config=tune.CheckpointConfig(checkpoint_at_end=False),
-            callbacks=callbacks,
-            log_to_file=log_to_file,
-            verbose=verbose,
-            max_concurrent_trials=max_conc
-        )
-
-        df_trials = analysis.results_df
+        df_trials = pd.DataFrame(trial_rows)
         fold_trials_path = os.path.join(RESULT_DIR, f"fold_{fold_id}_trials.csv")
         df_trials.to_csv(fold_trials_path, index=False)
 
-        best_trial = analysis.get_best_trial(metric="train_mae", mode="min", scope="all")
-        best_cfg = best_trial.config
-        best_train = best_trial.last_result.get("train_mae")
-        best_val = best_trial.last_result.get("val_mae", best_train)
+        best_trial = study.best_trial
+        best_train = float(best_trial.value)
+        best_cfg = best_trial.params
+        best_val = float(study.trials[best_trial.number].user_attrs.get("val_mae", best_train))
 
         pool = df_trials.dropna(subset=["train_mae", "val_mae"]).copy()
         pool = pool.sort_values("train_mae", ascending=True)
@@ -372,9 +363,9 @@ def main():
                 overall_best["best_val_mae"] = float(best_val_row["val_mae"])
                 overall_best["best_val_train_mae"] = float(best_val_row["train_mae"])
                 overall_best["best_val_params"] = {
-                    k.replace("config/", ""): best_val_row[k]
+                    k: best_val_row[k]
                     for k in best_val_row.index
-                    if k.startswith("config/")
+                    if k not in ("trial_number", "train_mae", "val_mae")
                 }
 
     summary_df = pd.DataFrame(fold_rows)
