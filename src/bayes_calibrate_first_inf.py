@@ -261,6 +261,10 @@ def main():
         "best_val_mae": None,
         "best_val_train_mae": None,
     }
+    fold_best_train_params = []
+    fold_best_val_params = []
+    fold_best_train_weights = []
+    fold_best_val_weights = []
 
     for fold_id, val_idx in enumerate(folds, start=1):
         train_idx = [i for i in range(n_samples) if i not in val_idx]
@@ -332,6 +336,8 @@ def main():
             if r["trial_number"] == best_trial.number:
                 best_val = float(r["val_mae"])
                 break
+        fold_best_train_params.append(best_cfg)
+        fold_best_train_weights.append(float(best_val))
 
         pool = df_trials.dropna(subset=["train_mae", "val_mae"]).copy()
         pool = pool.sort_values("train_mae", ascending=True)
@@ -347,6 +353,12 @@ def main():
         best_val_row = None
         if not pool.empty:
             best_val_row = pool.sort_values("val_mae", ascending=True).iloc[0]
+            fold_best_val_params.append({
+                k: best_val_row[k]
+                for k in best_val_row.index
+                if k not in ("trial_number", "train_mae", "val_mae")
+            })
+            fold_best_val_weights.append(float(best_val_row["val_mae"]))
 
         fold_rows.append({
             "fold": fold_id,
@@ -375,52 +387,119 @@ def main():
     summary_out = os.path.join(RESULT_DIR, "nested_loocv_summary.csv")
     summary_df.to_csv(summary_out, index=False)
 
-    best_out = {
-        "nested_loocv_avg_train_mae": float(summary_df["train_mae_best_train"].mean()),
-        "nested_loocv_avg_val_mae": float(summary_df["val_mae_at_best_train"].mean()),
-        "nested_loocv_avg_train_mae_best_val": float(summary_df["train_mae_best_val"].mean()),
-        "nested_loocv_avg_val_mae_best_val": float(summary_df["val_mae_best_val"].mean()),
-        "best_train_params": overall_best["best_train_params"],
-        "best_train_mae": overall_best["best_train_mae"],
-        "best_train_val_mae": overall_best["best_train_val_mae"],
-        "best_val_params": overall_best["best_val_params"],
-        "best_val_mae": overall_best["best_val_mae"],
-        "best_val_train_mae": overall_best["best_val_train_mae"],
-    }
+    def weighted_median(vals: List[float], weights: List[float]) -> float:
+        pairs = sorted(zip(vals, weights), key=lambda x: x[0])
+        total = sum(weights)
+        if total <= 0:
+            return float(np.median(vals))
+        csum = 0.0
+        for v, w in pairs:
+            csum += w
+            if csum >= 0.5 * total:
+                return float(v)
+        return float(pairs[-1][0])
 
-    best_path = os.path.join(RESULT_DIR, "best_params.json")
-    with open(best_path, "w") as f:
-        json.dump(best_out, f, indent=2)
+    def aggregate_params(param_list: List[Dict[str, float]], fold_vals: List[float]) -> Dict[str, float]:
+        if not param_list:
+            return {}
+        # lower val_mae -> higher weight
+        weights = [1.0 / max(1e-6, v) for v in fold_vals]
+        keys = sorted(param_list[0].keys())
+        out = {}
+        for k in keys:
+            vals = [p[k] for p in param_list]
+            out[k] = weighted_median(vals, weights)
 
-    train_out = {
-        "train_mae": best_out["best_train_mae"],
-        "val_mae": best_out["best_train_val_mae"],
-        "params": best_out["best_train_params"],
-    }
+        # enforce Tmin < Topt < Tmax by sorting only
+        tmin = out.get("sporulation__Tmin")
+        topt = out.get("sporulation__Topt")
+        tmax = out.get("sporulation__Tmax")
+        if tmin is not None and topt is not None and tmax is not None:
+            tmin, topt, tmax = sorted([tmin, topt, tmax])
+            out["sporulation__Tmin"] = tmin
+            out["sporulation__Topt"] = topt
+            out["sporulation__Tmax"] = tmax
+
+        return out
+
+    def aggregate_params_mean(param_list: List[Dict[str, float]], fold_vals: List[float]) -> Dict[str, float]:
+        if not param_list:
+            return {}
+        weights = [1.0 / max(1e-6, v) for v in fold_vals]
+        total_w = sum(weights)
+        if total_w <= 0:
+            weights = [1.0] * len(param_list)
+            total_w = float(len(param_list))
+        keys = sorted(param_list[0].keys())
+        out = {}
+        for k in keys:
+            vals = [p[k] for p in param_list]
+            out[k] = float(sum(v * w for v, w in zip(vals, weights)) / total_w)
+
+        tmin = out.get("sporulation__Tmin")
+        topt = out.get("sporulation__Topt")
+        tmax = out.get("sporulation__Tmax")
+        if tmin is not None and topt is not None and tmax is not None:
+            tmin, topt, tmax = sorted([tmin, topt, tmax])
+            out["sporulation__Tmin"] = tmin
+            out["sporulation__Topt"] = topt
+            out["sporulation__Tmax"] = tmax
+
+        return out
+
+    agg_train_params = aggregate_params(fold_best_train_params, fold_best_train_weights)
+    agg_val_params = aggregate_params(fold_best_val_params, fold_best_val_weights)
+    agg_train_params_mean = aggregate_params_mean(fold_best_train_params, fold_best_train_weights)
+    agg_val_params_mean = aggregate_params_mean(fold_best_val_params, fold_best_val_weights)
 
     if args.train_top_pct > 0:
         tag = f"top{args.train_top_pct:g}pct"
     else:
         tag = f"topk{args.train_top_k}"
 
-    val_out = {
-        "train_mae": best_out["best_val_train_mae"],
-        "val_mae": best_out["best_val_mae"],
-        "params": best_out["best_val_params"],
+    avg_summary = {
+        "nested_kfold_avg_train_mae": float(summary_df["train_mae_best_train"].mean()),
+        "nested_kfold_avg_val_mae": float(summary_df["val_mae_at_best_train"].mean()),
+        "nested_kfold_avg_train_mae_best_val": float(summary_df["train_mae_best_val"].mean()),
+        "nested_kfold_avg_val_mae_best_val": float(summary_df["val_mae_best_val"].mean()),
     }
 
-    train_path = os.path.join(RESULT_DIR, "best_train_params.json")
-    val_path = os.path.join(RESULT_DIR, f"best_val_params_{tag}.json")
+    avg_summary_path = os.path.join(RESULT_DIR, "nested_kfold_avg_summary.json")
+    with open(avg_summary_path, "w") as f:
+        json.dump(avg_summary, f, indent=2)
 
-    with open(train_path, "w") as f:
-        json.dump(train_out, f, indent=2)
-    with open(val_path, "w") as f:
-        json.dump(val_out, f, indent=2)
+    fold_best_mae = summary_df[
+        ["fold", "train_mae_best_train", "val_mae_at_best_train", "train_mae_best_val", "val_mae_best_val"]
+    ].copy()
+    fold_best_path = os.path.join(RESULT_DIR, "fold_best_mae.csv")
+    fold_best_mae.to_csv(fold_best_path, index=False)
 
-    print(f"Saved nested summary: {summary_out}")
-    print(f"Saved best params to: {best_path}")
-    print(f"Saved train-best params: {train_path}")
-    print(f"Saved val-best params ({tag}): {val_path}")
+    train_agg_out = {
+        "train_mae_avg": avg_summary["nested_kfold_avg_train_mae"],
+        "val_mae_avg": avg_summary["nested_kfold_avg_val_mae"],
+        "params_weighted_median": agg_train_params,
+        "params_weighted_mean": agg_train_params_mean,
+    }
+    val_agg_out = {
+        "train_mae_avg": avg_summary["nested_kfold_avg_train_mae_best_val"],
+        "val_mae_avg": avg_summary["nested_kfold_avg_val_mae_best_val"],
+        "params_weighted_median": agg_val_params,
+        "params_weighted_mean": agg_val_params_mean,
+    }
+
+    train_agg_path = os.path.join(RESULT_DIR, "best_train_params_agg.json")
+    val_agg_path = os.path.join(RESULT_DIR, f"best_val_params_{tag}_agg.json")
+
+    with open(train_agg_path, "w") as f:
+        json.dump(train_agg_out, f, indent=2)
+    with open(val_agg_path, "w") as f:
+        json.dump(val_agg_out, f, indent=2)
+
+    print(f"Saved per-fold summary: {summary_out}")
+    print(f"Saved fold best mae: {fold_best_path}")
+    print(f"Saved avg summary: {avg_summary_path}")
+    print(f"Saved train aggregates: {train_agg_path}")
+    print(f"Saved val aggregates ({tag}): {val_agg_path}")
 
     ray.shutdown()
 
