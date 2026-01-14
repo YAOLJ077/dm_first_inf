@@ -144,7 +144,7 @@ class ProgressOnlyCallback(Callback):
         now = time.time()
         if now - self._last_ts >= self.interval_s:
             self._last_ts = now
-            print(f"Progress: {done}/{self.total} trials completed")
+            print(f"Progress: {done}/{self.total} trials completed", flush=True)
 
 def define_search_space(trial: optuna.Trial) -> Dict[str, float]:
     """
@@ -219,6 +219,7 @@ def main():
         default=os.path.join(PROJECT_ROOT, "result", "ray_results")
     )
     parser.add_argument("--quiet", action="store_true")
+    parser.add_argument("--progress-interval", type=float, default=5.0)
     args = parser.parse_args()
 
     ranges = build_param_ranges()
@@ -250,11 +251,10 @@ def main():
     reporter = CLIReporter(metric_columns=["mae"])
     verbose = 1
     log_to_file = False
-    callbacks = []
+    callbacks = [ProgressOnlyCallback(args.n_trials, args.progress_interval)]
     if args.quiet:
         os.environ.pop("AIR_VERBOSITY", None)
         reporter = None
-        callbacks = [ProgressOnlyCallback(args.n_trials)]
         verbose = 0
         log_to_file = True
 
