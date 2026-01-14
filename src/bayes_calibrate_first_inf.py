@@ -300,7 +300,10 @@ def main():
                 if fut in done_ids:
                     train_mae, val_mae = ray.get(fut)
                     study.tell(trial, train_mae)
-                    study.set_trial_user_attr(trial.number, "val_mae", val_mae)
+                    if hasattr(trial, "set_user_attr"):
+                        trial.set_user_attr("val_mae", float(val_mae))
+                    else:
+                        trial.user_attrs["val_mae"] = float(val_mae)
                     trial_rows.append({
                         "trial_number": trial.number,
                         "train_mae": float(train_mae),
