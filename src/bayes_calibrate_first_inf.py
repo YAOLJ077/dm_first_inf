@@ -11,6 +11,9 @@ import copy
 import argparse
 from typing import Dict, List, Tuple
 
+os.environ.setdefault("RAY_DISABLE_METRICS", "1")
+os.environ.setdefault("RAY_DISABLE_USAGE_STATS", "1")
+
 import numpy as np
 import pandas as pd
 
