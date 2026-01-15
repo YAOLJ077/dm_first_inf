@@ -63,6 +63,7 @@ BASE_RANGES = {
     "zoospore_alive__vpd": (1.5, 3.5),
     "infection__infection_condition": (50, 200),
     "incubation__spl_end": (1.0, 1.5),
+    "thresholds__min_spores": (0.01, 0.06),
 }
 
 
@@ -249,7 +250,7 @@ def main():
     parser.add_argument("--no-quiet", dest="quiet", action="store_false")
     parser.add_argument("--progress-interval", type=float, default=5.0)
     parser.add_argument("--train-top-k", type=int, default=100)
-    parser.add_argument("--train-top-pct", type=float, default=5.0)
+    parser.add_argument("--train-top-pct", type=float, default=1.0)
     parser.add_argument("--kfold", type=int, default=3)
     args = parser.parse_args()
 

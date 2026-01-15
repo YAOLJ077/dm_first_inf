@@ -63,6 +63,7 @@ BASE_RANGES = {
     "zoospore_alive__vpd": (1.5, 3.5),
     "infection__infection_condition": (50, 200),
     "incubation__spl_end": (1.0, 1.5),
+    "thresholds__min_spores": (0.02, 0.08),
 }
 
 
