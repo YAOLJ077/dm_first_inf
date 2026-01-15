@@ -218,23 +218,23 @@ def build_folds(n: int, k: int, seed: int) -> List[List[int]]:
 
 
 @ray.remote
-def eval_params_cv(
+def eval_params_train(params: Dict[str, float], train_rows: List[pd.Series]) -> float:
+    model_cfg = apply_params(config, params)
+    return compute_mae(model_cfg, train_rows)
+
+
+@ray.remote
+def eval_params_val(
     params: Dict[str, float],
     fold_sets: List[Tuple[List[pd.Series], List[pd.Series]]]
-) -> Tuple[float, float, List[Tuple[float, float]]]:
+) -> List[Tuple[float, float]]:
     model_cfg = apply_params(config, params)
-    train_vals = []
-    val_vals = []
     fold_metrics = []
     for train_rows, val_rows in fold_sets:
         train_mae = compute_mae(model_cfg, train_rows)
         val_mae = compute_mae(model_cfg, val_rows)
-        train_vals.append(train_mae)
-        val_vals.append(val_mae)
         fold_metrics.append((train_mae, val_mae))
-    avg_train = float(np.mean(train_vals)) if train_vals else PENALTY_DAYS
-    avg_val = float(np.mean(val_vals)) if val_vals else PENALTY_DAYS
-    return avg_train, avg_val, fold_metrics
+    return fold_metrics
 
 
 def main():
@@ -298,35 +298,25 @@ def main():
     prefix = "[CV]"
     trial_rows = []
     per_fold_trial_rows = {i: [] for i in range(1, k + 1)}
-    trial_fold_metrics: Dict[int, List[Tuple[float, float]]] = {}
 
     while completed < args.n_trials:
         while len(pending) < max_conc and completed + len(pending) < args.n_trials:
             trial = study.ask()
             params = define_search_space(trial)
-            fut = eval_params_cv.remote(params, fold_sets)
+            fut = eval_params_train.remote(params, rows)
             pending.append((trial, params, fut))
 
         done_ids, _ = ray.wait([f for _, _, f in pending], num_returns=1)
         for trial, params, fut in list(pending):
             if fut in done_ids:
-                avg_train, avg_val, fold_metrics = ray.get(fut)
-                # Optimize by k-fold mean train MAE; val used for pool selection.
-                study.tell(trial, avg_train)
+                train_mae = ray.get(fut)
+                # Stage 1: optimize by full-data train MAE only.
+                study.tell(trial, train_mae)
                 trial_rows.append({
                     "trial_number": trial.number,
-                    "avg_train_mae": float(avg_train),
-                    "avg_val_mae": float(avg_val),
+                    "avg_train_mae": float(train_mae),
                     **params
                 })
-                trial_fold_metrics[trial.number] = list(fold_metrics)
-                for fold_id, (train_mae, val_mae) in enumerate(fold_metrics, start=1):
-                    per_fold_trial_rows[fold_id].append({
-                        "trial_number": trial.number,
-                        "train_mae": float(train_mae),
-                        "val_mae": float(val_mae),
-                        **params
-                    })
                 pending.remove((trial, params, fut))
                 completed += 1
                 break
@@ -341,49 +331,11 @@ def main():
             args.progress_interval
         )
 
-    fold_rows = []
-    fold_best_train_params = []
-    fold_best_train_weights = []
-
-    for fold_id in range(1, k + 1):
-        df_trials = pd.DataFrame(per_fold_trial_rows[fold_id])
-        fold_trials_path = os.path.join(RESULT_DIR, f"fold_{fold_id}_trials.csv")
-        df_trials.to_csv(fold_trials_path, index=False)
-
-        if df_trials.empty:
-            fold_rows.append({
-                "fold": fold_id,
-                "train_mae_best_train": np.nan,
-                "val_mae_at_best_train": np.nan,
-                "train_mae_best_val": np.nan,
-                "val_mae_best_val": np.nan,
-            })
-            continue
-
-        best_train_row = df_trials.sort_values("train_mae", ascending=True).iloc[0]
-        best_train = float(best_train_row["train_mae"])
-        best_val = float(best_train_row["val_mae"])
-        best_cfg = {
-            k: best_train_row[k]
-            for k in best_train_row.index
-            if k not in ("trial_number", "train_mae", "val_mae")
-        }
-        fold_best_train_params.append(best_cfg)
-        fold_best_train_weights.append(float(best_val))
-
-        fold_rows.append({
-            "fold": fold_id,
-            "train_mae_best_train": float(best_train),
-            "val_mae_at_best_train": float(best_val),
-            "train_mae_best_val": np.nan,
-            "val_mae_best_val": np.nan,
-        })
-
     df_global = pd.DataFrame(trial_rows)
     if df_global.empty:
         raise RuntimeError("No trials completed; cannot build global pool.")
 
-    pool = df_global.dropna(subset=["avg_train_mae", "avg_val_mae"]).copy()
+    pool = df_global.dropna(subset=["avg_train_mae"]).copy()
     pool = pool.sort_values("avg_train_mae", ascending=True)
     if args.train_top_pct > 0:
         n_keep = max(1, int(len(pool) * args.train_top_pct / 100.0))
@@ -391,6 +343,34 @@ def main():
         n_keep = min(args.train_top_k, len(pool))
     pool = pool.head(n_keep)
 
+    # Stage 2: evaluate val across folds for top% only.
+    val_pending = []
+    val_results: Dict[int, List[Tuple[float, float]]] = {}
+    for _, row in pool.iterrows():
+        trial_num = int(row["trial_number"])
+        params = {
+            k: row[k]
+            for k in row.index
+            if k not in ("trial_number", "avg_train_mae")
+        }
+        fut = eval_params_val.remote(params, fold_sets)
+        val_pending.append((trial_num, params, fut))
+
+    while val_pending:
+        done_ids, _ = ray.wait([f for _, _, f in val_pending], num_returns=1)
+        for trial_num, params, fut in list(val_pending):
+            if fut in done_ids:
+                val_results[trial_num] = ray.get(fut)
+                val_pending.remove((trial_num, params, fut))
+                break
+
+    # Attach avg_val_mae to pool and write outputs.
+    avg_vals = []
+    for _, row in pool.iterrows():
+        vals = val_results.get(int(row["trial_number"]), [])
+        avg_vals.append(float(np.mean([v for _, v in vals])) if vals else float(PENALTY_DAYS))
+    pool = pool.copy()
+    pool["avg_val_mae"] = avg_vals
     pool_out = os.path.join(RESULT_DIR, "cv_train_top_pool.csv")
     pool.to_csv(pool_out, index=False)
 
@@ -401,7 +381,7 @@ def main():
         for k in best_val_row.index
         if k not in ("trial_number", "avg_train_mae", "avg_val_mae")
     }
-    best_val_fold_metrics = trial_fold_metrics.get(best_val_trial, [])
+    best_val_fold_metrics = val_results.get(best_val_trial, [])
     if best_val_fold_metrics:
         train_vals = [m[0] for m in best_val_fold_metrics]
         val_vals = [m[1] for m in best_val_fold_metrics]
@@ -410,16 +390,51 @@ def main():
     else:
         train_rmse = float(PENALTY_DAYS)
         val_rmse = float(PENALTY_DAYS)
-    if best_val_fold_metrics:
-        for i, (train_mae, val_mae) in enumerate(best_val_fold_metrics, start=1):
-            fold_rows[i - 1]["train_mae_best_val"] = float(train_mae)
-            fold_rows[i - 1]["val_mae_best_val"] = float(val_mae)
 
-    # Use global best-val params for aggregation outputs.
-    fold_best_val_params = [best_val_params for _ in range(k)]
-    fold_best_val_weights = [float(v) for _, v in best_val_fold_metrics] if best_val_fold_metrics else [PENALTY_DAYS] * k
+    fold_rows = []
+    for fold_id, (train_mae, val_mae) in enumerate(best_val_fold_metrics, start=1):
+        fold_rows.append({
+            "fold": fold_id,
+            "train_mae_best_train": float(best_val_row["avg_train_mae"]),
+            "val_mae_at_best_train": float(best_val_row["avg_val_mae"]),
+            "train_mae_best_val": float(train_mae),
+            "val_mae_best_val": float(val_mae),
+        })
+
+    # For downstream outputs that expect per-fold trials, write only top% results.
+    for fold_id in range(1, k + 1):
+        per_fold_rows = []
+        for _, row in pool.iterrows():
+            trial_num = int(row["trial_number"])
+            params = {
+                k: row[k]
+                for k in row.index
+                if k not in ("trial_number", "avg_train_mae", "avg_val_mae")
+            }
+            fold_metrics = val_results.get(trial_num, [])
+            if len(fold_metrics) >= fold_id:
+                train_mae, val_mae = fold_metrics[fold_id - 1]
+            else:
+                train_mae, val_mae = PENALTY_DAYS, PENALTY_DAYS
+            per_fold_rows.append({
+                "trial_number": trial_num,
+                "train_mae": float(train_mae),
+                "val_mae": float(val_mae),
+                **params
+            })
+        df_trials = pd.DataFrame(per_fold_rows)
+        fold_trials_path = os.path.join(RESULT_DIR, f"fold_{fold_id}_trials.csv")
+        df_trials.to_csv(fold_trials_path, index=False)
 
     summary_df = pd.DataFrame(fold_rows)
+    if best_val_fold_metrics:
+        fold_best_train_weights = [float(m[0]) for m in best_val_fold_metrics]
+        fold_best_val_weights = [float(m[1]) for m in best_val_fold_metrics]
+    else:
+        fold_best_train_weights = [PENALTY_DAYS] * k
+        fold_best_val_weights = [PENALTY_DAYS] * k
+    fold_best_train_params = [best_val_params for _ in range(k)]
+    fold_best_val_params = [best_val_params for _ in range(k)]
     summary_out = os.path.join(RESULT_DIR, "nested_loocv_summary.csv")
     summary_df.to_csv(summary_out, index=False)
 
