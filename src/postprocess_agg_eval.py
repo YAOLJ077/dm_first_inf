@@ -156,10 +156,14 @@ def _params_key(params: Dict[str, float]) -> str:
 
 
 def method_b_top_pool_global(tag: str) -> Dict[str, float]:
-    pattern = os.path.join(OUT_DIR, f"fold_*_train_top_pool.csv")
-    files = sorted([p for p in glob.glob(pattern)])
-    if not files:
-        return {"status": "missing", "reason": f"No pool files found: {pattern}"}
+    cv_pool = os.path.join(OUT_DIR, "cv_train_top_pool.csv")
+    if os.path.exists(cv_pool):
+        files = [cv_pool]
+    else:
+        pattern = os.path.join(OUT_DIR, f"fold_*_train_top_pool.csv")
+        files = sorted([p for p in glob.glob(pattern)])
+        if not files:
+            return {"status": "missing", "reason": f"No pool files found: {pattern}"}
 
     df_all = []
     for fp in files:

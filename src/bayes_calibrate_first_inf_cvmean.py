@@ -294,6 +294,7 @@ def main():
     prefix = "[CV]"
     trial_rows = []
     per_fold_trial_rows = {i: [] for i in range(1, k + 1)}
+    trial_fold_metrics: Dict[int, List[Tuple[float, float]]] = {}
 
     while completed < args.n_trials:
         while len(pending) < max_conc and completed + len(pending) < args.n_trials:
@@ -314,6 +315,7 @@ def main():
                     "avg_val_mae": float(avg_val),
                     **params
                 })
+                trial_fold_metrics[trial.number] = list(fold_metrics)
                 for fold_id, (train_mae, val_mae) in enumerate(fold_metrics, start=1):
                     per_fold_trial_rows[fold_id].append({
                         "trial_number": trial.number,
@@ -337,9 +339,7 @@ def main():
 
     fold_rows = []
     fold_best_train_params = []
-    fold_best_val_params = []
     fold_best_train_weights = []
-    fold_best_val_weights = []
 
     for fold_id in range(1, k + 1):
         df_trials = pd.DataFrame(per_fold_trial_rows[fold_id])
@@ -367,34 +367,45 @@ def main():
         fold_best_train_params.append(best_cfg)
         fold_best_train_weights.append(float(best_val))
 
-        pool = df_trials.dropna(subset=["train_mae", "val_mae"]).copy()
-        pool = pool.sort_values("train_mae", ascending=True)
-        if args.train_top_pct > 0:
-            n_keep = max(1, int(len(pool) * args.train_top_pct / 100.0))
-        else:
-            n_keep = min(args.train_top_k, len(pool))
-        pool = pool.head(n_keep)
-
-        pool_out = os.path.join(RESULT_DIR, f"fold_{fold_id}_train_top_pool.csv")
-        pool.to_csv(pool_out, index=False)
-
-        best_val_row = None
-        if not pool.empty:
-            best_val_row = pool.sort_values("val_mae", ascending=True).iloc[0]
-            fold_best_val_params.append({
-                k: best_val_row[k]
-                for k in best_val_row.index
-                if k not in ("trial_number", "train_mae", "val_mae")
-            })
-            fold_best_val_weights.append(float(best_val_row["val_mae"]))
-
         fold_rows.append({
             "fold": fold_id,
             "train_mae_best_train": float(best_train),
             "val_mae_at_best_train": float(best_val),
-            "train_mae_best_val": float(best_val_row["train_mae"]) if best_val_row is not None else np.nan,
-            "val_mae_best_val": float(best_val_row["val_mae"]) if best_val_row is not None else np.nan,
+            "train_mae_best_val": np.nan,
+            "val_mae_best_val": np.nan,
         })
+
+    df_global = pd.DataFrame(trial_rows)
+    if df_global.empty:
+        raise RuntimeError("No trials completed; cannot build global pool.")
+
+    pool = df_global.dropna(subset=["avg_train_mae", "avg_val_mae"]).copy()
+    pool = pool.sort_values("avg_train_mae", ascending=True)
+    if args.train_top_pct > 0:
+        n_keep = max(1, int(len(pool) * args.train_top_pct / 100.0))
+    else:
+        n_keep = min(args.train_top_k, len(pool))
+    pool = pool.head(n_keep)
+
+    pool_out = os.path.join(RESULT_DIR, "cv_train_top_pool.csv")
+    pool.to_csv(pool_out, index=False)
+
+    best_val_row = pool.sort_values("avg_val_mae", ascending=True).iloc[0]
+    best_val_trial = int(best_val_row["trial_number"])
+    best_val_params = {
+        k: best_val_row[k]
+        for k in best_val_row.index
+        if k not in ("trial_number", "avg_train_mae", "avg_val_mae")
+    }
+    best_val_fold_metrics = trial_fold_metrics.get(best_val_trial, [])
+    if best_val_fold_metrics:
+        for i, (train_mae, val_mae) in enumerate(best_val_fold_metrics, start=1):
+            fold_rows[i - 1]["train_mae_best_val"] = float(train_mae)
+            fold_rows[i - 1]["val_mae_best_val"] = float(val_mae)
+
+    # Use global best-val params for aggregation outputs.
+    fold_best_val_params = [best_val_params for _ in range(k)]
+    fold_best_val_weights = [float(v) for _, v in best_val_fold_metrics] if best_val_fold_metrics else [PENALTY_DAYS] * k
 
     summary_df = pd.DataFrame(fold_rows)
     summary_out = os.path.join(RESULT_DIR, "nested_loocv_summary.csv")
