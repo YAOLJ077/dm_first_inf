@@ -48,6 +48,7 @@ from model.config import config
 PENALTY_DAYS = 120.0
 N_JOBS = 64
 RANDOM_SEED = 42
+FOLD_SEED = 42
 
 # Base ranges from Morris settings
 BASE_RANGES = {
@@ -204,11 +205,14 @@ def compute_mae(cfg: dict, rows: List[pd.Series]) -> float:
     return float(np.mean(errors))
 
 
-def build_folds(n: int, k: int) -> List[List[int]]:
+def build_folds(n: int, k: int, seed: int) -> List[List[int]]:
     if k <= 1 or k > n:
         k = n
     folds = [[] for _ in range(k)]
-    for i, idx in enumerate(range(n)):
+    rng = np.random.RandomState(seed)
+    indices = list(range(n))
+    rng.shuffle(indices)
+    for i, idx in enumerate(indices):
         folds[i % k].append(idx)
     return folds
 
@@ -235,8 +239,8 @@ def eval_params_cv(
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--n-trials", type=int, default=6000)
-    parser.add_argument("--n-startup", type=int, default=600)
+    parser.add_argument("--n-trials", type=int, default=8000)
+    parser.add_argument("--n-startup", type=int, default=800)
     parser.add_argument("--seed", type=int, default=RANDOM_SEED)
     parser.add_argument("--n-jobs", type=int, default=N_JOBS)
     parser.add_argument("--cpus-per-trial", type=int, default=1)
@@ -250,7 +254,7 @@ def main():
     parser.add_argument("--no-quiet", dest="quiet", action="store_false")
     parser.add_argument("--progress-interval", type=float, default=5.0)
     parser.add_argument("--train-top-k", type=int, default=100)
-    parser.add_argument("--train-top-pct", type=float, default=1.0)
+    parser.add_argument("--train-top-pct", type=float, default=5.0)
     parser.add_argument("--kfold", type=int, default=3)
     args = parser.parse_args()
 
@@ -263,7 +267,7 @@ def main():
 
     n_samples = len(rows)
     k = args.kfold if args.kfold > 0 else n_samples
-    folds = build_folds(n_samples, k)
+    folds = build_folds(n_samples, k, FOLD_SEED)
 
     fold_sets = []
     for val_idx in folds:
