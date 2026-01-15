@@ -58,7 +58,7 @@ OPT_TRAJ = None  # set int to optimize trajectories
 # PARAMETER SPACE
 # ======================================================
 PARAM_RANGES = {
-    "mp_tmp__rh_wet_night": (85, 98),
+    "mp_tmp__rh_wet_night": (85, 95),
     "sporulation__MP_min": (3, 6),
     "sporulation__Tmin": (8, 15),
     "sporulation__Topt": (18, 24),
@@ -69,7 +69,8 @@ PARAM_RANGES = {
     "zoospore_alive__rain": (3.0, 6.0),
     "zoospore_alive__vpd": (1.5, 3.5),
     "infection__infection_condition": (50, 200),
-    "incubation__spl_end": (1.0, 1.5)
+    "incubation__spl_end": (1.0, 1.5),
+    "thresholds__min_spores": (0.02, 0.06)
 }
 
 # ======================================================
