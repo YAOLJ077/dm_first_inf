@@ -403,6 +403,14 @@ def main():
     }
     best_val_fold_metrics = trial_fold_metrics.get(best_val_trial, [])
     if best_val_fold_metrics:
+        train_vals = [m[0] for m in best_val_fold_metrics]
+        val_vals = [m[1] for m in best_val_fold_metrics]
+        train_rmse = float(np.sqrt(np.mean(np.square(train_vals))))
+        val_rmse = float(np.sqrt(np.mean(np.square(val_vals))))
+    else:
+        train_rmse = float(PENALTY_DAYS)
+        val_rmse = float(PENALTY_DAYS)
+    if best_val_fold_metrics:
         for i, (train_mae, val_mae) in enumerate(best_val_fold_metrics, start=1):
             fold_rows[i - 1]["train_mae_best_val"] = float(train_mae)
             fold_rows[i - 1]["val_mae_best_val"] = float(val_mae)
@@ -546,6 +554,18 @@ def main():
     with open(kfold_summary_val_path, "w") as f:
         json.dump(kfold_summary_val, f, indent=2)
 
+    core_best = {
+        "params": best_val_params,
+        "avg_train_mae": float(best_val_row["avg_train_mae"]),
+        "avg_val_mae": float(best_val_row["avg_val_mae"]),
+        "train_rmse": train_rmse,
+        "val_rmse": val_rmse,
+        "top_tag": tag,
+    }
+    core_best_path = os.path.join(RESULT_DIR, "best_params_core.json")
+    with open(core_best_path, "w") as f:
+        json.dump(core_best, f, indent=2)
+
     # aggregates (weighted median/mean/simple mean)
     train_agg = {
         "params_weighted_median": agg_train_params,
@@ -570,6 +590,7 @@ def main():
         print(f"Saved kfold detail top{tag}: {kfold_detail_val_path}")
         print(f"Saved kfold summary train: {kfold_summary_train_path}")
         print(f"Saved kfold summary top{tag}: {kfold_summary_val_path}")
+        print(f"Saved core best params: {core_best_path}")
         print(f"Saved train aggregates: {train_agg_path}")
         print(f"Saved val aggregates ({tag}): {val_agg_path}")
 
