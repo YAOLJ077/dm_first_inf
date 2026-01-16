@@ -47,12 +47,13 @@ def main():
             pool = pool.sort_values("train_mae", ascending=True)
             n_keep = max(1, int(len(pool) * pct / 100.0))
             top = pool.head(n_keep)
+            best_row = top.sort_values("val_mae", ascending=True).iloc[0]
             fold_rows.append({
                 "fold": fold_id,
                 "top_pct": pct,
                 "n_keep": int(n_keep),
-                "train_mae_mean": float(top["train_mae"].mean()),
-                "val_mae_mean": float(top["val_mae"].mean()),
+                "train_mae_mean": float(best_row["train_mae"]),
+                "val_mae_mean": float(best_row["val_mae"]),
             })
         df_fold = pd.DataFrame(fold_rows)
         rows.append({
