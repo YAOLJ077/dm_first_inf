@@ -1,13 +1,18 @@
 # -*- coding: utf-8 -*-
 """
-Bayesian calibration (Optuna) with LOO.
+Bayesian calibration (Optuna) with LOO and two-stage TPE.
 
 Per fold:
-  - Optimize train_mae on the fold's training set (n-1 samples).
-  - Keep top% by train_mae.
-  - Select the best by val_mae on the single held-out sample.
+  Stage 1 (global):
+    - Optimize train_mae on the fold's training set (n-1 samples).
+    - Keep top% by train_mae and derive a local range.
+  Stage 2 (local):
+    - Re-optimize train_mae within the local range.
+    - Keep top% by train_mae.
+    - Select the best by val_mae on the single held-out sample.
 
-Outputs per-fold best params and overall mean train/val MAE.
+Outputs per-fold best params and overall mean train/val MAE,
+plus global-best evaluation on all samples.
 """
 
 import os
@@ -51,7 +56,7 @@ from model.config import config
 # SETTINGS
 # ======================================================
 PENALTY_DAYS = 120.0
-N_JOBS = 64
+N_JOBS = 256
 RANDOM_SEED = 42
 FOLD_SEED = 42
 
@@ -69,7 +74,7 @@ BASE_RANGES = {
     "zoospore_alive__vpd": (1.5, 3.5),
     "infection__infection_condition": (50, 200),
     "incubation__spl_end": (1.0, 1.5),
-    "thresholds__min_spores": (0.02, 0.08),
+    "thresholds__min_spores": (0.02, 0.06),
 }
 
 
@@ -134,6 +139,32 @@ def define_search_space(trial: optuna.Trial) -> Dict[str, float]:
     return params
 
 
+def _clamp(v: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, v))
+
+
+def build_local_ranges(
+    df_pool: pd.DataFrame,
+    global_ranges: Dict[str, Tuple[float, float]],
+    pad_ratio: float = 0.1
+) -> Dict[str, Tuple[float, float]]:
+    local = {}
+    for key, (g_lo, g_hi) in global_ranges.items():
+        if key not in df_pool.columns:
+            local[key] = (g_lo, g_hi)
+            continue
+        vmin = float(df_pool[key].min())
+        vmax = float(df_pool[key].max())
+        span = max(1e-6, vmax - vmin)
+        pad = pad_ratio * span
+        lo = _clamp(vmin - pad, g_lo, g_hi)
+        hi = _clamp(vmax + pad, g_lo, g_hi)
+        if lo >= hi:
+            lo, hi = g_lo, g_hi
+        local[key] = (lo, hi)
+    return local
+
+
 def calc_error(actual_date, event_df: pd.DataFrame) -> float:
     if event_df is None or event_df.empty:
         return np.nan
@@ -181,6 +212,38 @@ def compute_mae(cfg: dict, rows: List[pd.Series]) -> float:
     return float(np.mean(errors))
 
 
+def compute_coverage(cfg: dict, rows: List[pd.Series]) -> Dict[str, float]:
+    covered = 0
+    total = 0
+    lengths = []
+    for row in rows:
+        key = f"{row.plot}_{row.variety}_{row.first_infection_date.year}"
+        rb_path = os.path.join(DATA_DIR, f"{key}_grape_rb.json")
+        if not os.path.exists(rb_path):
+            continue
+        try:
+            rb = load_rb_cached(rb_path)
+            cs = CropSeasonFirst(csrb=rb, config=cfg)
+            cs.simulate()
+            events = cs.primary_chain_unique
+        except Exception:
+            events = None
+        total += 1
+        if events is None or events.empty:
+            continue
+        first = events.iloc[0]
+        start = pd.to_datetime(first["oil_spot_start"])
+        end = pd.to_datetime(first["oil_spot_end"])
+        actual = pd.to_datetime(row.first_infection_date)
+        lengths.append((end - start).days + 1)
+        if start <= actual <= end:
+            covered += 1
+    return {
+        "coverage_rate": float(covered / total) if total else 0.0,
+        "window_len_mean": float(np.mean(lengths)) if lengths else 0.0,
+    }
+
+
 def build_folds(n: int, k: int, seed: int) -> List[List[int]]:
     if k <= 1 or k > n:
         k = n
@@ -203,15 +266,17 @@ def eval_params(params: Dict[str, float], train_rows: List[pd.Series], val_rows:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--n-trials", type=int, default=8000)
-    parser.add_argument("--n-startup", type=int, default=800)
+    parser.add_argument("--n-trials", type=int, default=10000)
+    parser.add_argument("--n-startup", type=int, default=1000)
+    parser.add_argument("--n-trials-refine", type=int, default=3000)
+    parser.add_argument("--n-startup-refine", type=int, default=300)
     parser.add_argument("--seed", type=int, default=RANDOM_SEED)
     parser.add_argument("--n-jobs", type=int, default=N_JOBS)
     parser.add_argument("--cpus-per-trial", type=int, default=1)
     parser.add_argument("--max-concurrent", type=int, default=0)
     parser.add_argument("--progress-interval", type=float, default=5.0)
     parser.add_argument("--train-top-k", type=int, default=100)
-    parser.add_argument("--train-top-pct", type=float, default=5.0)
+    parser.add_argument("--train-top-pct", type=float, default=1.0)
     parser.add_argument("--kfold", type=int, default=6)
     parser.add_argument("--quiet", action="store_true", default=True)
     parser.add_argument("--no-quiet", dest="quiet", action="store_false")
@@ -232,6 +297,9 @@ def main():
     fold_params = []
 
     for fold_id, val_idx in enumerate(folds, start=1):
+        # Reset ranges to global for each fold before stage 1.
+        _GLOBAL_RANGES.clear()
+        _GLOBAL_RANGES.update(ranges)
         train_idx = [i for i in range(n_samples) if i not in val_idx]
         train_rows = [rows[i] for i in train_idx]
         val_rows = [rows[i] for i in val_idx]
@@ -286,6 +354,65 @@ def main():
             )
 
         df_trials = pd.DataFrame(trial_rows)
+        fold_trials_stage1 = os.path.join(RESULT_DIR, f"loo_fold_{fold_id}_stage1_trials.csv")
+        df_trials.to_csv(fold_trials_stage1, index=False)
+
+        pool = df_trials.dropna(subset=["train_mae", "val_mae"]).copy()
+        pool = pool.sort_values("train_mae", ascending=True)
+        if args.train_top_pct > 0:
+            n_keep = max(1, int(len(pool) * args.train_top_pct / 100.0))
+        else:
+            n_keep = min(args.train_top_k, len(pool))
+        pool = pool.head(n_keep)
+
+        # Stage 2: local refinement around stage1 top pool.
+        local_ranges = build_local_ranges(pool, _GLOBAL_RANGES, pad_ratio=0.1)
+        _GLOBAL_RANGES.update(local_ranges)
+        sampler2 = TPESampler(
+            seed=args.seed + fold_id + 1000,
+            multivariate=True,
+            n_startup_trials=args.n_startup_refine,
+            warn_independent_sampling=False
+        )
+        study2 = optuna.create_study(sampler=sampler2, direction="minimize")
+        pending = []
+        completed = 0
+        last_ts = 0.0
+        prefix = f"[Fold {fold_id}/{k}][Refine]"
+        trial_rows = []
+        while completed < args.n_trials_refine:
+            while len(pending) < max_conc and completed + len(pending) < args.n_trials_refine:
+                trial = study2.ask()
+                params = define_search_space(trial)
+                fut = eval_params.remote(params, train_rows, val_rows)
+                pending.append((trial, params, fut))
+
+            done_ids, _ = ray.wait([f for _, _, f in pending], num_returns=1)
+            for trial, params, fut in list(pending):
+                if fut in done_ids:
+                    train_mae, val_mae = ray.get(fut)
+                    study2.tell(trial, train_mae)
+                    trial_rows.append({
+                        "trial_number": trial.number,
+                        "train_mae": float(train_mae),
+                        "val_mae": float(val_mae),
+                        **params
+                    })
+                    pending.remove((trial, params, fut))
+                    completed += 1
+                    break
+
+            running = len(pending)
+            last_ts = _progress_print(
+                completed,
+                args.n_trials_refine,
+                running,
+                prefix,
+                last_ts,
+                args.progress_interval
+            )
+
+        df_trials = pd.DataFrame(trial_rows)
         fold_trials_path = os.path.join(RESULT_DIR, f"loo_fold_{fold_id}_trials.csv")
         df_trials.to_csv(fold_trials_path, index=False)
 
@@ -304,10 +431,14 @@ def main():
             if k not in ("trial_number", "train_mae", "val_mae")
         }
         fold_params.append(best_params)
+        best_cfg = apply_params(config, best_params)
+        val_cov = compute_coverage(best_cfg, rows)
         fold_best_rows.append({
             "fold": fold_id,
             "avg_train_mae": float(best_val_row["train_mae"]),
             "val_mae": float(best_val_row["val_mae"]),
+            "coverage_rate": float(val_cov["coverage_rate"]),
+            "window_len_mean": float(val_cov["window_len_mean"]),
         })
 
         best_out = os.path.join(RESULT_DIR, f"loo_best_params_fold{fold_id}.json")
@@ -316,10 +447,14 @@ def main():
                 "fold": fold_id,
                 "avg_train_mae": float(best_val_row["train_mae"]),
                 "val_mae": float(best_val_row["val_mae"]),
+                "coverage_rate": float(val_cov["coverage_rate"]),
+                "window_len_mean": float(val_cov["window_len_mean"]),
                 "params": best_params,
             }, f, indent=2)
 
     summary = pd.DataFrame(fold_best_rows)
+    summary["train_rmse"] = np.sqrt(np.square(summary["avg_train_mae"]))
+    summary["val_rmse"] = np.sqrt(np.square(summary["val_mae"]))
     summary_out = os.path.join(RESULT_DIR, "loo_summary.csv")
     summary.to_csv(summary_out, index=False)
 
@@ -330,6 +465,8 @@ def main():
         "val_mae_std": float(summary["val_mae"].std()),
         "train_rmse": float(np.sqrt(np.mean(np.square(summary["avg_train_mae"])))), 
         "val_rmse": float(np.sqrt(np.mean(np.square(summary["val_mae"])))), 
+        "coverage_rate_mean": float(summary["coverage_rate"].mean()),
+        "window_len_mean": float(summary["window_len_mean"].mean()),
         "n_folds": int(len(summary)),
     }
     summary_json = os.path.join(RESULT_DIR, "loo_summary.json")
@@ -347,10 +484,18 @@ def main():
         })
     df_global = pd.DataFrame(global_rows)
     best_idx = int(df_global["global_mae"].idxmin())
+    best_fold = int(df_global.loc[best_idx, "fold"])
+    best_params = fold_params[best_idx]
+    best_global_cfg = apply_params(config, best_params)
+    coverage = compute_coverage(best_global_cfg, rows)
+    best_fold_row = summary[summary["fold"] == best_fold].iloc[0]
     best_global = {
-        "best_from_fold": int(df_global.loc[best_idx, "fold"]),
+        "best_from_fold": best_fold,
+        "avg_train_mae": float(best_fold_row["avg_train_mae"]),
+        "val_mae": float(best_fold_row["val_mae"]),
         "global_mae": float(df_global.loc[best_idx, "global_mae"]),
-        "params": fold_params[best_idx],
+        "params": best_params,
+        **coverage
     }
     global_out = os.path.join(RESULT_DIR, "loo_best_global.json")
     with open(global_out, "w") as f:
