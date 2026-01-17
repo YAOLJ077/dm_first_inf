@@ -52,7 +52,7 @@ from model.config import config
 # SETTINGS
 # ======================================================
 PENALTY_DAYS = 120.0
-N_JOBS = 64
+N_JOBS = 128
 RANDOM_SEED = 42
 FOLD_SEED = 42
 
@@ -376,13 +376,13 @@ def _progress_print(done: int, total: int, prefix: str, last_ts: float, interval
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--n-trials-spore", type=int, default=3000)
-    parser.add_argument("--n-startup-spore", type=int, default=300)
-    parser.add_argument("--n-trials-mae", type=int, default=5000)
-    parser.add_argument("--n-startup-mae", type=int, default=500)
+    parser.add_argument("--n-trials-spore", type=int, default=10000)
+    parser.add_argument("--n-startup-spore", type=int, default=1000)
+    parser.add_argument("--n-trials-mae", type=int, default=6000)
+    parser.add_argument("--n-startup-mae", type=int, default=600)
     parser.add_argument("--seed", type=int, default=RANDOM_SEED)
     parser.add_argument("--n-jobs", type=int, default=N_JOBS)
-    parser.add_argument("--train-top-pct", type=float, default=5.0)
+    parser.add_argument("--train-top-pct", type=float, default=1.0)
     parser.add_argument("--kfold", type=int, default=6)
     parser.add_argument("--spore-window-days", type=int, default=SPORE_WINDOW_DAYS)
     parser.add_argument("--spore-alpha", type=float, default=SPORE_ALPHA)
@@ -419,11 +419,14 @@ def main():
         study1 = optuna.create_study(sampler=sampler1, direction="minimize")
         stage1_trials = []
         last_ts = 0.0
-        for i in range(args.n_trials_spore):
-            trial = study1.ask()
-            params = define_search_space(trial, stage1_ranges)
-            train_loss, val_loss = ray.get(
-                eval_spore.remote(
+        pending = {}
+        completed = 0
+        max_conc = max(1, int(args.n_jobs))
+        while completed < args.n_trials_spore:
+            while len(pending) < max_conc and completed + len(pending) < args.n_trials_spore:
+                trial = study1.ask()
+                params = define_search_space(trial, stage1_ranges)
+                fut = eval_spore.remote(
                     params,
                     train_rows,
                     val_rows,
@@ -432,15 +435,22 @@ def main():
                     args.spore_alpha,
                     args.spore_beta
                 )
-            )
-            study1.tell(trial, train_loss)
-            stage1_trials.append({
-                "train_loss": float(train_loss),
-                "val_loss": float(val_loss),
-                **params
-            })
+                pending[fut] = (trial, params)
+
+            done_ids, _ = ray.wait(list(pending.keys()), num_returns=max(1, min(len(pending), max_conc)))
+            for fut in done_ids:
+                trial, params = pending.pop(fut)
+                train_loss, val_loss = ray.get(fut)
+                study1.tell(trial, train_loss)
+                stage1_trials.append({
+                    "train_loss": float(train_loss),
+                    "val_loss": float(val_loss),
+                    **params
+                })
+                completed += 1
+
             last_ts = _progress_print(
-                i + 1,
+                completed,
                 args.n_trials_spore,
                 f"[Fold {fold_id}/{k}][Stage1]",
                 last_ts,
@@ -486,15 +496,26 @@ def main():
         study2 = optuna.create_study(sampler=sampler2, direction="minimize")
         trial_rows = []
         last_ts = 0.0
-        for i in range(args.n_trials_mae):
-            trial = study2.ask()
-            params = define_search_space(trial, stage2_ranges)
-            params = {**stage1_best, **params}
-            train_mae, val_mae = ray.get(eval_mae.remote(params, train_rows, val_rows))
-            study2.tell(trial, train_mae)
-            trial_rows.append({"train_mae": train_mae, "val_mae": val_mae, **params})
+        pending = {}
+        completed = 0
+        while completed < args.n_trials_mae:
+            while len(pending) < max_conc and completed + len(pending) < args.n_trials_mae:
+                trial = study2.ask()
+                params = define_search_space(trial, stage2_ranges)
+                params = {**stage1_best, **params}
+                fut = eval_mae.remote(params, train_rows, val_rows)
+                pending[fut] = (trial, params)
+
+            done_ids, _ = ray.wait(list(pending.keys()), num_returns=max(1, min(len(pending), max_conc)))
+            for fut in done_ids:
+                trial, params = pending.pop(fut)
+                train_mae, val_mae = ray.get(fut)
+                study2.tell(trial, train_mae)
+                trial_rows.append({"train_mae": train_mae, "val_mae": val_mae, **params})
+                completed += 1
+
             last_ts = _progress_print(
-                i + 1,
+                completed,
                 args.n_trials_mae,
                 f"[Fold {fold_id}/{k}][Stage2]",
                 last_ts,
