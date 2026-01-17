@@ -20,7 +20,12 @@ import argparse
 import math
 from typing import Dict, List, Tuple
 
+os.environ.setdefault("RAY_DISABLE_METRICS", "1")
+os.environ.setdefault("RAY_DISABLE_USAGE_STATS", "1")
+os.environ.setdefault("RAY_DEDUP_LOGS", "0")
+
 import numpy as np
+import time
 import pandas as pd
 import ray
 import optuna
@@ -360,6 +365,15 @@ def build_folds(n: int, k: int, seed: int) -> List[List[int]]:
     return folds
 
 
+def _progress_print(done: int, total: int, prefix: str, last_ts: float, interval_s: float) -> float:
+    now = time.time()
+    if now - last_ts >= interval_s:
+        msg = f"{prefix} Progress: {done}/{total} completed"
+        print(msg, flush=True)
+        return now
+    return last_ts
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--n-trials-spore", type=int, default=3000)
@@ -374,6 +388,7 @@ def main():
     parser.add_argument("--spore-alpha", type=float, default=SPORE_ALPHA)
     parser.add_argument("--spore-beta", type=float, default=SPORE_BETA)
     parser.add_argument("--stage1-relax", type=float, default=STAGE1_RELAX)
+    parser.add_argument("--progress-interval", type=float, default=5.0)
     args = parser.parse_args()
 
     ranges = build_param_ranges()
@@ -403,7 +418,8 @@ def main():
         sampler1 = TPESampler(seed=args.seed + fold_id, multivariate=True, n_startup_trials=args.n_startup_spore)
         study1 = optuna.create_study(sampler=sampler1, direction="minimize")
         stage1_trials = []
-        for _ in range(args.n_trials_spore):
+        last_ts = 0.0
+        for i in range(args.n_trials_spore):
             trial = study1.ask()
             params = define_search_space(trial, stage1_ranges)
             train_loss, val_loss = ray.get(
@@ -423,6 +439,13 @@ def main():
                 "val_loss": float(val_loss),
                 **params
             })
+            last_ts = _progress_print(
+                i + 1,
+                args.n_trials_spore,
+                f"[Fold {fold_id}/{k}][Stage1]",
+                last_ts,
+                args.progress_interval
+            )
 
         df_stage1 = pd.DataFrame(stage1_trials).sort_values("train_loss")
         n_keep1 = max(1, int(len(df_stage1) * args.train_top_pct / 100.0))
@@ -462,13 +485,21 @@ def main():
         sampler2 = TPESampler(seed=args.seed + fold_id + 1000, multivariate=True, n_startup_trials=args.n_startup_mae)
         study2 = optuna.create_study(sampler=sampler2, direction="minimize")
         trial_rows = []
-        for _ in range(args.n_trials_mae):
+        last_ts = 0.0
+        for i in range(args.n_trials_mae):
             trial = study2.ask()
             params = define_search_space(trial, stage2_ranges)
             params = {**stage1_best, **params}
             train_mae, val_mae = ray.get(eval_mae.remote(params, train_rows, val_rows))
             study2.tell(trial, train_mae)
             trial_rows.append({"train_mae": train_mae, "val_mae": val_mae, **params})
+            last_ts = _progress_print(
+                i + 1,
+                args.n_trials_mae,
+                f"[Fold {fold_id}/{k}][Stage2]",
+                last_ts,
+                args.progress_interval
+            )
 
         df_trials = pd.DataFrame(trial_rows).sort_values("train_mae")
         stage2_trials_out = os.path.join(RESULT_DIR, f"loo_spore_stage2_fold{fold_id}.csv")
