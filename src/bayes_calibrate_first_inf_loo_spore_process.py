@@ -349,19 +349,8 @@ def spore_loss(
 
 def define_search_space(trial: optuna.Trial, ranges: Dict[str, Tuple[float, float]]) -> Dict[str, float]:
     params = {}
-    tmin_lo, tmin_hi = ranges["sporulation__Tmin"]
-    topt_lo, topt_hi = ranges["sporulation__Topt"]
-    tmax_lo, tmax_hi = ranges["sporulation__Tmax"]
-    Tmin = trial.suggest_float("sporulation__Tmin", tmin_lo, tmin_hi)
-    Topt = trial.suggest_float("sporulation__Topt", max(topt_lo, Tmin + 0.1), topt_hi)
-    Tmax = trial.suggest_float("sporulation__Tmax", max(tmax_lo, Topt + 0.1), tmax_hi)
-    params["sporulation__Tmin"] = Tmin
-    params["sporulation__Topt"] = Topt
-    params["sporulation__Tmax"] = Tmax
-    for k, (lo, hi) in ranges.items():
-        if k in ("sporulation__Tmin", "sporulation__Topt", "sporulation__Tmax"):
-            continue
-        params[k] = trial.suggest_float(k, lo, hi)
+    for param_name, (lo, hi) in ranges.items():
+        params[param_name] = trial.suggest_float(param_name, lo, hi)
     return params
 
 
