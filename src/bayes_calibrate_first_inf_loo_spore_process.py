@@ -462,9 +462,9 @@ def main():
         pool1 = df_stage1.head(n_keep1)
         best1 = pool1.sort_values("val_loss").iloc[0]
         stage1_best = {
-            k: best1[k]
-            for k in best1.index
-            if k not in ("train_loss", "val_loss")
+            param_name: best1[param_name]
+            for param_name in best1.index
+            if param_name not in ("train_loss", "val_loss")
         }
         stage1_fold_params.append(stage1_best)
         stage1_fold_rows.append({
@@ -486,11 +486,11 @@ def main():
         # ---------------- Stage 2: MAE calibration ----------------
         stage2_ranges = {k: v for k, v in ranges.items() if k in STAGE2_PARAMS}
         if args.stage1_relax > 0:
-            for k, v in stage1_best.items():
-                g_lo, g_hi = ranges[k]
-                lo = max(g_lo, v * (1 - args.stage1_relax))
-                hi = min(g_hi, v * (1 + args.stage1_relax))
-                stage2_ranges[k] = (lo, hi)
+            for param_name, param_value in stage1_best.items():
+                g_lo, g_hi = ranges[param_name]
+                lo = max(g_lo, param_value * (1 - args.stage1_relax))
+                hi = min(g_hi, param_value * (1 + args.stage1_relax))
+                stage2_ranges[param_name] = (lo, hi)
 
         sampler2 = TPESampler(seed=args.seed + fold_id + 1000, multivariate=True, n_startup_trials=args.n_startup_mae)
         study2 = optuna.create_study(sampler=sampler2, direction="minimize")
@@ -528,7 +528,11 @@ def main():
         n_keep = max(1, int(len(df_trials) * args.train_top_pct / 100.0))
         pool = df_trials.head(n_keep)
         best_val_row = pool.sort_values("val_mae").iloc[0]
-        best_params = {k: best_val_row[k] for k in best_val_row.index if k not in ("train_mae", "val_mae")}
+        best_params = {
+            param_name: best_val_row[param_name]
+            for param_name in best_val_row.index
+            if param_name not in ("train_mae", "val_mae")
+        }
         stage2_fold_params.append(best_params)
         stage2_fold_rows.append({
             "fold": fold_id,
