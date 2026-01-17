@@ -59,8 +59,7 @@ FOLD_SEED = 42
 SPORE_WINDOW_DAYS = 30
 SPORE_ALPHA = 2.0
 SPORE_BETA = 1.0
-# Percent relax is disabled; only absolute relax is used.
-STAGE1_RELAX = 0.0
+STAGE1_RELAX = 0.1
 # Stage1 parameters (spore-process calibration)
 # - mp_tmp__rh_wet_night
 # - sporulation__MP_min
@@ -84,7 +83,17 @@ STAGE1_RELAX = 0.0
 #     "deposition__rain_min": 1.0,
 #     "thresholds__min_spores": 0.01,
 # }
-STAGE1_RELAX_ABS = {}
+STAGE1_RELAX_ABS = {
+    "mp_tmp__rh_wet_night": 3.0,
+    "sporulation__MP_min": 1.0,
+    "sporulation__Tmin": 2.0,
+    "sporulation__Topt": 2.0,
+    "sporulation__Tmax": 2.0,
+    "thresholds__min_spores": 0.01,
+    "dispersal__wind_min": 2.0,
+    "deposition__rain_min": 2.0,
+}
+
 
 # Detached mortality (from model.first_infection)
 DET_B0 = 5.67
@@ -403,8 +412,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--n-trials-spore", type=int, default=10000)
     parser.add_argument("--n-startup-spore", type=int, default=1000)
-    parser.add_argument("--n-trials-mae", type=int, default=6000)
-    parser.add_argument("--n-startup-mae", type=int, default=600)
+    parser.add_argument("--n-trials-mae", type=int, default=8000)
+    parser.add_argument("--n-startup-mae", type=int, default=800)
     parser.add_argument("--seed", type=int, default=RANDOM_SEED)
     parser.add_argument("--n-jobs", type=int, default=N_JOBS)
     parser.add_argument("--train-top-pct", type=float, default=1.0)
@@ -510,14 +519,16 @@ def main():
 
         # ---------------- Stage 2: MAE calibration ----------------
         stage2_ranges = {k: v for k, v in ranges.items() if k in STAGE2_PARAMS}
-        if STAGE1_RELAX_ABS:
+        if args.stage1_relax > 0 or STAGE1_RELAX_ABS:
             for param_name, param_value in stage1_best.items():
-                if param_name not in STAGE1_RELAX_ABS:
-                    continue
                 g_lo, g_hi = ranges[param_name]
-                delta = float(STAGE1_RELAX_ABS[param_name])
-                lo = max(g_lo, param_value - delta)
-                hi = min(g_hi, param_value + delta)
+                if param_name in STAGE1_RELAX_ABS:
+                    delta = float(STAGE1_RELAX_ABS[param_name])
+                    lo = max(g_lo, param_value - delta)
+                    hi = min(g_hi, param_value + delta)
+                else:
+                    lo = max(g_lo, param_value * (1 - args.stage1_relax))
+                    hi = min(g_hi, param_value * (1 + args.stage1_relax))
                 stage2_ranges[param_name] = (lo, hi)
 
         sampler2 = TPESampler(seed=args.seed + fold_id + 1000, multivariate=True, n_startup_trials=args.n_startup_mae)
