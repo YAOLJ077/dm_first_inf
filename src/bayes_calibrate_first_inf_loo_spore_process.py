@@ -59,7 +59,32 @@ FOLD_SEED = 42
 SPORE_WINDOW_DAYS = 30
 SPORE_ALPHA = 2.0
 SPORE_BETA = 1.0
-STAGE1_RELAX = 0.1
+# Percent relax is disabled; only absolute relax is used.
+STAGE1_RELAX = 0.0
+# Stage1 parameters (spore-process calibration)
+# - mp_tmp__rh_wet_night
+# - sporulation__MP_min
+# - sporulation__Tmin
+# - sporulation__Topt
+# - sporulation__Tmax
+# - thresholds__min_spores
+# - dispersal__wind_min
+# - deposition__rain_min
+#
+# Optional per-parameter absolute relax (overrides STAGE1_RELAX percent).
+# Example A (temperature-heavy):
+# STAGE1_RELAX_ABS = {
+#     "sporulation__Tmin": 0.5,
+#     "sporulation__Topt": 0.5,
+#     "sporulation__Tmax": 2.0,
+# }
+# Example B (dispersal-heavy):
+# STAGE1_RELAX_ABS = {
+#     "dispersal__wind_min": 0.5,
+#     "deposition__rain_min": 1.0,
+#     "thresholds__min_spores": 0.01,
+# }
+STAGE1_RELAX_ABS = {}
 
 # Detached mortality (from model.first_infection)
 DET_B0 = 5.67
@@ -485,11 +510,14 @@ def main():
 
         # ---------------- Stage 2: MAE calibration ----------------
         stage2_ranges = {k: v for k, v in ranges.items() if k in STAGE2_PARAMS}
-        if args.stage1_relax > 0:
+        if STAGE1_RELAX_ABS:
             for param_name, param_value in stage1_best.items():
+                if param_name not in STAGE1_RELAX_ABS:
+                    continue
                 g_lo, g_hi = ranges[param_name]
-                lo = max(g_lo, param_value * (1 - args.stage1_relax))
-                hi = min(g_hi, param_value * (1 + args.stage1_relax))
+                delta = float(STAGE1_RELAX_ABS[param_name])
+                lo = max(g_lo, param_value - delta)
+                hi = min(g_hi, param_value + delta)
                 stage2_ranges[param_name] = (lo, hi)
 
         sampler2 = TPESampler(seed=args.seed + fold_id + 1000, multivariate=True, n_startup_trials=args.n_startup_mae)
