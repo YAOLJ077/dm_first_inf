@@ -419,7 +419,7 @@ def run_baseline_loo(
                 params = define_search_space(trial, global_ranges)
                 fut = eval_mae.remote(params, train_rows, val_rows)
                 pending[fut] = (trial, params)
-            done_ids, _ = ray.wait(list(pending.keys()), num_returns=max(1, min(len(pending), max_conc)))
+            done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
             for fut in done_ids:
                 trial, params = pending.pop(fut)
                 train_mae, val_mae = ray.get(fut)
@@ -466,7 +466,7 @@ def run_baseline_loo(
                 params = define_search_space(trial, local_ranges)
                 fut = eval_mae.remote(params, train_rows, val_rows)
                 pending[fut] = (trial, params)
-            done_ids, _ = ray.wait(list(pending.keys()), num_returns=max(1, min(len(pending), max_conc)))
+            done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
             for fut in done_ids:
                 trial, params = pending.pop(fut)
                 train_mae, val_mae = ray.get(fut)
@@ -640,7 +640,7 @@ def run_spore_two_stage_loo(
                 params = {**fixed_base, **params}
                 fut = eval_spore.remote(params, train_rows, val_rows, spore_windows, SPORE_CORE_DAYS)
                 pending[fut] = (trial, params)
-            done_ids, _ = ray.wait(list(pending.keys()), num_returns=max(1, min(len(pending), max_conc)))
+            done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
             for fut in done_ids:
                 trial, params = pending.pop(fut)
                 train_loss, val_loss = ray.get(fut)
@@ -711,7 +711,7 @@ def run_spore_two_stage_loo(
                 params = {**fixed_stage2, **params}
                 fut = eval_mae.remote(params, train_rows, val_rows)
                 pending[fut] = (trial, params)
-            done_ids, _ = ray.wait(list(pending.keys()), num_returns=max(1, min(len(pending), max_conc)))
+            done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
             for fut in done_ids:
                 trial, params = pending.pop(fut)
                 train_mae, val_mae = ray.get(fut)
