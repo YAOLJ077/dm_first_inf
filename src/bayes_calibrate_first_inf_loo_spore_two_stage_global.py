@@ -241,15 +241,28 @@ def build_folds(n: int, k: int, seed: int) -> List[List[int]]:
     return folds
 
 
-def _progress_print(done: int, total: int, running: int, prefix: str, last_ts: float, interval_s: float) -> float:
+def _progress_print(
+    done: int,
+    total: int,
+    running: int,
+    running_max: int,
+    prefix: str,
+    last_ts: float,
+    interval_s: float
+) -> float:
     now = time.time()
     if now - last_ts >= interval_s:
-        msg = f"Progress: {done}/{total} completed | running: {running}"
+        msg = f"Progress: {done}/{total} completed | running: {running}/{running_max}"
         if prefix:
             msg = f"{prefix} {msg}"
         print(msg, flush=True)
         return now
     return last_ts
+
+
+def _stage_start(prefix: str, total: int, running: int, running_max: int) -> None:
+    msg = f"{prefix} Start | total trials: {total} | running: {running}/{running_max}"
+    print(msg, flush=True)
 
 
 def define_search_space(trial: optuna.Trial, ranges: Dict[str, Tuple[float, float]]) -> Dict[str, float]:
@@ -397,6 +410,8 @@ def run_baseline_loo(
         pending = {}
         completed = 0
         max_conc = max(1, int(ray.available_resources().get("CPU", 1)))
+        _stage_start(f"[Baseline][Fold {fold_id}/{k}][Stage1]", n_trials_stage1, 0, max_conc)
+        last_ts = _progress_print(0, n_trials_stage1, 0, max_conc, f"[Baseline][Fold {fold_id}/{k}][Stage1]", last_ts, progress_interval)
 
         while completed < n_trials_stage1:
             while len(pending) < max_conc and completed + len(pending) < n_trials_stage1:
@@ -416,8 +431,13 @@ def run_baseline_loo(
                 })
                 completed += 1
             last_ts = _progress_print(
-                completed, n_trials_stage1, len(pending), f"[Baseline][Fold {fold_id}/{k}][Stage1]",
-                last_ts, progress_interval
+                completed,
+                n_trials_stage1,
+                len(pending),
+                max_conc,
+                f"[Baseline][Fold {fold_id}/{k}][Stage1]",
+                last_ts,
+                progress_interval
             )
 
         df_trials = pd.DataFrame(trial_rows).sort_values("train_mae")
@@ -438,6 +458,8 @@ def run_baseline_loo(
         last_ts = 0.0
         pending = {}
         completed = 0
+        _stage_start(f"[Baseline][Fold {fold_id}/{k}][Stage2]", n_trials_stage2, 0, max_conc)
+        last_ts = _progress_print(0, n_trials_stage2, 0, max_conc, f"[Baseline][Fold {fold_id}/{k}][Stage2]", last_ts, progress_interval)
         while completed < n_trials_stage2:
             while len(pending) < max_conc and completed + len(pending) < n_trials_stage2:
                 trial = study2.ask()
@@ -456,8 +478,13 @@ def run_baseline_loo(
                 })
                 completed += 1
             last_ts = _progress_print(
-                completed, n_trials_stage2, len(pending), f"[Baseline][Fold {fold_id}/{k}][Stage2]",
-                last_ts, progress_interval
+                completed,
+                n_trials_stage2,
+                len(pending),
+                max_conc,
+                f"[Baseline][Fold {fold_id}/{k}][Stage2]",
+                last_ts,
+                progress_interval
             )
 
         df_trials = pd.DataFrame(trial_rows).sort_values("train_mae")
@@ -603,6 +630,8 @@ def run_spore_two_stage_loo(
         pending = {}
         completed = 0
         max_conc = max(1, int(ray.available_resources().get("CPU", 1)))
+        _stage_start(f"[Spore][Fold {fold_id}/{k}][Stage1]", n_trials_stage1, 0, max_conc)
+        last_ts = _progress_print(0, n_trials_stage1, 0, max_conc, f"[Spore][Fold {fold_id}/{k}][Stage1]", last_ts, progress_interval)
 
         while completed < n_trials_stage1:
             while len(pending) < max_conc and completed + len(pending) < n_trials_stage1:
@@ -623,8 +652,13 @@ def run_spore_two_stage_loo(
                 })
                 completed += 1
             last_ts = _progress_print(
-                completed, n_trials_stage1, len(pending), f"[Spore][Fold {fold_id}/{k}][Stage1]",
-                last_ts, progress_interval
+                completed,
+                n_trials_stage1,
+                len(pending),
+                max_conc,
+                f"[Spore][Fold {fold_id}/{k}][Stage1]",
+                last_ts,
+                progress_interval
             )
 
         df_stage1 = pd.DataFrame(trial_rows).sort_values("train_loss")
@@ -668,6 +702,8 @@ def run_spore_two_stage_loo(
         last_ts = 0.0
         pending = {}
         completed = 0
+        _stage_start(f"[Spore][Fold {fold_id}/{k}][Stage2]", n_trials_stage2, 0, max_conc)
+        last_ts = _progress_print(0, n_trials_stage2, 0, max_conc, f"[Spore][Fold {fold_id}/{k}][Stage2]", last_ts, progress_interval)
         while completed < n_trials_stage2:
             while len(pending) < max_conc and completed + len(pending) < n_trials_stage2:
                 trial = study2.ask()
@@ -687,8 +723,13 @@ def run_spore_two_stage_loo(
                 })
                 completed += 1
             last_ts = _progress_print(
-                completed, n_trials_stage2, len(pending), f"[Spore][Fold {fold_id}/{k}][Stage2]",
-                last_ts, progress_interval
+                completed,
+                n_trials_stage2,
+                len(pending),
+                max_conc,
+                f"[Spore][Fold {fold_id}/{k}][Stage2]",
+                last_ts,
+                progress_interval
             )
 
         df_stage2 = pd.DataFrame(trial_rows).sort_values("train_mae")
