@@ -65,20 +65,21 @@ SPORE_CORE_DAYS = 14
 
 # Base ranges (global)
 BASE_RANGES = {
-    "mp_tmp__rh_wet_night": (80, 95),
-    "sporulation__MP_min": (2, 6),
+    "mp_tmp__rh_wet_night": (85, 95),
+    "sporulation__MP_min": (3, 6),
     "sporulation__Tmin": (8, 15),
     "sporulation__Topt": (18, 24),
     "sporulation__Tmax": (25, 35),
-    "dispersal__rain_min": (2.0, 12.0),
+    "dispersal__rain_min": (6.0, 12.0),
     "dispersal__wind_min": (4.0, 12.0),
     "deposition__rain_min": (4.0, 12.0),
     "zoospore_alive__rain": (3.0, 6.0),
-    "zoospore_alive__vpd": (1.0, 4.0),
-    "infection__infection_condition": (30, 300),
+    "zoospore_alive__vpd": (1.5, 3.5),
+    "infection__infection_condition": (50, 200),
     "incubation__spl_end": (1.0, 1.5),
-    "thresholds__min_spores": (0.01, 0.08),
+    "thresholds__min_spores": (0.02, 0.06)
 }
+
 
 # Local absolute ranges for baseline local refinement (absolute deltas).
 LOCAL_ABS_BASELINE = {
@@ -458,19 +459,17 @@ def run_baseline_loo(
         last_ts = 0.0
         pending = {}
         completed = 0
-        max_conc = max(1, len(workers))
-        worker_pos = 0
-        worker_idx = {w: i for i, w in enumerate(workers)}
+        max_conc = max(1, n_jobs)
+        available = list(workers)
         next_restart = restart_every if restart_every > 0 else None
         _stage_start(f"[Baseline][Fold {fold_id}/{k}][Stage1]", n_trials_stage1, 0, max_conc)
         last_ts = _progress_print(0, n_trials_stage1, 0, max_conc, f"[Baseline][Fold {fold_id}/{k}][Stage1]", last_ts, progress_interval)
 
         while completed < n_trials_stage1:
-            while len(pending) < max_conc and completed + len(pending) < n_trials_stage1:
+            while available and len(pending) < max_conc and completed + len(pending) < n_trials_stage1:
                 trial = study1.ask()
                 params = define_search_space(trial, global_ranges)
-                worker = workers[worker_pos % max_conc]
-                worker_pos += 1
+                worker = available.pop(0)
                 fut = worker.eval_mae.remote(params, train_idx, val_idx)
                 pending[fut] = (trial, params, worker)
             if not pending:
@@ -488,14 +487,10 @@ def run_baseline_loo(
                 })
                 completed += 1
                 if next_restart is not None and completed >= next_restart:
-                    idx = worker_idx.get(worker)
-                    if idx is not None:
-                        ray.kill(worker, no_restart=True)
-                        new_worker = ModelWorker.remote(rows_ref, spore_ref)
-                        workers[idx] = new_worker
-                        worker_idx[new_worker] = idx
-                        worker_idx.pop(worker, None)
+                    ray.kill(worker, no_restart=True)
+                    worker = ModelWorker.remote(rows_ref, spore_ref)
                     next_restart += restart_every
+                available.append(worker)
             last_ts = _progress_print(
                 completed,
                 n_trials_stage1,
@@ -525,18 +520,16 @@ def run_baseline_loo(
         last_ts = 0.0
         pending = {}
         completed = 0
-        max_conc = max(1, len(workers))
-        worker_pos = 0
-        worker_idx = {w: i for i, w in enumerate(workers)}
+        max_conc = max(1, n_jobs)
+        available = list(workers)
         next_restart = restart_every if restart_every > 0 else None
         _stage_start(f"[Baseline][Fold {fold_id}/{k}][Stage2]", n_trials_stage2, 0, max_conc)
         last_ts = _progress_print(0, n_trials_stage2, 0, max_conc, f"[Baseline][Fold {fold_id}/{k}][Stage2]", last_ts, progress_interval)
         while completed < n_trials_stage2:
-            while len(pending) < max_conc and completed + len(pending) < n_trials_stage2:
+            while available and len(pending) < max_conc and completed + len(pending) < n_trials_stage2:
                 trial = study2.ask()
                 params = define_search_space(trial, local_ranges)
-                worker = workers[worker_pos % max_conc]
-                worker_pos += 1
+                worker = available.pop(0)
                 fut = worker.eval_mae.remote(params, train_idx, val_idx)
                 pending[fut] = (trial, params, worker)
             if not pending:
@@ -554,14 +547,10 @@ def run_baseline_loo(
                 })
                 completed += 1
                 if next_restart is not None and completed >= next_restart:
-                    idx = worker_idx.get(worker)
-                    if idx is not None:
-                        ray.kill(worker, no_restart=True)
-                        new_worker = ModelWorker.remote(rows_ref, spore_ref)
-                        workers[idx] = new_worker
-                        worker_idx[new_worker] = idx
-                        worker_idx.pop(worker, None)
+                    ray.kill(worker, no_restart=True)
+                    worker = ModelWorker.remote(rows_ref, spore_ref)
                     next_restart += restart_every
+                available.append(worker)
             last_ts = _progress_print(
                 completed,
                 n_trials_stage2,
@@ -712,20 +701,18 @@ def run_spore_two_stage_loo(
         last_ts = 0.0
         pending = {}
         completed = 0
-        max_conc = max(1, len(workers))
-        worker_pos = 0
-        worker_idx = {w: i for i, w in enumerate(workers)}
+        max_conc = max(1, n_jobs)
+        available = list(workers)
         next_restart = restart_every if restart_every > 0 else None
         _stage_start(f"[Spore][Fold {fold_id}/{k}][Stage1]", n_trials_stage1, 0, max_conc)
         last_ts = _progress_print(0, n_trials_stage1, 0, max_conc, f"[Spore][Fold {fold_id}/{k}][Stage1]", last_ts, progress_interval)
 
         while completed < n_trials_stage1:
-            while len(pending) < max_conc and completed + len(pending) < n_trials_stage1:
+            while available and len(pending) < max_conc and completed + len(pending) < n_trials_stage1:
                 trial = study1.ask()
                 params = define_search_space(trial, stage1_ranges)
                 params = {**fixed_base, **params}
-                worker = workers[worker_pos % max_conc]
-                worker_pos += 1
+                worker = available.pop(0)
                 fut = worker.eval_spore.remote(params, train_idx, val_idx, SPORE_CORE_DAYS)
                 pending[fut] = (trial, params, worker)
             if not pending:
@@ -743,14 +730,10 @@ def run_spore_two_stage_loo(
                 })
                 completed += 1
                 if next_restart is not None and completed >= next_restart:
-                    idx = worker_idx.get(worker)
-                    if idx is not None:
-                        ray.kill(worker, no_restart=True)
-                        new_worker = ModelWorker.remote(rows_ref, spore_ref)
-                        workers[idx] = new_worker
-                        worker_idx[new_worker] = idx
-                        worker_idx.pop(worker, None)
+                    ray.kill(worker, no_restart=True)
+                    worker = ModelWorker.remote(rows_ref, spore_ref)
                     next_restart += restart_every
+                available.append(worker)
             last_ts = _progress_print(
                 completed,
                 n_trials_stage1,
@@ -797,19 +780,17 @@ def run_spore_two_stage_loo(
         last_ts = 0.0
         pending = {}
         completed = 0
-        max_conc = max(1, len(workers))
-        worker_pos = 0
-        worker_idx = {w: i for i, w in enumerate(workers)}
+        max_conc = max(1, n_jobs)
+        available = list(workers)
         next_restart = restart_every if restart_every > 0 else None
         _stage_start(f"[Spore][Fold {fold_id}/{k}][Stage2]", n_trials_stage2, 0, max_conc)
         last_ts = _progress_print(0, n_trials_stage2, 0, max_conc, f"[Spore][Fold {fold_id}/{k}][Stage2]", last_ts, progress_interval)
         while completed < n_trials_stage2:
-            while len(pending) < max_conc and completed + len(pending) < n_trials_stage2:
+            while available and len(pending) < max_conc and completed + len(pending) < n_trials_stage2:
                 trial = study2.ask()
                 params = define_search_space(trial, stage2_ranges)
                 params = {**fixed_stage2, **params}
-                worker = workers[worker_pos % max_conc]
-                worker_pos += 1
+                worker = available.pop(0)
                 fut = worker.eval_mae.remote(params, train_idx, val_idx)
                 pending[fut] = (trial, params, worker)
             if not pending:
@@ -827,14 +808,10 @@ def run_spore_two_stage_loo(
                 })
                 completed += 1
                 if next_restart is not None and completed >= next_restart:
-                    idx = worker_idx.get(worker)
-                    if idx is not None:
-                        ray.kill(worker, no_restart=True)
-                        new_worker = ModelWorker.remote(rows_ref, spore_ref)
-                        workers[idx] = new_worker
-                        worker_idx[new_worker] = idx
-                        worker_idx.pop(worker, None)
+                    ray.kill(worker, no_restart=True)
+                    worker = ModelWorker.remote(rows_ref, spore_ref)
                     next_restart += restart_every
+                available.append(worker)
             last_ts = _progress_print(
                 completed,
                 n_trials_stage2,
