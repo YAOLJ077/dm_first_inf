@@ -22,7 +22,7 @@ import sys
 import json
 import copy
 import argparse
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 from collections import OrderedDict
 
 os.environ.setdefault("RAY_DISABLE_METRICS", "1")
@@ -277,11 +277,16 @@ def _progress_print(
     running_max: int,
     prefix: str,
     last_ts: float,
-    interval_s: float
+    interval_s: float,
+    durations: Optional[List[float]] = None
 ) -> float:
     now = time.time()
     if now - last_ts >= interval_s:
         msg = f"Progress: {done}/{total} completed | running: {running}/{running_max}"
+        if durations:
+            window = durations[-200:]
+            p50, p90, p99 = np.percentile(window, [50, 90, 99])
+            msg += f" | t50={p50:.2f}s t90={p90:.2f}s t99={p99:.2f}s"
         if prefix:
             msg = f"{prefix} {msg}"
         print(msg, flush=True)
@@ -479,6 +484,7 @@ def run_baseline_loo(
         sampler1 = TPESampler(seed=seed + fold_id, multivariate=True, n_startup_trials=n_startup_stage1)
         study1 = optuna.create_study(sampler=sampler1, direction="minimize")
         trial_rows = []
+        durations = []
         last_ts = 0.0
         pending = {}
         completed = 0
@@ -486,7 +492,7 @@ def run_baseline_loo(
         available = list(workers)
         next_restart = restart_every if restart_every > 0 else None
         _stage_start(f"[Baseline][Fold {fold_id}/{k}][Stage1]", n_trials_stage1, 0, max_conc)
-        last_ts = _progress_print(0, n_trials_stage1, 0, max_conc, f"[Baseline][Fold {fold_id}/{k}][Stage1]", last_ts, progress_interval)
+        last_ts = _progress_print(0, n_trials_stage1, 0, max_conc, f"[Baseline][Fold {fold_id}/{k}][Stage1]", last_ts, progress_interval, durations)
 
         while completed < n_trials_stage1:
             while available and len(pending) < max_conc and completed + len(pending) < n_trials_stage1:
@@ -494,14 +500,15 @@ def run_baseline_loo(
                 params = define_search_space(trial, global_ranges)
                 worker = available.pop(0)
                 fut = worker.eval_mae.remote(params, train_idx, val_idx)
-                pending[fut] = (trial, params, worker)
+                pending[fut] = (trial, params, worker, time.time())
             if not pending:
                 time.sleep(0.01)
                 continue
             done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
             for fut in done_ids:
-                trial, params, worker = pending.pop(fut)
+                trial, params, worker, start_ts = pending.pop(fut)
                 train_mae, val_mae = ray.get(fut)
+                durations.append(time.time() - start_ts)
                 study1.tell(trial, train_mae)
                 trial_rows.append({
                     "train_mae": float(train_mae),
@@ -520,7 +527,8 @@ def run_baseline_loo(
                 max_conc,
                 f"[Baseline][Fold {fold_id}/{k}][Stage1]",
                 last_ts,
-                progress_interval
+                progress_interval,
+                durations
             )
 
         df_trials = pd.DataFrame(trial_rows).sort_values("train_mae")
@@ -539,6 +547,7 @@ def run_baseline_loo(
         sampler2 = TPESampler(seed=seed + fold_id + 1000, multivariate=True, n_startup_trials=n_startup_stage2)
         study2 = optuna.create_study(sampler=sampler2, direction="minimize")
         trial_rows = []
+        durations = []
         last_ts = 0.0
         pending = {}
         completed = 0
@@ -546,21 +555,22 @@ def run_baseline_loo(
         available = list(workers)
         next_restart = restart_every if restart_every > 0 else None
         _stage_start(f"[Baseline][Fold {fold_id}/{k}][Stage2]", n_trials_stage2, 0, max_conc)
-        last_ts = _progress_print(0, n_trials_stage2, 0, max_conc, f"[Baseline][Fold {fold_id}/{k}][Stage2]", last_ts, progress_interval)
+        last_ts = _progress_print(0, n_trials_stage2, 0, max_conc, f"[Baseline][Fold {fold_id}/{k}][Stage2]", last_ts, progress_interval, durations)
         while completed < n_trials_stage2:
             while available and len(pending) < max_conc and completed + len(pending) < n_trials_stage2:
                 trial = study2.ask()
                 params = define_search_space(trial, local_ranges)
                 worker = available.pop(0)
                 fut = worker.eval_mae.remote(params, train_idx, val_idx)
-                pending[fut] = (trial, params, worker)
+                pending[fut] = (trial, params, worker, time.time())
             if not pending:
                 time.sleep(0.01)
                 continue
             done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
             for fut in done_ids:
-                trial, params, worker = pending.pop(fut)
+                trial, params, worker, start_ts = pending.pop(fut)
                 train_mae, val_mae = ray.get(fut)
+                durations.append(time.time() - start_ts)
                 study2.tell(trial, train_mae)
                 trial_rows.append({
                     "train_mae": float(train_mae),
@@ -579,7 +589,8 @@ def run_baseline_loo(
                 max_conc,
                 f"[Baseline][Fold {fold_id}/{k}][Stage2]",
                 last_ts,
-                progress_interval
+                progress_interval,
+                durations
             )
 
         df_trials = pd.DataFrame(trial_rows).sort_values("train_mae")
@@ -719,6 +730,7 @@ def run_spore_two_stage_loo(
         sampler1 = TPESampler(seed=seed + fold_id + 2000, multivariate=True, n_startup_trials=n_startup_stage1)
         study1 = optuna.create_study(sampler=sampler1, direction="minimize")
         trial_rows = []
+        durations = []
         last_ts = 0.0
         pending = {}
         completed = 0
@@ -726,7 +738,7 @@ def run_spore_two_stage_loo(
         available = list(workers)
         next_restart = restart_every if restart_every > 0 else None
         _stage_start(f"[Spore][Fold {fold_id}/{k}][Stage1]", n_trials_stage1, 0, max_conc)
-        last_ts = _progress_print(0, n_trials_stage1, 0, max_conc, f"[Spore][Fold {fold_id}/{k}][Stage1]", last_ts, progress_interval)
+        last_ts = _progress_print(0, n_trials_stage1, 0, max_conc, f"[Spore][Fold {fold_id}/{k}][Stage1]", last_ts, progress_interval, durations)
 
         while completed < n_trials_stage1:
             while available and len(pending) < max_conc and completed + len(pending) < n_trials_stage1:
@@ -735,14 +747,15 @@ def run_spore_two_stage_loo(
                 params = {**fixed_base, **params}
                 worker = available.pop(0)
                 fut = worker.eval_spore.remote(params, train_idx, val_idx, SPORE_CORE_DAYS)
-                pending[fut] = (trial, params, worker)
+                pending[fut] = (trial, params, worker, time.time())
             if not pending:
                 time.sleep(0.01)
                 continue
             done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
             for fut in done_ids:
-                trial, params, worker = pending.pop(fut)
+                trial, params, worker, start_ts = pending.pop(fut)
                 train_loss, val_loss = ray.get(fut)
+                durations.append(time.time() - start_ts)
                 study1.tell(trial, train_loss)
                 trial_rows.append({
                     "train_loss": float(train_loss),
@@ -761,7 +774,8 @@ def run_spore_two_stage_loo(
                 max_conc,
                 f"[Spore][Fold {fold_id}/{k}][Stage1]",
                 last_ts,
-                progress_interval
+                progress_interval,
+                durations
             )
 
         df_stage1 = pd.DataFrame(trial_rows).sort_values("train_loss")
@@ -797,6 +811,7 @@ def run_spore_two_stage_loo(
         sampler2 = TPESampler(seed=seed + fold_id + 3000, multivariate=True, n_startup_trials=n_startup_stage2)
         study2 = optuna.create_study(sampler=sampler2, direction="minimize")
         trial_rows = []
+        durations = []
         last_ts = 0.0
         pending = {}
         completed = 0
@@ -804,7 +819,7 @@ def run_spore_two_stage_loo(
         available = list(workers)
         next_restart = restart_every if restart_every > 0 else None
         _stage_start(f"[Spore][Fold {fold_id}/{k}][Stage2]", n_trials_stage2, 0, max_conc)
-        last_ts = _progress_print(0, n_trials_stage2, 0, max_conc, f"[Spore][Fold {fold_id}/{k}][Stage2]", last_ts, progress_interval)
+        last_ts = _progress_print(0, n_trials_stage2, 0, max_conc, f"[Spore][Fold {fold_id}/{k}][Stage2]", last_ts, progress_interval, durations)
         while completed < n_trials_stage2:
             while available and len(pending) < max_conc and completed + len(pending) < n_trials_stage2:
                 trial = study2.ask()
@@ -812,14 +827,15 @@ def run_spore_two_stage_loo(
                 params = {**fixed_stage2, **params}
                 worker = available.pop(0)
                 fut = worker.eval_mae.remote(params, train_idx, val_idx)
-                pending[fut] = (trial, params, worker)
+                pending[fut] = (trial, params, worker, time.time())
             if not pending:
                 time.sleep(0.01)
                 continue
             done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
             for fut in done_ids:
-                trial, params, worker = pending.pop(fut)
+                trial, params, worker, start_ts = pending.pop(fut)
                 train_mae, val_mae = ray.get(fut)
+                durations.append(time.time() - start_ts)
                 study2.tell(trial, train_mae)
                 trial_rows.append({
                     "train_mae": float(train_mae),
@@ -838,7 +854,8 @@ def run_spore_two_stage_loo(
                 max_conc,
                 f"[Spore][Fold {fold_id}/{k}][Stage2]",
                 last_ts,
-                progress_interval
+                progress_interval,
+                durations
             )
 
         df_stage2 = pd.DataFrame(trial_rows).sort_values("train_mae")
