@@ -23,6 +23,7 @@ import json
 import copy
 import argparse
 from typing import Dict, List, Tuple
+from collections import OrderedDict
 
 os.environ.setdefault("RAY_DISABLE_METRICS", "1")
 os.environ.setdefault("RAY_DISABLE_USAGE_STATS", "1")
@@ -60,6 +61,7 @@ PENALTY_DAYS = 120.0
 RANDOM_SEED = 42
 FOLD_SEED = 42
 N_JOBS = 128
+RB_CACHE_MAX = 128
 
 SPORE_CORE_DAYS = 14
 
@@ -332,7 +334,20 @@ class ModelWorker:
             self.spore_windows = ray.get(spore_ref)
         else:
             self.spore_windows = spore_ref
-        self.rb_cache: Dict[str, dict] = {}
+        self.rb_cache: "OrderedDict[str, dict]" = OrderedDict()
+        self.rb_cache_max = RB_CACHE_MAX
+
+    def _load_rb_cached_lru(self, path: str) -> dict:
+        if path in self.rb_cache:
+            self.rb_cache.move_to_end(path)
+            return self.rb_cache[path]
+        with open(path, "r") as f:
+            data = json.load(f)
+        self.rb_cache[path] = data
+        self.rb_cache.move_to_end(path)
+        if self.rb_cache_max > 0 and len(self.rb_cache) > self.rb_cache_max:
+            self.rb_cache.popitem(last=False)
+        return data
 
     def _compute_error_stats_idx(self, cfg: dict, idxs: List[int]) -> Tuple[float, float, float]:
         errors = []
@@ -343,7 +358,7 @@ class ModelWorker:
             if not os.path.exists(rb_path):
                 continue
             try:
-                rb = _load_rb_cached(rb_path, self.rb_cache)
+                rb = self._load_rb_cached_lru(rb_path)
                 cs = CropSeasonFirst(csrb=rb, config=cfg)
                 cs.simulate()
                 err = _calc_error(row.first_infection_date, cs.primary_chain_unique)
@@ -382,7 +397,7 @@ class ModelWorker:
                 losses.append(1.0)
                 continue
             try:
-                rb = _load_rb_cached(rb_path, self.rb_cache)
+                rb = self._load_rb_cached_lru(rb_path)
                 cs = CropSeasonFirst(csrb=rb, config=cfg)
                 cs.simulate()
                 if cs.primary_chain_unique is None or cs.primary_chain_unique.empty:
@@ -421,10 +436,18 @@ def _make_workers(n_jobs: int, rows_ref, spore_ref) -> List[ray.actor.ActorHandl
     return [ModelWorker.remote(rows_ref, spore_ref) for _ in range(n_jobs)]
 
 
-def _restart_workers(workers: List[ray.actor.ActorHandle], n_jobs: int, rows_ref, spore_ref) -> List[ray.actor.ActorHandle]:
-    for w in workers:
-        ray.kill(w, no_restart=True)
-    return _make_workers(n_jobs, rows_ref, spore_ref)
+def _replace_worker(workers: List[ray.actor.ActorHandle], old_worker, rows_ref, spore_ref):
+    try:
+        idx = workers.index(old_worker)
+    except ValueError:
+        idx = None
+    ray.kill(old_worker, no_restart=True)
+    new_worker = ModelWorker.remote(rows_ref, spore_ref)
+    if idx is not None:
+        workers[idx] = new_worker
+    else:
+        workers.append(new_worker)
+    return new_worker
 
 
 def run_baseline_loo(
@@ -487,8 +510,7 @@ def run_baseline_loo(
                 })
                 completed += 1
                 if next_restart is not None and completed >= next_restart:
-                    ray.kill(worker, no_restart=True)
-                    worker = ModelWorker.remote(rows_ref, spore_ref)
+                    worker = _replace_worker(workers, worker, rows_ref, spore_ref)
                     next_restart += restart_every
                 available.append(worker)
             last_ts = _progress_print(
@@ -547,8 +569,7 @@ def run_baseline_loo(
                 })
                 completed += 1
                 if next_restart is not None and completed >= next_restart:
-                    ray.kill(worker, no_restart=True)
-                    worker = ModelWorker.remote(rows_ref, spore_ref)
+                    worker = _replace_worker(workers, worker, rows_ref, spore_ref)
                     next_restart += restart_every
                 available.append(worker)
             last_ts = _progress_print(
@@ -730,8 +751,7 @@ def run_spore_two_stage_loo(
                 })
                 completed += 1
                 if next_restart is not None and completed >= next_restart:
-                    ray.kill(worker, no_restart=True)
-                    worker = ModelWorker.remote(rows_ref, spore_ref)
+                    worker = _replace_worker(workers, worker, rows_ref, spore_ref)
                     next_restart += restart_every
                 available.append(worker)
             last_ts = _progress_print(
@@ -808,8 +828,7 @@ def run_spore_two_stage_loo(
                 })
                 completed += 1
                 if next_restart is not None and completed >= next_restart:
-                    ray.kill(worker, no_restart=True)
-                    worker = ModelWorker.remote(rows_ref, spore_ref)
+                    worker = _replace_worker(workers, worker, rows_ref, spore_ref)
                     next_restart += restart_every
                 available.append(worker)
             last_ts = _progress_print(
