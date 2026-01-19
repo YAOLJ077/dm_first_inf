@@ -78,9 +78,9 @@ BASE_RANGES = {
     "thresholds__min_spores": (0.01, 0.08),
 }
 
-# Local absolute ranges around baseline global best (absolute deltas).
-LOCAL_ABS = {
-    "mp_tmp__rh_wet_night": 5.0,
+# Local absolute ranges for baseline local refinement (absolute deltas).
+LOCAL_ABS_BASELINE = {
+    "mp_tmp__rh_wet_night": 2.0,
     "sporulation__MP_min": 2.0,
     "sporulation__Tmin": 0.5,
     "sporulation__Topt": 0.5,
@@ -88,11 +88,28 @@ LOCAL_ABS = {
     "dispersal__rain_min": 2.0,
     "dispersal__wind_min": 2.0,
     "deposition__rain_min": 2.0,
-    "zoospore_alive__rain": 1.0,
+    "zoospore_alive__rain": 0.5,
     "zoospore_alive__vpd": 1.0,
-    "infection__infection_condition": 50.0,
+    "infection__infection_condition": 30.0,
     "incubation__spl_end": 0.1,
     "thresholds__min_spores": 0.02,
+}
+
+# Local absolute ranges for spore two-stage continuation (absolute deltas).
+LOCAL_ABS_SPORE = {
+    "mp_tmp__rh_wet_night": 5.0,
+    "sporulation__MP_min": 3.0,
+    "sporulation__Tmin": 1.0,
+    "sporulation__Topt": 1.0,
+    "sporulation__Tmax": 2.0,
+    "dispersal__rain_min": 3.0,
+    "dispersal__wind_min": 3.0,
+    "deposition__rain_min": 3.0,
+    "zoospore_alive__rain": 1.0,
+    "zoospore_alive__vpd": 1.5,
+    "infection__infection_condition": 60.0,
+    "incubation__spl_end": 0.2,
+    "thresholds__min_spores": 0.03,
 }
 
 # Stage 1 params (spore-process)
@@ -117,7 +134,7 @@ STAGE2_PARAMS = {
 
 # Elastic range for stage1 params in stage2 (absolute deltas).
 STAGE1_RELAX_ABS = {
-    "mp_tmp__rh_wet_night": 5.0,
+    "mp_tmp__rh_wet_night": 3.0,
     "sporulation__MP_min": 2.0,
     "sporulation__Tmin": 1.0,
     "sporulation__Topt": 1.0,
@@ -186,6 +203,13 @@ def load_rb_cached(path: str) -> dict:
         with open(path, "r") as f:
             _RB_CACHE[path] = json.load(f)
     return _RB_CACHE[path]
+
+
+def _load_rb_cached(path: str, cache: Dict[str, dict]) -> dict:
+    if path not in cache:
+        with open(path, "r") as f:
+            cache[path] = json.load(f)
+    return cache[path]
 
 
 def _calc_error(actual_date, event_df: pd.DataFrame) -> float:
@@ -294,102 +318,105 @@ def build_local_ranges_from_center(
     return local
 
 
-def build_local_ranges_from_pool(
-    df_pool: pd.DataFrame,
-    global_ranges: Dict[str, Tuple[float, float]],
-    pad_ratio: float = 0.1
-) -> Dict[str, Tuple[float, float]]:
-    local = {}
-    for key, (g_lo, g_hi) in global_ranges.items():
-        if key not in df_pool.columns:
-            local[key] = (g_lo, g_hi)
-            continue
-        vmin = float(df_pool[key].min())
-        vmax = float(df_pool[key].max())
-        span = max(1e-6, vmax - vmin)
-        pad = pad_ratio * span
-        lo = max(g_lo, vmin - pad)
-        hi = min(g_hi, vmax + pad)
-        if lo >= hi:
-            lo, hi = g_lo, g_hi
-        local[key] = (lo, hi)
-    return local
+@ray.remote(num_cpus=1)
+class ModelWorker:
+    def __init__(self, rows_ref, spore_ref):
+        self.rows = ray.get(rows_ref)
+        self.spore_windows = ray.get(spore_ref)
+        self.rb_cache: Dict[str, dict] = {}
 
+    def _compute_error_stats_idx(self, cfg: dict, idxs: List[int]) -> Tuple[float, float, float]:
+        errors = []
+        for i in idxs:
+            row = self.rows[i]
+            key = f"{row.plot}_{row.variety}_{row.first_infection_date.year}"
+            rb_path = os.path.join(DATA_DIR, f"{key}_grape_rb.json")
+            if not os.path.exists(rb_path):
+                continue
+            try:
+                rb = _load_rb_cached(rb_path, self.rb_cache)
+                cs = CropSeasonFirst(csrb=rb, config=cfg)
+                cs.simulate()
+                err = _calc_error(row.first_infection_date, cs.primary_chain_unique)
+            except Exception:
+                err = np.nan
+            if np.isfinite(err):
+                errors.append(float(err))
+            else:
+                errors.append(float(PENALTY_DAYS))
+        if not errors:
+            return PENALTY_DAYS, 0.0, PENALTY_DAYS
+        abs_err = np.abs(np.array(errors, dtype=float))
+        mae = float(abs_err.mean())
+        std = float(abs_err.std(ddof=0))
+        rmse = float(np.sqrt(np.mean(np.square(abs_err))))
+        return mae, std, rmse
 
-def spore_consistency_loss(
-    cfg: dict,
-    rows: List[pd.Series],
-    spore_windows: Dict[Tuple[str, int], List[Tuple[object, object, bool]]],
-    core_days: int
-) -> float:
-    losses = []
-    for row in rows:
-        key = (str(row.plot), int(row.first_infection_date.year))
-        obs = spore_windows.get(key, [])
-        if not obs:
-            losses.append(1.0)
-            continue
-        rb_key = f"{row.plot}_{row.variety}_{row.first_infection_date.year}"
-        rb_path = os.path.join(DATA_DIR, f"{rb_key}_grape_rb.json")
-        if not os.path.exists(rb_path):
-            losses.append(1.0)
-            continue
-        try:
-            rb = load_rb_cached(rb_path)
-            cs = CropSeasonFirst(csrb=rb, config=cfg)
-            cs.simulate()
-            if cs.primary_chain_unique is None or cs.primary_chain_unique.empty:
+    def eval_mae(self, params: Dict[str, float], train_idx: List[int], val_idx: List[int]) -> Tuple[float, float]:
+        cfg = apply_params(config, params)
+        train_mae, _, _ = self._compute_error_stats_idx(cfg, train_idx)
+        val_mae, _, _ = self._compute_error_stats_idx(cfg, val_idx)
+        return train_mae, val_mae
+
+    def _spore_loss_idx(self, cfg: dict, idxs: List[int], core_days: int) -> float:
+        losses = []
+        for i in idxs:
+            row = self.rows[i]
+            key = (str(row.plot), int(row.first_infection_date.year))
+            obs = self.spore_windows.get(key, [])
+            if not obs:
                 losses.append(1.0)
                 continue
-            oil_start_dt = pd.to_datetime(cs.primary_chain_unique.iloc[0]["oil_spot_start"]).normalize()
-        except Exception:
-            losses.append(1.0)
-            continue
-
-        win_start = (oil_start_dt - pd.Timedelta(days=core_days)).date()
-        win_end = oil_start_dt.date()
-        total = 0
-        hit = 0
-        for s, e, present in obs:
-            if e < win_start or s > win_end:
+            rb_key = f"{row.plot}_{row.variety}_{row.first_infection_date.year}"
+            rb_path = os.path.join(DATA_DIR, f"{rb_key}_grape_rb.json")
+            if not os.path.exists(rb_path):
+                losses.append(1.0)
                 continue
-            total += 1
-            if present:
-                hit += 1
-        if total == 0:
-            losses.append(1.0)
-        else:
-            consistency = hit / total
-            losses.append(1.0 - consistency)
-    return float(np.mean(losses)) if losses else 1.0
+            try:
+                rb = _load_rb_cached(rb_path, self.rb_cache)
+                cs = CropSeasonFirst(csrb=rb, config=cfg)
+                cs.simulate()
+                if cs.primary_chain_unique is None or cs.primary_chain_unique.empty:
+                    losses.append(1.0)
+                    continue
+                oil_start_dt = pd.to_datetime(cs.primary_chain_unique.iloc[0]["oil_spot_start"]).normalize()
+            except Exception:
+                losses.append(1.0)
+                continue
 
+            win_start = (oil_start_dt - pd.Timedelta(days=core_days)).date()
+            win_end = oil_start_dt.date()
+            total = 0
+            hit = 0
+            for s, e, present in obs:
+                if e < win_start or s > win_end:
+                    continue
+                total += 1
+                if present:
+                    hit += 1
+            if total == 0:
+                losses.append(1.0)
+            else:
+                consistency = hit / total
+                losses.append(1.0 - consistency)
+        return float(np.mean(losses)) if losses else 1.0
 
-@ray.remote
-def eval_mae(params: Dict[str, float], train_rows: List[pd.Series], val_rows: List[pd.Series]) -> Tuple[float, float]:
-    cfg = apply_params(config, params)
-    train_mae, _, _ = compute_error_stats(cfg, train_rows)
-    val_mae, _, _ = compute_error_stats(cfg, val_rows)
-    return train_mae, val_mae
-
-
-@ray.remote
-def eval_spore(params: Dict[str, float], train_rows: List[pd.Series], val_rows: List[pd.Series],
-               spore_windows: Dict[Tuple[str, int], List[Tuple[object, object, bool]]], core_days: int) -> Tuple[float, float]:
-    cfg = apply_params(config, params)
-    train_loss = spore_consistency_loss(cfg, train_rows, spore_windows, core_days)
-    val_loss = spore_consistency_loss(cfg, val_rows, spore_windows, core_days)
-    return train_loss, val_loss
+    def eval_spore(self, params: Dict[str, float], train_idx: List[int], val_idx: List[int], core_days: int) -> Tuple[float, float]:
+        cfg = apply_params(config, params)
+        train_loss = self._spore_loss_idx(cfg, train_idx, core_days)
+        val_loss = self._spore_loss_idx(cfg, val_idx, core_days)
+        return train_loss, val_loss
 
 
 def run_baseline_loo(
     rows: List[pd.Series],
     k: int,
     global_ranges: Dict[str, Tuple[float, float]],
+    workers: List[ray.actor.ActorHandle],
     n_trials_stage1: int,
     n_trials_stage2: int,
     n_startup_stage1: int,
     n_startup_stage2: int,
-    train_top_pct: float,
     progress_interval: float,
     seed: int
 ) -> Tuple[List[Dict[str, float]], pd.DataFrame, Dict[str, float]]:
@@ -409,7 +436,8 @@ def run_baseline_loo(
         last_ts = 0.0
         pending = {}
         completed = 0
-        max_conc = max(1, int(ray.available_resources().get("CPU", 1)))
+        max_conc = max(1, len(workers))
+        worker_pos = 0
         _stage_start(f"[Baseline][Fold {fold_id}/{k}][Stage1]", n_trials_stage1, 0, max_conc)
         last_ts = _progress_print(0, n_trials_stage1, 0, max_conc, f"[Baseline][Fold {fold_id}/{k}][Stage1]", last_ts, progress_interval)
 
@@ -417,7 +445,9 @@ def run_baseline_loo(
             while len(pending) < max_conc and completed + len(pending) < n_trials_stage1:
                 trial = study1.ask()
                 params = define_search_space(trial, global_ranges)
-                fut = eval_mae.remote(params, train_rows, val_rows)
+                worker = workers[worker_pos % max_conc]
+                worker_pos += 1
+                fut = worker.eval_mae.remote(params, train_idx, val_idx)
                 pending[fut] = (trial, params)
             done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
             for fut in done_ids:
@@ -444,12 +474,13 @@ def run_baseline_loo(
         stage1_out = os.path.join(RESULT_DIR, f"baseline_loo_fold_{fold_id}_stage1_trials.csv")
         df_trials.to_csv(stage1_out, index=False)
 
-        if train_top_pct > 0:
-            n_keep = max(1, int(len(df_trials) * train_top_pct / 100.0))
-            pool = df_trials.head(n_keep)
-        else:
-            pool = df_trials
-        local_ranges = build_local_ranges_from_pool(pool, global_ranges, pad_ratio=0.1)
+        best_row = df_trials.sort_values("train_mae").iloc[0]
+        best_params_stage1 = {
+            param_name: best_row[param_name]
+            for param_name in best_row.index
+            if param_name not in ("train_mae", "val_mae")
+        }
+        local_ranges = build_local_ranges_from_center(best_params_stage1, global_ranges, LOCAL_ABS_BASELINE)
 
         # Stage 2 (local)
         sampler2 = TPESampler(seed=seed + fold_id + 1000, multivariate=True, n_startup_trials=n_startup_stage2)
@@ -458,13 +489,17 @@ def run_baseline_loo(
         last_ts = 0.0
         pending = {}
         completed = 0
+        max_conc = max(1, len(workers))
+        worker_pos = 0
         _stage_start(f"[Baseline][Fold {fold_id}/{k}][Stage2]", n_trials_stage2, 0, max_conc)
         last_ts = _progress_print(0, n_trials_stage2, 0, max_conc, f"[Baseline][Fold {fold_id}/{k}][Stage2]", last_ts, progress_interval)
         while completed < n_trials_stage2:
             while len(pending) < max_conc and completed + len(pending) < n_trials_stage2:
                 trial = study2.ask()
                 params = define_search_space(trial, local_ranges)
-                fut = eval_mae.remote(params, train_rows, val_rows)
+                worker = workers[worker_pos % max_conc]
+                worker_pos += 1
+                fut = worker.eval_mae.remote(params, train_idx, val_idx)
                 pending[fut] = (trial, params)
             done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
             for fut in done_ids:
@@ -491,15 +526,10 @@ def run_baseline_loo(
         stage2_out = os.path.join(RESULT_DIR, f"baseline_loo_fold_{fold_id}_trials.csv")
         df_trials.to_csv(stage2_out, index=False)
 
-        if train_top_pct > 0:
-            n_keep = max(1, int(len(df_trials) * train_top_pct / 100.0))
-            pool = df_trials.head(n_keep)
-        else:
-            pool = df_trials
-        best_val_row = pool.sort_values("val_mae").iloc[0]
+        best_train_row = df_trials.sort_values("train_mae").iloc[0]
         best_params = {
-            param_name: best_val_row[param_name]
-            for param_name in best_val_row.index
+            param_name: best_train_row[param_name]
+            for param_name in best_train_row.index
             if param_name not in ("train_mae", "val_mae")
         }
         fold_params.append(best_params)
@@ -596,15 +626,14 @@ def run_baseline_loo(
 
 def run_spore_two_stage_loo(
     rows: List[pd.Series],
-    spore_windows: Dict[Tuple[str, int], List[Tuple[object, object, bool]]],
     k: int,
     global_ranges: Dict[str, Tuple[float, float]],
     global_best: Dict[str, float],
+    workers: List[ray.actor.ActorHandle],
     n_trials_stage1: int,
     n_trials_stage2: int,
     n_startup_stage1: int,
     n_startup_stage2: int,
-    train_top_pct: float,
     progress_interval: float,
     seed: int
 ) -> None:
@@ -612,7 +641,7 @@ def run_spore_two_stage_loo(
     stage2_best_rows = []
     stage2_params = []
 
-    stage1_local = build_local_ranges_from_center(global_best, global_ranges, LOCAL_ABS)
+    stage1_local = build_local_ranges_from_center(global_best, global_ranges, LOCAL_ABS_SPORE)
 
     for fold_id, val_idx in enumerate(folds, start=1):
         train_idx = [i for i in range(len(rows)) if i not in val_idx]
@@ -629,7 +658,8 @@ def run_spore_two_stage_loo(
         last_ts = 0.0
         pending = {}
         completed = 0
-        max_conc = max(1, int(ray.available_resources().get("CPU", 1)))
+        max_conc = max(1, len(workers))
+        worker_pos = 0
         _stage_start(f"[Spore][Fold {fold_id}/{k}][Stage1]", n_trials_stage1, 0, max_conc)
         last_ts = _progress_print(0, n_trials_stage1, 0, max_conc, f"[Spore][Fold {fold_id}/{k}][Stage1]", last_ts, progress_interval)
 
@@ -638,7 +668,9 @@ def run_spore_two_stage_loo(
                 trial = study1.ask()
                 params = define_search_space(trial, stage1_ranges)
                 params = {**fixed_base, **params}
-                fut = eval_spore.remote(params, train_rows, val_rows, spore_windows, SPORE_CORE_DAYS)
+                worker = workers[worker_pos % max_conc]
+                worker_pos += 1
+                fut = worker.eval_spore.remote(params, train_idx, val_idx, SPORE_CORE_DAYS)
                 pending[fut] = (trial, params)
             done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
             for fut in done_ids:
@@ -664,12 +696,7 @@ def run_spore_two_stage_loo(
         df_stage1 = pd.DataFrame(trial_rows).sort_values("train_loss")
         stage1_out = os.path.join(RESULT_DIR, f"spore_loo_stage1_fold{fold_id}.csv")
         df_stage1.to_csv(stage1_out, index=False)
-        if train_top_pct > 0:
-            n_keep1 = max(1, int(len(df_stage1) * train_top_pct / 100.0))
-            pool1 = df_stage1.head(n_keep1)
-        else:
-            pool1 = df_stage1
-        best1 = pool1.sort_values("val_loss").iloc[0]
+        best1 = df_stage1.sort_values("train_loss").iloc[0]
         stage1_best = {
             param_name: best1[param_name]
             for param_name in best1.index
@@ -702,6 +729,8 @@ def run_spore_two_stage_loo(
         last_ts = 0.0
         pending = {}
         completed = 0
+        max_conc = max(1, len(workers))
+        worker_pos = 0
         _stage_start(f"[Spore][Fold {fold_id}/{k}][Stage2]", n_trials_stage2, 0, max_conc)
         last_ts = _progress_print(0, n_trials_stage2, 0, max_conc, f"[Spore][Fold {fold_id}/{k}][Stage2]", last_ts, progress_interval)
         while completed < n_trials_stage2:
@@ -709,7 +738,9 @@ def run_spore_two_stage_loo(
                 trial = study2.ask()
                 params = define_search_space(trial, stage2_ranges)
                 params = {**fixed_stage2, **params}
-                fut = eval_mae.remote(params, train_rows, val_rows)
+                worker = workers[worker_pos % max_conc]
+                worker_pos += 1
+                fut = worker.eval_mae.remote(params, train_idx, val_idx)
                 pending[fut] = (trial, params)
             done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
             for fut in done_ids:
@@ -735,12 +766,7 @@ def run_spore_two_stage_loo(
         df_stage2 = pd.DataFrame(trial_rows).sort_values("train_mae")
         stage2_out = os.path.join(RESULT_DIR, f"spore_loo_stage2_fold{fold_id}.csv")
         df_stage2.to_csv(stage2_out, index=False)
-        if train_top_pct > 0:
-            n_keep2 = max(1, int(len(df_stage2) * train_top_pct / 100.0))
-            pool2 = df_stage2.head(n_keep2)
-        else:
-            pool2 = df_stage2
-        best2 = pool2.sort_values("val_mae").iloc[0]
+        best2 = df_stage2.sort_values("train_mae").iloc[0]
         best_params = {
             param_name: best2[param_name]
             for param_name in best2.index
@@ -837,7 +863,6 @@ def main() -> None:
     parser.add_argument("--kfold", type=int, default=6)
     parser.add_argument("--n-jobs", type=int, default=N_JOBS)
     parser.add_argument("--seed", type=int, default=RANDOM_SEED)
-    parser.add_argument("--train-top-pct", type=float, default=0.0)
     parser.add_argument("--n-trials-base-stage1", type=int, default=10000)
     parser.add_argument("--n-trials-base-stage2", type=int, default=6000)
     parser.add_argument("--n-startup-base-stage1", type=int, default=1000)
@@ -849,39 +874,42 @@ def main() -> None:
     parser.add_argument("--progress-interval", type=float, default=5.0)
     args = parser.parse_args()
 
-    ray.init(num_cpus=args.n_jobs, include_dashboard=False)
+    ray.init(num_cpus=args.n_jobs, include_dashboard=False, logging_level="ERROR")
 
     rows = list(load_actual().itertuples(index=False))
     global_ranges = build_param_ranges()
+    spore_df = load_spores()
+    spore_windows = build_spore_windows(spore_df)
+
+    rows_ref = ray.put(rows)
+    spore_ref = ray.put(spore_windows)
+    workers = [ModelWorker.remote(rows_ref, spore_ref) for _ in range(args.n_jobs)]
 
     # Part A: baseline
     fold_params, summary, global_best_info = run_baseline_loo(
         rows=rows,
         k=args.kfold,
         global_ranges=global_ranges,
+        workers=workers,
         n_trials_stage1=args.n_trials_base_stage1,
         n_trials_stage2=args.n_trials_base_stage2,
         n_startup_stage1=args.n_startup_base_stage1,
         n_startup_stage2=args.n_startup_base_stage2,
-        train_top_pct=args.train_top_pct,
         progress_interval=args.progress_interval,
         seed=args.seed,
     )
 
     # Part B: spore-process continuation from baseline global best
-    spore_df = load_spores()
-    spore_windows = build_spore_windows(spore_df)
     run_spore_two_stage_loo(
         rows=rows,
-        spore_windows=spore_windows,
         k=args.kfold,
         global_ranges=global_ranges,
         global_best=global_best_info["best_params"],
+        workers=workers,
         n_trials_stage1=args.n_trials_spore_stage1,
         n_trials_stage2=args.n_trials_spore_stage2,
         n_startup_stage1=args.n_startup_spore_stage1,
         n_startup_stage2=args.n_startup_spore_stage2,
-        train_top_pct=args.train_top_pct,
         progress_interval=args.progress_interval,
         seed=args.seed,
     )
