@@ -321,8 +321,14 @@ def build_local_ranges_from_center(
 @ray.remote(num_cpus=1)
 class ModelWorker:
     def __init__(self, rows_ref, spore_ref):
-        self.rows = ray.get(rows_ref)
-        self.spore_windows = ray.get(spore_ref)
+        if isinstance(rows_ref, ray.ObjectRef):
+            self.rows = ray.get(rows_ref)
+        else:
+            self.rows = rows_ref
+        if isinstance(spore_ref, ray.ObjectRef):
+            self.spore_windows = ray.get(spore_ref)
+        else:
+            self.spore_windows = spore_ref
         self.rb_cache: Dict[str, dict] = {}
 
     def _compute_error_stats_idx(self, cfg: dict, idxs: List[int]) -> Tuple[float, float, float]:
@@ -864,13 +870,13 @@ def main() -> None:
     parser.add_argument("--n-jobs", type=int, default=N_JOBS)
     parser.add_argument("--seed", type=int, default=RANDOM_SEED)
     parser.add_argument("--n-trials-base-stage1", type=int, default=10000)
-    parser.add_argument("--n-trials-base-stage2", type=int, default=6000)
+    parser.add_argument("--n-trials-base-stage2", type=int, default=4000)
     parser.add_argument("--n-startup-base-stage1", type=int, default=1000)
-    parser.add_argument("--n-startup-base-stage2", type=int, default=600)
+    parser.add_argument("--n-startup-base-stage2", type=int, default=400)
     parser.add_argument("--n-trials-spore-stage1", type=int, default=10000)
-    parser.add_argument("--n-trials-spore-stage2", type=int, default=6000)
+    parser.add_argument("--n-trials-spore-stage2", type=int, default=4000)
     parser.add_argument("--n-startup-spore-stage1", type=int, default=1000)
-    parser.add_argument("--n-startup-spore-stage2", type=int, default=600)
+    parser.add_argument("--n-startup-spore-stage2", type=int, default=400)
     parser.add_argument("--progress-interval", type=float, default=5.0)
     args = parser.parse_args()
 
