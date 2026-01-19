@@ -19,6 +19,7 @@ Part B: Two-stage spore-process continuation (Bayes + TPE + LOO)
 
 import os
 import sys
+import heapq
 import json
 import copy
 import argparse
@@ -62,6 +63,7 @@ RANDOM_SEED = 42
 FOLD_SEED = 42
 N_JOBS = 128
 RB_CACHE_MAX = 128
+SLOW_TRIALS_KEEP = 50
 
 SPORE_CORE_DAYS = 14
 
@@ -278,7 +280,9 @@ def _progress_print(
     prefix: str,
     last_ts: float,
     interval_s: float,
-    durations: Optional[List[float]] = None
+    durations: Optional[List[float]] = None,
+    io_durations: Optional[List[float]] = None,
+    sim_durations: Optional[List[float]] = None
 ) -> float:
     now = time.time()
     if now - last_ts >= interval_s:
@@ -287,6 +291,14 @@ def _progress_print(
             window = durations[-200:]
             p50, p90, p99 = np.percentile(window, [50, 90, 99])
             msg += f" | t50={p50:.2f}s t90={p90:.2f}s t99={p99:.2f}s"
+        if io_durations:
+            window = io_durations[-200:]
+            io50, io90 = np.percentile(window, [50, 90])
+            msg += f" | io50={io50:.2f}s io90={io90:.2f}s"
+        if sim_durations:
+            window = sim_durations[-200:]
+            sim50, sim90 = np.percentile(window, [50, 90])
+            msg += f" | sim50={sim50:.2f}s sim90={sim90:.2f}s"
         if prefix:
             msg = f"{prefix} {msg}"
         print(msg, flush=True)
@@ -297,6 +309,15 @@ def _progress_print(
 def _stage_start(prefix: str, total: int, running: int, running_max: int) -> None:
     msg = f"{prefix} Start | total trials: {total} | running: {running}/{running_max}"
     print(msg, flush=True)
+
+
+def _record_slow_trial(heap: List[Tuple[float, Dict[str, float]]], entry: Dict[str, float], max_keep: int) -> None:
+    dur = float(entry.get("duration_total", 0.0))
+    if len(heap) < max_keep:
+        heapq.heappush(heap, (dur, entry))
+        return
+    if heap and dur > heap[0][0]:
+        heapq.heapreplace(heap, (dur, entry))
 
 
 def define_search_space(trial: optuna.Trial, ranges: Dict[str, Tuple[float, float]]) -> Dict[str, float]:
@@ -354,8 +375,10 @@ class ModelWorker:
             self.rb_cache.popitem(last=False)
         return data
 
-    def _compute_error_stats_idx(self, cfg: dict, idxs: List[int]) -> Tuple[float, float, float]:
+    def _compute_error_stats_idx(self, cfg: dict, idxs: List[int]) -> Tuple[float, float, float, float, float]:
         errors = []
+        io_s = 0.0
+        sim_s = 0.0
         for i in idxs:
             row = self.rows[i]
             key = f"{row.plot}_{row.variety}_{row.first_infection_date.year}"
@@ -363,9 +386,13 @@ class ModelWorker:
             if not os.path.exists(rb_path):
                 continue
             try:
+                t0 = time.time()
                 rb = self._load_rb_cached_lru(rb_path)
+                io_s += time.time() - t0
+                t1 = time.time()
                 cs = CropSeasonFirst(csrb=rb, config=cfg)
                 cs.simulate()
+                sim_s += time.time() - t1
                 err = _calc_error(row.first_infection_date, cs.primary_chain_unique)
             except Exception:
                 err = np.nan
@@ -379,16 +406,24 @@ class ModelWorker:
         mae = float(abs_err.mean())
         std = float(abs_err.std(ddof=0))
         rmse = float(np.sqrt(np.mean(np.square(abs_err))))
-        return mae, std, rmse
+        return mae, std, rmse, io_s, sim_s
 
-    def eval_mae(self, params: Dict[str, float], train_idx: List[int], val_idx: List[int]) -> Tuple[float, float]:
+    def eval_mae(self, params: Dict[str, float], train_idx: List[int], val_idx: List[int]) -> Tuple[float, float, Dict[str, float]]:
+        t_all = time.time()
         cfg = apply_params(config, params)
-        train_mae, _, _ = self._compute_error_stats_idx(cfg, train_idx)
-        val_mae, _, _ = self._compute_error_stats_idx(cfg, val_idx)
-        return train_mae, val_mae
+        train_mae, _, _, train_io, train_sim = self._compute_error_stats_idx(cfg, train_idx)
+        val_mae, _, _, val_io, val_sim = self._compute_error_stats_idx(cfg, val_idx)
+        timing = {
+            "total": time.time() - t_all,
+            "io": train_io + val_io,
+            "sim": train_sim + val_sim,
+        }
+        return train_mae, val_mae, timing
 
-    def _spore_loss_idx(self, cfg: dict, idxs: List[int], core_days: int) -> float:
+    def _spore_loss_idx(self, cfg: dict, idxs: List[int], core_days: int) -> Tuple[float, float, float]:
         losses = []
+        io_s = 0.0
+        sim_s = 0.0
         for i in idxs:
             row = self.rows[i]
             key = (str(row.plot), int(row.first_infection_date.year))
@@ -402,9 +437,13 @@ class ModelWorker:
                 losses.append(1.0)
                 continue
             try:
+                t0 = time.time()
                 rb = self._load_rb_cached_lru(rb_path)
+                io_s += time.time() - t0
+                t1 = time.time()
                 cs = CropSeasonFirst(csrb=rb, config=cfg)
                 cs.simulate()
+                sim_s += time.time() - t1
                 if cs.primary_chain_unique is None or cs.primary_chain_unique.empty:
                     losses.append(1.0)
                     continue
@@ -428,13 +467,20 @@ class ModelWorker:
             else:
                 consistency = hit / total
                 losses.append(1.0 - consistency)
-        return float(np.mean(losses)) if losses else 1.0
+        loss = float(np.mean(losses)) if losses else 1.0
+        return loss, io_s, sim_s
 
-    def eval_spore(self, params: Dict[str, float], train_idx: List[int], val_idx: List[int], core_days: int) -> Tuple[float, float]:
+    def eval_spore(self, params: Dict[str, float], train_idx: List[int], val_idx: List[int], core_days: int) -> Tuple[float, float, Dict[str, float]]:
+        t_all = time.time()
         cfg = apply_params(config, params)
-        train_loss = self._spore_loss_idx(cfg, train_idx, core_days)
-        val_loss = self._spore_loss_idx(cfg, val_idx, core_days)
-        return train_loss, val_loss
+        train_loss, train_io, train_sim = self._spore_loss_idx(cfg, train_idx, core_days)
+        val_loss, val_io, val_sim = self._spore_loss_idx(cfg, val_idx, core_days)
+        timing = {
+            "total": time.time() - t_all,
+            "io": train_io + val_io,
+            "sim": train_sim + val_sim,
+        }
+        return train_loss, val_loss, timing
 
 
 def _make_workers(n_jobs: int, rows_ref, spore_ref) -> List[ray.actor.ActorHandle]:
@@ -485,6 +531,12 @@ def run_baseline_loo(
         study1 = optuna.create_study(sampler=sampler1, direction="minimize")
         trial_rows = []
         durations = []
+        io_durations = []
+        sim_durations = []
+        slow_trials = []
+        io_durations = []
+        sim_durations = []
+        slow_trials = []
         last_ts = 0.0
         pending = {}
         completed = 0
@@ -492,7 +544,18 @@ def run_baseline_loo(
         available = list(workers)
         next_restart = restart_every if restart_every > 0 else None
         _stage_start(f"[Baseline][Fold {fold_id}/{k}][Stage1]", n_trials_stage1, 0, max_conc)
-        last_ts = _progress_print(0, n_trials_stage1, 0, max_conc, f"[Baseline][Fold {fold_id}/{k}][Stage1]", last_ts, progress_interval, durations)
+        last_ts = _progress_print(
+            0,
+            n_trials_stage1,
+            0,
+            max_conc,
+            f"[Baseline][Fold {fold_id}/{k}][Stage1]",
+            last_ts,
+            progress_interval,
+            durations,
+            io_durations,
+            sim_durations,
+        )
 
         while completed < n_trials_stage1:
             while available and len(pending) < max_conc and completed + len(pending) < n_trials_stage1:
@@ -507,14 +570,28 @@ def run_baseline_loo(
             done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
             for fut in done_ids:
                 trial, params, worker, start_ts = pending.pop(fut)
-                train_mae, val_mae = ray.get(fut)
-                durations.append(time.time() - start_ts)
+                train_mae, val_mae, timing = ray.get(fut)
+                durations.append(float(timing["total"]))
+                io_durations.append(float(timing["io"]))
+                sim_durations.append(float(timing["sim"]))
                 study1.tell(trial, train_mae)
                 trial_rows.append({
                     "train_mae": float(train_mae),
                     "val_mae": float(val_mae),
                     **params
                 })
+                _record_slow_trial(
+                    slow_trials,
+                    {
+                        "duration_total": float(timing["total"]),
+                        "duration_io": float(timing["io"]),
+                        "duration_sim": float(timing["sim"]),
+                        "train_mae": float(train_mae),
+                        "val_mae": float(val_mae),
+                        **params,
+                    },
+                    SLOW_TRIALS_KEEP,
+                )
                 completed += 1
                 if next_restart is not None and completed >= next_restart:
                     worker = _replace_worker(workers, worker, rows_ref, spore_ref)
@@ -528,12 +605,18 @@ def run_baseline_loo(
                 f"[Baseline][Fold {fold_id}/{k}][Stage1]",
                 last_ts,
                 progress_interval,
-                durations
+                durations,
+                io_durations,
+                sim_durations,
             )
 
         df_trials = pd.DataFrame(trial_rows).sort_values("train_mae")
         stage1_out = os.path.join(RESULT_DIR, f"baseline_loo_fold_{fold_id}_stage1_trials.csv")
         df_trials.to_csv(stage1_out, index=False)
+        if slow_trials:
+            slow_sorted = [row for _, row in sorted(slow_trials, key=lambda x: x[0], reverse=True)]
+            slow_out = os.path.join(RESULT_DIR, f"baseline_loo_fold_{fold_id}_stage1_slow_trials.csv")
+            pd.DataFrame(slow_sorted).to_csv(slow_out, index=False)
 
         best_row = df_trials.sort_values("train_mae").iloc[0]
         best_params_stage1 = {
@@ -548,6 +631,9 @@ def run_baseline_loo(
         study2 = optuna.create_study(sampler=sampler2, direction="minimize")
         trial_rows = []
         durations = []
+        io_durations = []
+        sim_durations = []
+        slow_trials = []
         last_ts = 0.0
         pending = {}
         completed = 0
@@ -555,7 +641,18 @@ def run_baseline_loo(
         available = list(workers)
         next_restart = restart_every if restart_every > 0 else None
         _stage_start(f"[Baseline][Fold {fold_id}/{k}][Stage2]", n_trials_stage2, 0, max_conc)
-        last_ts = _progress_print(0, n_trials_stage2, 0, max_conc, f"[Baseline][Fold {fold_id}/{k}][Stage2]", last_ts, progress_interval, durations)
+        last_ts = _progress_print(
+            0,
+            n_trials_stage2,
+            0,
+            max_conc,
+            f"[Baseline][Fold {fold_id}/{k}][Stage2]",
+            last_ts,
+            progress_interval,
+            durations,
+            io_durations,
+            sim_durations,
+        )
         while completed < n_trials_stage2:
             while available and len(pending) < max_conc and completed + len(pending) < n_trials_stage2:
                 trial = study2.ask()
@@ -569,14 +666,28 @@ def run_baseline_loo(
             done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
             for fut in done_ids:
                 trial, params, worker, start_ts = pending.pop(fut)
-                train_mae, val_mae = ray.get(fut)
-                durations.append(time.time() - start_ts)
+                train_mae, val_mae, timing = ray.get(fut)
+                durations.append(float(timing["total"]))
+                io_durations.append(float(timing["io"]))
+                sim_durations.append(float(timing["sim"]))
                 study2.tell(trial, train_mae)
                 trial_rows.append({
                     "train_mae": float(train_mae),
                     "val_mae": float(val_mae),
                     **params
                 })
+                _record_slow_trial(
+                    slow_trials,
+                    {
+                        "duration_total": float(timing["total"]),
+                        "duration_io": float(timing["io"]),
+                        "duration_sim": float(timing["sim"]),
+                        "train_mae": float(train_mae),
+                        "val_mae": float(val_mae),
+                        **params,
+                    },
+                    SLOW_TRIALS_KEEP,
+                )
                 completed += 1
                 if next_restart is not None and completed >= next_restart:
                     worker = _replace_worker(workers, worker, rows_ref, spore_ref)
@@ -590,12 +701,18 @@ def run_baseline_loo(
                 f"[Baseline][Fold {fold_id}/{k}][Stage2]",
                 last_ts,
                 progress_interval,
-                durations
+                durations,
+                io_durations,
+                sim_durations,
             )
 
         df_trials = pd.DataFrame(trial_rows).sort_values("train_mae")
         stage2_out = os.path.join(RESULT_DIR, f"baseline_loo_fold_{fold_id}_trials.csv")
         df_trials.to_csv(stage2_out, index=False)
+        if slow_trials:
+            slow_sorted = [row for _, row in sorted(slow_trials, key=lambda x: x[0], reverse=True)]
+            slow_out = os.path.join(RESULT_DIR, f"baseline_loo_fold_{fold_id}_stage2_slow_trials.csv")
+            pd.DataFrame(slow_sorted).to_csv(slow_out, index=False)
 
         best_train_row = df_trials.sort_values("train_mae").iloc[0]
         best_params = {
@@ -738,7 +855,18 @@ def run_spore_two_stage_loo(
         available = list(workers)
         next_restart = restart_every if restart_every > 0 else None
         _stage_start(f"[Spore][Fold {fold_id}/{k}][Stage1]", n_trials_stage1, 0, max_conc)
-        last_ts = _progress_print(0, n_trials_stage1, 0, max_conc, f"[Spore][Fold {fold_id}/{k}][Stage1]", last_ts, progress_interval, durations)
+        last_ts = _progress_print(
+            0,
+            n_trials_stage1,
+            0,
+            max_conc,
+            f"[Spore][Fold {fold_id}/{k}][Stage1]",
+            last_ts,
+            progress_interval,
+            durations,
+            io_durations,
+            sim_durations,
+        )
 
         while completed < n_trials_stage1:
             while available and len(pending) < max_conc and completed + len(pending) < n_trials_stage1:
@@ -754,14 +882,28 @@ def run_spore_two_stage_loo(
             done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
             for fut in done_ids:
                 trial, params, worker, start_ts = pending.pop(fut)
-                train_loss, val_loss = ray.get(fut)
-                durations.append(time.time() - start_ts)
+                train_loss, val_loss, timing = ray.get(fut)
+                durations.append(float(timing["total"]))
+                io_durations.append(float(timing["io"]))
+                sim_durations.append(float(timing["sim"]))
                 study1.tell(trial, train_loss)
                 trial_rows.append({
                     "train_loss": float(train_loss),
                     "val_loss": float(val_loss),
                     **params
                 })
+                _record_slow_trial(
+                    slow_trials,
+                    {
+                        "duration_total": float(timing["total"]),
+                        "duration_io": float(timing["io"]),
+                        "duration_sim": float(timing["sim"]),
+                        "train_loss": float(train_loss),
+                        "val_loss": float(val_loss),
+                        **params,
+                    },
+                    SLOW_TRIALS_KEEP,
+                )
                 completed += 1
                 if next_restart is not None and completed >= next_restart:
                     worker = _replace_worker(workers, worker, rows_ref, spore_ref)
@@ -775,12 +917,18 @@ def run_spore_two_stage_loo(
                 f"[Spore][Fold {fold_id}/{k}][Stage1]",
                 last_ts,
                 progress_interval,
-                durations
+                durations,
+                io_durations,
+                sim_durations,
             )
 
         df_stage1 = pd.DataFrame(trial_rows).sort_values("train_loss")
         stage1_out = os.path.join(RESULT_DIR, f"spore_loo_stage1_fold{fold_id}.csv")
         df_stage1.to_csv(stage1_out, index=False)
+        if slow_trials:
+            slow_sorted = [row for _, row in sorted(slow_trials, key=lambda x: x[0], reverse=True)]
+            slow_out = os.path.join(RESULT_DIR, f"spore_loo_stage1_fold{fold_id}_slow_trials.csv")
+            pd.DataFrame(slow_sorted).to_csv(slow_out, index=False)
         best1 = df_stage1.sort_values("train_loss").iloc[0]
         stage1_best = {
             param_name: best1[param_name]
@@ -812,6 +960,9 @@ def run_spore_two_stage_loo(
         study2 = optuna.create_study(sampler=sampler2, direction="minimize")
         trial_rows = []
         durations = []
+        io_durations = []
+        sim_durations = []
+        slow_trials = []
         last_ts = 0.0
         pending = {}
         completed = 0
@@ -819,7 +970,18 @@ def run_spore_two_stage_loo(
         available = list(workers)
         next_restart = restart_every if restart_every > 0 else None
         _stage_start(f"[Spore][Fold {fold_id}/{k}][Stage2]", n_trials_stage2, 0, max_conc)
-        last_ts = _progress_print(0, n_trials_stage2, 0, max_conc, f"[Spore][Fold {fold_id}/{k}][Stage2]", last_ts, progress_interval, durations)
+        last_ts = _progress_print(
+            0,
+            n_trials_stage2,
+            0,
+            max_conc,
+            f"[Spore][Fold {fold_id}/{k}][Stage2]",
+            last_ts,
+            progress_interval,
+            durations,
+            io_durations,
+            sim_durations,
+        )
         while completed < n_trials_stage2:
             while available and len(pending) < max_conc and completed + len(pending) < n_trials_stage2:
                 trial = study2.ask()
@@ -834,14 +996,28 @@ def run_spore_two_stage_loo(
             done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
             for fut in done_ids:
                 trial, params, worker, start_ts = pending.pop(fut)
-                train_mae, val_mae = ray.get(fut)
-                durations.append(time.time() - start_ts)
+                train_mae, val_mae, timing = ray.get(fut)
+                durations.append(float(timing["total"]))
+                io_durations.append(float(timing["io"]))
+                sim_durations.append(float(timing["sim"]))
                 study2.tell(trial, train_mae)
                 trial_rows.append({
                     "train_mae": float(train_mae),
                     "val_mae": float(val_mae),
                     **params
                 })
+                _record_slow_trial(
+                    slow_trials,
+                    {
+                        "duration_total": float(timing["total"]),
+                        "duration_io": float(timing["io"]),
+                        "duration_sim": float(timing["sim"]),
+                        "train_mae": float(train_mae),
+                        "val_mae": float(val_mae),
+                        **params,
+                    },
+                    SLOW_TRIALS_KEEP,
+                )
                 completed += 1
                 if next_restart is not None and completed >= next_restart:
                     worker = _replace_worker(workers, worker, rows_ref, spore_ref)
@@ -855,12 +1031,18 @@ def run_spore_two_stage_loo(
                 f"[Spore][Fold {fold_id}/{k}][Stage2]",
                 last_ts,
                 progress_interval,
-                durations
+                durations,
+                io_durations,
+                sim_durations,
             )
 
         df_stage2 = pd.DataFrame(trial_rows).sort_values("train_mae")
         stage2_out = os.path.join(RESULT_DIR, f"spore_loo_stage2_fold{fold_id}.csv")
         df_stage2.to_csv(stage2_out, index=False)
+        if slow_trials:
+            slow_sorted = [row for _, row in sorted(slow_trials, key=lambda x: x[0], reverse=True)]
+            slow_out = os.path.join(RESULT_DIR, f"spore_loo_stage2_fold{fold_id}_slow_trials.csv")
+            pd.DataFrame(slow_sorted).to_csv(slow_out, index=False)
         best2 = df_stage2.sort_values("train_mae").iloc[0]
         best_params = {
             param_name: best2[param_name]
