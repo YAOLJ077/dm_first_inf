@@ -99,7 +99,7 @@ LOCAL_ABS_BASELINE = {
     "deposition__rain_min": 2.0,
     "zoospore_alive__rain": 0.5,
     "zoospore_alive__vpd": 1.0,
-    "infection__infection_condition": 30.0,
+    "infection__infection_condition": 20.0,
     "incubation__spl_end": 0.1,
     "thresholds__min_spores": 0.02,
 }
@@ -116,7 +116,7 @@ LOCAL_ABS_SPORE = {
     "deposition__rain_min": 3.0,
     "zoospore_alive__rain": 1.0,
     "zoospore_alive__vpd": 1.5,
-    "infection__infection_condition": 60.0,
+    "infection__infection_condition": 40.0,
     "incubation__spl_end": 0.2,
     "thresholds__min_spores": 0.03,
 }
@@ -337,6 +337,15 @@ def select_topk_val_best(df: pd.DataFrame, pct: float) -> pd.Series:
     return top.sort_values("val_mae").iloc[0]
 
 
+def select_topk_val_best_loss(df: pd.DataFrame, pct: float) -> pd.Series:
+    if df.empty:
+        raise ValueError("Empty trials dataframe.")
+    df_sorted = df.sort_values("train_loss").reset_index(drop=True)
+    n_top = max(1, int(math.ceil(len(df_sorted) * pct / 100.0)))
+    top = df_sorted.iloc[:n_top]
+    return top.sort_values("val_loss").iloc[0]
+
+
 @ray.remote(num_cpus=1)
 class ModelWorker:
     def __init__(self, rows_ref, spore_ref):
@@ -532,7 +541,7 @@ def run_baseline_kfold(
         df_trials = pd.DataFrame(trial_rows).sort_values("train_mae")
         stage1_out = os.path.join(RESULT_DIR, f"baseline_kfold_fold_{fold_id}_stage1_trials.csv")
         df_trials.to_csv(stage1_out, index=False)
-        best_row = df_trials.sort_values("train_mae").iloc[0]
+        best_row = select_topk_val_best(df_trials, TOPK_PCT)
         best_params_stage1 = {
             param_name: best_row[param_name]
             for param_name in best_row.index
@@ -773,7 +782,7 @@ def run_spore_two_stage_loo(
         df_stage1 = pd.DataFrame(trial_rows).sort_values("train_loss")
         stage1_out = os.path.join(RESULT_DIR, f"spore_kfold_stage1_fold{fold_id}.csv")
         df_stage1.to_csv(stage1_out, index=False)
-        best1 = df_stage1.sort_values("train_loss").iloc[0]
+        best1 = select_topk_val_best_loss(df_stage1, TOPK_PCT)
         stage1_best = {
             param_name: best1[param_name]
             for param_name in best1.index
@@ -956,14 +965,14 @@ def main() -> None:
     parser.add_argument("--kfold", type=int, default=3)
     parser.add_argument("--n-jobs", type=int, default=N_JOBS)
     parser.add_argument("--seed", type=int, default=RANDOM_SEED)
-    parser.add_argument("--n-trials-base-stage1", type=int, default=10000)
-    parser.add_argument("--n-trials-base-stage2", type=int, default=4000)
-    parser.add_argument("--n-startup-base-stage1", type=int, default=1000)
-    parser.add_argument("--n-startup-base-stage2", type=int, default=400)
-    parser.add_argument("--n-trials-spore-stage1", type=int, default=10000)
-    parser.add_argument("--n-trials-spore-stage2", type=int, default=4000)
-    parser.add_argument("--n-startup-spore-stage1", type=int, default=1000)
-    parser.add_argument("--n-startup-spore-stage2", type=int, default=400)
+    parser.add_argument("--n-trials-base-stage1", type=int, default=15000)
+    parser.add_argument("--n-trials-base-stage2", type=int, default=8000)
+    parser.add_argument("--n-startup-base-stage1", type=int, default=3000)
+    parser.add_argument("--n-startup-base-stage2", type=int, default=1600)
+    parser.add_argument("--n-trials-spore-stage1", type=int, default=15000)
+    parser.add_argument("--n-trials-spore-stage2", type=int, default=8000)
+    parser.add_argument("--n-startup-spore-stage1", type=int, default=3000)
+    parser.add_argument("--n-startup-spore-stage2", type=int, default=1600)
     parser.add_argument("--progress-interval", type=float, default=5.0)
     parser.add_argument("--restart-every", type=int, default=200)
     args = parser.parse_args()
