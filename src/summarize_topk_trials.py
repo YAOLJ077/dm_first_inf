@@ -33,6 +33,8 @@ def summarize_topk(result_dir: str, mode: str, topk_list: list, n_folds: int) ->
         for pct in topk_list:
             n_top = max(1, int(math.ceil(n_total * pct / 100.0)))
             top = df.iloc[:n_top].copy()
+            val_best_idx = top["val_mae"].idxmin()
+            val_best_row = top.loc[val_best_idx]
             per_fold_rows.append(
                 {
                     "fold": fold,
@@ -41,8 +43,8 @@ def summarize_topk(result_dir: str, mode: str, topk_list: list, n_folds: int) ->
                     "n_top": n_top,
                     "train_mae_mean": float(top["train_mae"].mean()),
                     "val_mae_mean": float(top["val_mae"].mean()),
-                    "train_mae_min": float(top["train_mae"].min()),
-                    "val_mae_min": float(top["val_mae"].min()),
+                    "train_at_val_best": float(val_best_row["train_mae"]),
+                    "val_best": float(val_best_row["val_mae"]),
                 }
             )
 
@@ -56,8 +58,8 @@ def summarize_topk(result_dir: str, mode: str, topk_list: list, n_folds: int) ->
             fold_count=("fold", "count"),
             train_mae_mean=("train_mae_mean", "mean"),
             val_mae_mean=("val_mae_mean", "mean"),
-            train_mae_min_mean=("train_mae_min", "mean"),
-            val_mae_min_mean=("val_mae_min", "mean"),
+            train_at_val_best_mean=("train_at_val_best", "mean"),
+            val_best_mean=("val_best", "mean"),
         )
         .reset_index()
     )
