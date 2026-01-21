@@ -199,7 +199,9 @@ def build_spore_windows(df: pd.DataFrame) -> Dict[Tuple[str, int], List[Tuple[ob
 def apply_params(base_cfg: dict, values: Dict[str, float]) -> dict:
     cfg = copy.deepcopy(base_cfg)
     for k, v in values.items():
-        group, sub = k.split("__")
+        if "__" not in k:
+            continue
+        group, sub = k.split("__", 1)
         cfg[group][sub] = float(v)
     return cfg
 
@@ -786,7 +788,7 @@ def run_spore_two_stage_loo(
         stage1_best = {
             param_name: best1[param_name]
             for param_name in best1.index
-            if param_name not in ("train_loss", "val_loss")
+            if param_name not in ("train_loss", "val_loss", "train_consistency", "val_consistency")
         }
         stage1_best_out = os.path.join(RESULT_DIR, f"spore_kfold_stage1_best_fold{fold_id}.json")
         with open(stage1_best_out, "w") as f:

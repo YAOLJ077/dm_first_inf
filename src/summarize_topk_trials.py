@@ -10,10 +10,12 @@ def _parse_topk_list(value: str) -> list:
 
 
 def _load_fold_csv(result_dir: str, mode: str, fold: int) -> pd.DataFrame:
-    if mode == "baseline":
-        filename = f"baseline_loo_fold_{fold}_trials.csv"
-    elif mode == "spore":
-        filename = f"spore_loo_stage2_fold{fold}.csv"
+    if mode == "baseline-stage1":
+        filename = f"baseline_kfold_fold_{fold}_stage1_trials.csv"
+    elif mode == "baseline-stage2":
+        filename = f"baseline_kfold_fold_{fold}_trials.csv"
+    elif mode == "spore-stage2":
+        filename = f"spore_kfold_stage2_fold{fold}.csv"
     else:
         raise ValueError(f"Unsupported mode: {mode}")
     path = os.path.join(result_dir, filename)
@@ -71,8 +73,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--mode",
-        choices=["baseline", "spore"],
-        default="baseline",
+        choices=["baseline-stage1", "baseline-stage2", "spore-stage2"],
+        default="baseline-stage2",
         help="Which fold trials to summarize.",
     )
     parser.add_argument(
