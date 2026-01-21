@@ -64,7 +64,7 @@ RANDOM_SEED = 42
 FOLD_SEED = 42
 N_JOBS = 128
 RB_CACHE_MAX = 128
-TOPK_PCT = 2.0
+TOPK_PCT = 1.0
 
 SPORE_CORE_DAYS = 14
 SPORE_SMOOTH_ALPHA = 0.5
@@ -401,25 +401,30 @@ class ModelWorker:
         rmse = float(np.sqrt(np.mean(np.square(abs_err))))
         return mae, std, rmse
 
-    def eval_mae(self, params: Dict[str, float], train_idx: List[int], val_idx: List[int]) -> Tuple[float, float]:
+    def eval_mae(
+        self, params: Dict[str, float], train_idx: List[int], val_idx: List[int]
+    ) -> Tuple[float, float, float, float, float, float]:
         cfg = apply_params(config, params)
-        train_mae, _, _ = self._compute_error_stats_idx(cfg, train_idx)
-        val_mae, _, _ = self._compute_error_stats_idx(cfg, val_idx)
-        return train_mae, val_mae
+        train_mae, train_std, train_rmse = self._compute_error_stats_idx(cfg, train_idx)
+        val_mae, val_std, val_rmse = self._compute_error_stats_idx(cfg, val_idx)
+        return train_mae, val_mae, train_std, val_std, train_rmse, val_rmse
 
-    def _spore_loss_idx(self, cfg: dict, idxs: List[int], core_days: int) -> float:
+    def _spore_loss_idx(self, cfg: dict, idxs: List[int], core_days: int) -> Tuple[float, float]:
         losses = []
+        recalls = []
         for i in idxs:
             row = self.rows[i]
             key = (str(row.plot), int(row.first_infection_date.year))
             obs = self.spore_windows.get(key, [])
             if not obs:
                 losses.append(1.0)
+                recalls.append(0.0)
                 continue
             rb_key = f"{row.plot}_{row.variety}_{row.first_infection_date.year}"
             rb_path = os.path.join(DATA_DIR, f"{rb_key}_grape_rb.json")
             if not os.path.exists(rb_path):
                 losses.append(1.0)
+                recalls.append(0.0)
                 continue
             try:
                 rb = self._load_rb_cached_lru(rb_path)
@@ -427,10 +432,12 @@ class ModelWorker:
                 cs.simulate()
                 if cs.primary_chain_unique is None or cs.primary_chain_unique.empty:
                     losses.append(1.0)
+                    recalls.append(0.0)
                     continue
                 oil_start_dt = pd.to_datetime(cs.primary_chain_unique.iloc[0]["oil_spot_start"]).normalize()
             except Exception:
                 losses.append(1.0)
+                recalls.append(0.0)
                 continue
 
             win_start = (oil_start_dt - pd.Timedelta(days=core_days)).date()
@@ -445,16 +452,20 @@ class ModelWorker:
                     hit += 1
             if total == 0:
                 losses.append(1.0)
+                recalls.append(0.0)
             else:
                 smoothed = (hit + SPORE_SMOOTH_ALPHA) / (total + 2 * SPORE_SMOOTH_ALPHA)
                 losses.append(1.0 - smoothed)
-        return float(np.mean(losses)) if losses else 1.0
+                recalls.append(1.0 if hit > 0 else 0.0)
+        mean_loss = float(np.mean(losses)) if losses else 1.0
+        mean_recall = float(np.mean(recalls)) if recalls else 0.0
+        return mean_loss, mean_recall
 
-    def eval_spore(self, params: Dict[str, float], train_idx: List[int], val_idx: List[int], core_days: int) -> Tuple[float, float]:
+    def eval_spore(self, params: Dict[str, float], train_idx: List[int], val_idx: List[int], core_days: int) -> Tuple[float, float, float, float]:
         cfg = apply_params(config, params)
-        train_loss = self._spore_loss_idx(cfg, train_idx, core_days)
-        val_loss = self._spore_loss_idx(cfg, val_idx, core_days)
-        return train_loss, val_loss
+        train_loss, train_recall = self._spore_loss_idx(cfg, train_idx, core_days)
+        val_loss, val_recall = self._spore_loss_idx(cfg, val_idx, core_days)
+        return train_loss, val_loss, train_recall, val_recall
 
 
 def _make_workers(n_jobs: int, rows_ref, spore_ref) -> List[ray.actor.ActorHandle]:
@@ -526,11 +537,15 @@ def run_baseline_kfold(
             done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
             for fut in done_ids:
                 trial, params, worker = pending.pop(fut)
-                train_mae, val_mae = ray.get(fut)
+                train_mae, val_mae, train_std, val_std, train_rmse, val_rmse = ray.get(fut)
                 study1.tell(trial, train_mae)
                 trial_rows.append({
                     "train_mae": float(train_mae),
                     "val_mae": float(val_mae),
+                    "train_std": float(train_std),
+                    "val_std": float(val_std),
+                    "train_rmse": float(train_rmse),
+                    "val_rmse": float(val_rmse),
                     **params
                 })
                 completed += 1
@@ -547,7 +562,7 @@ def run_baseline_kfold(
         best_params_stage1 = {
             param_name: best_row[param_name]
             for param_name in best_row.index
-            if param_name not in ("train_mae", "val_mae")
+            if "__" in param_name
         }
         local_ranges = build_local_ranges_from_center(best_params_stage1, global_ranges, LOCAL_ABS_BASELINE)
 
@@ -576,11 +591,15 @@ def run_baseline_kfold(
             done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
             for fut in done_ids:
                 trial, params, worker = pending.pop(fut)
-                train_mae, val_mae = ray.get(fut)
+                train_mae, val_mae, train_std, val_std, train_rmse, val_rmse = ray.get(fut)
                 study2.tell(trial, train_mae)
                 trial_rows.append({
                     "train_mae": float(train_mae),
                     "val_mae": float(val_mae),
+                    "train_std": float(train_std),
+                    "val_std": float(val_std),
+                    "train_rmse": float(train_rmse),
+                    "val_rmse": float(val_rmse),
                     **params
                 })
                 completed += 1
@@ -597,7 +616,7 @@ def run_baseline_kfold(
         best_params = {
             param_name: best_row[param_name]
             for param_name in best_row.index
-            if param_name not in ("train_mae", "val_mae")
+            if "__" in param_name
         }
         fold_params.append(best_params)
 
@@ -605,7 +624,7 @@ def run_baseline_kfold(
         train_mae, train_std, train_rmse = compute_error_stats(cfg, train_rows)
         val_mae, val_std, val_rmse = compute_error_stats(cfg, val_rows)
         spore_worker = workers[0]
-        train_spore_loss, val_spore_loss = ray.get(
+        train_spore_loss, val_spore_loss, train_spore_recall, val_spore_recall = ray.get(
             spore_worker.eval_spore.remote(best_params, train_idx, val_idx, SPORE_CORE_DAYS)
         )
         train_spore_cons = 1.0 - float(train_spore_loss)
@@ -623,6 +642,8 @@ def run_baseline_kfold(
             "val_rmse": float(val_rmse),
             "train_spore_consistency": float(train_spore_cons),
             "val_spore_consistency": float(val_spore_cons),
+            "train_spore_recall": float(train_spore_recall),
+            "val_spore_recall": float(val_spore_recall),
         })
 
         best_out = os.path.join(RESULT_DIR, f"baseline_kfold_best_params_fold{fold_id}.json")
@@ -639,6 +660,8 @@ def run_baseline_kfold(
                 "val_rmse": float(val_rmse),
                 "train_spore_consistency": float(train_spore_cons),
                 "val_spore_consistency": float(val_spore_cons),
+                "train_spore_recall": float(train_spore_recall),
+                "val_spore_recall": float(val_spore_recall),
                 "params": best_params,
             }, f, indent=2)
 
@@ -658,6 +681,10 @@ def run_baseline_kfold(
         "train_spore_consistency_std": float(summary["train_spore_consistency"].std(ddof=0)),
         "val_spore_consistency_mean": float(summary["val_spore_consistency"].mean()),
         "val_spore_consistency_std": float(summary["val_spore_consistency"].std(ddof=0)),
+        "train_spore_recall_mean": float(summary["train_spore_recall"].mean()),
+        "train_spore_recall_std": float(summary["train_spore_recall"].std(ddof=0)),
+        "val_spore_recall_mean": float(summary["val_spore_recall"].mean()),
+        "val_spore_recall_std": float(summary["val_spore_recall"].std(ddof=0)),
         "n_folds": int(len(summary)),
     }
     summary_json = os.path.join(RESULT_DIR, "baseline_kfold_summary.json")
@@ -763,7 +790,7 @@ def run_spore_two_stage_loo(
             done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
             for fut in done_ids:
                 trial, params, worker = pending.pop(fut)
-                train_loss, val_loss = ray.get(fut)
+                train_loss, val_loss, train_recall, val_recall = ray.get(fut)
                 train_consistency = 1.0 - float(train_loss)
                 val_consistency = 1.0 - float(val_loss)
                 study1.tell(trial, train_loss)
@@ -772,6 +799,8 @@ def run_spore_two_stage_loo(
                     "val_loss": float(val_loss),
                     "train_consistency": float(train_consistency),
                     "val_consistency": float(val_consistency),
+                    "train_recall": float(train_recall),
+                    "val_recall": float(val_recall),
                     **params
                 })
                 completed += 1
@@ -788,7 +817,7 @@ def run_spore_two_stage_loo(
         stage1_best = {
             param_name: best1[param_name]
             for param_name in best1.index
-            if param_name not in ("train_loss", "val_loss", "train_consistency", "val_consistency")
+            if "__" in param_name
         }
         stage1_best_out = os.path.join(RESULT_DIR, f"spore_kfold_stage1_best_fold{fold_id}.json")
         with open(stage1_best_out, "w") as f:
@@ -798,6 +827,8 @@ def run_spore_two_stage_loo(
                 "val_loss": float(best1["val_loss"]),
                 "train_consistency": float(best1["train_consistency"]),
                 "val_consistency": float(best1["val_consistency"]),
+                "train_recall": float(best1["train_recall"]),
+                "val_recall": float(best1["val_recall"]),
                 "params": stage1_best,
             }, f, indent=2)
 
@@ -838,11 +869,15 @@ def run_spore_two_stage_loo(
             done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
             for fut in done_ids:
                 trial, params, worker = pending.pop(fut)
-                train_mae, val_mae = ray.get(fut)
+                train_mae, val_mae, train_std, val_std, train_rmse, val_rmse = ray.get(fut)
                 study2.tell(trial, train_mae)
                 trial_rows.append({
                     "train_mae": float(train_mae),
                     "val_mae": float(val_mae),
+                    "train_std": float(train_std),
+                    "val_std": float(val_std),
+                    "train_rmse": float(train_rmse),
+                    "val_rmse": float(val_rmse),
                     **params
                 })
                 completed += 1
@@ -859,7 +894,7 @@ def run_spore_two_stage_loo(
         best_params = {
             param_name: best2[param_name]
             for param_name in best2.index
-            if param_name not in ("train_mae", "val_mae")
+            if "__" in param_name
         }
         stage2_params.append(best_params)
 
@@ -920,6 +955,10 @@ def run_spore_two_stage_loo(
         "train_spore_consistency_std": float(summary["train_spore_consistency"].std(ddof=0)),
         "val_spore_consistency_mean": float(summary["val_spore_consistency"].mean()),
         "val_spore_consistency_std": float(summary["val_spore_consistency"].std(ddof=0)),
+        "train_spore_recall_mean": float(summary["train_spore_recall"].mean()),
+        "train_spore_recall_std": float(summary["train_spore_recall"].std(ddof=0)),
+        "val_spore_recall_mean": float(summary["val_spore_recall"].mean()),
+        "val_spore_recall_std": float(summary["val_spore_recall"].std(ddof=0)),
         "n_folds": int(len(summary)),
         "spore_core_days": int(SPORE_CORE_DAYS),
         "spore_smooth_alpha": float(SPORE_SMOOTH_ALPHA),

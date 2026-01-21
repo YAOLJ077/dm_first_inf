@@ -63,6 +63,10 @@ def summarize_topk(result_dir: str, mode: str, topk_list: list, folds: list) -> 
                     "n_top": n_top,
                     "train_mae_mean": float(top["train_mae"].mean()),
                     "val_mae_mean": float(top["val_mae"].mean()),
+                    "train_rmse_mean": float(top["train_rmse"].mean()) if "train_rmse" in top else float("nan"),
+                    "val_rmse_mean": float(top["val_rmse"].mean()) if "val_rmse" in top else float("nan"),
+                    "train_std_mean": float(top["train_std"].mean()) if "train_std" in top else float("nan"),
+                    "val_std_mean": float(top["val_std"].mean()) if "val_std" in top else float("nan"),
                     "train_at_val_best": float(val_best_row["train_mae"]),
                     "val_best": float(val_best_row["val_mae"]),
                 }
@@ -78,6 +82,10 @@ def summarize_topk(result_dir: str, mode: str, topk_list: list, folds: list) -> 
             fold_count=("fold", "count"),
             train_mae_mean=("train_mae_mean", "mean"),
             val_mae_mean=("val_mae_mean", "mean"),
+            train_rmse_mean=("train_rmse_mean", "mean"),
+            val_rmse_mean=("val_rmse_mean", "mean"),
+            train_std_mean=("train_std_mean", "mean"),
+            val_std_mean=("val_std_mean", "mean"),
             train_at_val_best_mean=("train_at_val_best", "mean"),
             val_best_mean=("val_best", "mean"),
         )
