@@ -1,6 +1,7 @@
 import argparse
 import math
 import os
+import re
 
 import pandas as pd
 
@@ -24,9 +25,26 @@ def _load_fold_csv(result_dir: str, mode: str, fold: int) -> pd.DataFrame:
     return pd.read_csv(path)
 
 
-def summarize_topk(result_dir: str, mode: str, topk_list: list, n_folds: int) -> None:
+def _detect_folds(result_dir: str, mode: str) -> list:
+    if mode == "baseline-stage1":
+        pattern = re.compile(r"baseline_kfold_fold_(\d+)_stage1_trials\.csv$")
+    elif mode == "baseline-stage2":
+        pattern = re.compile(r"baseline_kfold_fold_(\d+)_trials\.csv$")
+    elif mode == "spore-stage2":
+        pattern = re.compile(r"spore_kfold_stage2_fold(\d+)\.csv$")
+    else:
+        raise ValueError(f"Unsupported mode: {mode}")
+    folds = []
+    for name in os.listdir(result_dir):
+        match = pattern.match(name)
+        if match:
+            folds.append(int(match.group(1)))
+    return sorted(set(folds))
+
+
+def summarize_topk(result_dir: str, mode: str, topk_list: list, folds: list) -> None:
     per_fold_rows = []
-    for fold in range(1, n_folds + 1):
+    for fold in folds:
         df = _load_fold_csv(result_dir, mode, fold)
         if df.empty:
             continue
@@ -87,11 +105,17 @@ def main() -> None:
         default="1,2,3,5,10",
         help="Comma-separated top%% list, based on train_mae.",
     )
-    parser.add_argument("--folds", type=int, default=6, help="Number of folds.")
+    parser.add_argument("--folds", type=int, default=0, help="Number of folds (0 = auto-detect).")
     args = parser.parse_args()
 
     topk_list = _parse_topk_list(args.topk)
-    summarize_topk(args.result_dir, args.mode, topk_list, args.folds)
+    if args.folds and args.folds > 0:
+        fold_list = list(range(1, args.folds + 1))
+    else:
+        fold_list = _detect_folds(args.result_dir, args.mode)
+        if not fold_list:
+            raise FileNotFoundError(f"No fold files detected for mode={args.mode} in {args.result_dir}")
+    summarize_topk(args.result_dir, args.mode, topk_list, fold_list)
     print(f"Saved: {os.path.join(args.result_dir, f'{args.mode}_topk_fold_summary.csv')}")
     print(f"Saved: {os.path.join(args.result_dir, f'{args.mode}_topk_summary.csv')}")
 
