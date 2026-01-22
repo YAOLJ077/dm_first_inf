@@ -93,22 +93,22 @@ BASE_RANGES = {
 LOCAL_ABS_BASELINE = {
     "mp_tmp__rh_wet_night": 2.0,
     "sporulation__MP_min": 2.0,
-    "sporulation__Tmin": 0.5,
-    "sporulation__Topt": 0.5,
+    "sporulation__Tmin": 1.0,
+    "sporulation__Topt": 1.0,
     "sporulation__Tmax": 1.0,
     "dispersal__rain_min": 2.0,
     "dispersal__wind_min": 2.0,
     "deposition__rain_min": 2.0,
-    "zoospore_alive__rain": 0.5,
+    "zoospore_alive__rain": 1.0,
     "zoospore_alive__vpd": 1.0,
-    "infection__infection_condition": 20.0,
+    "infection__infection_condition": 40.0,
     "incubation__spl_end": 0.1,
     "thresholds__min_spores": 0.02,
 }
 
 # Local absolute ranges for spore two-stage continuation (absolute deltas).
 LOCAL_ABS_SPORE = {
-    "mp_tmp__rh_wet_night": 5.0,
+    "mp_tmp__rh_wet_night": 3.0,
     "sporulation__MP_min": 3.0,
     "sporulation__Tmin": 1.0,
     "sporulation__Topt": 1.0,
@@ -116,10 +116,6 @@ LOCAL_ABS_SPORE = {
     "dispersal__rain_min": 3.0,
     "dispersal__wind_min": 3.0,
     "deposition__rain_min": 3.0,
-    "zoospore_alive__rain": 1.0,
-    "zoospore_alive__vpd": 1.5,
-    "infection__infection_condition": 40.0,
-    "incubation__spl_end": 0.2,
     "thresholds__min_spores": 0.03,
 }
 
@@ -143,14 +139,22 @@ STAGE2_PARAMS = {
     "incubation__spl_end",
 }
 
+# Local absolute ranges for stage2 params (explicit deltas).
+STAGE2_RELAX_ABS = {
+    "zoospore_alive__rain": 1.5,
+    "zoospore_alive__vpd": 1.5,
+    "infection__infection_condition": 60.0,
+    "incubation__spl_end": 0.2,
+}
+
 # Elastic range for stage1 params in stage2 (absolute deltas).
 STAGE1_RELAX_ABS = {
-    "mp_tmp__rh_wet_night": 3.0,
+    "mp_tmp__rh_wet_night": 2.0,
     "sporulation__MP_min": 2.0,
     "sporulation__Tmin": 1.0,
     "sporulation__Topt": 1.0,
     "sporulation__Tmax": 1.0,
-    "thresholds__min_spores": 0.02,
+    "thresholds__min_spores": 0.01,
     "dispersal__wind_min": 2.0,
     "deposition__rain_min": 2.0,
 }
@@ -419,9 +423,10 @@ class ModelWorker:
         val_mae, val_std, val_rmse = self._compute_error_stats_idx(cfg, val_idx)
         return train_mae, val_mae, train_std, val_std, train_rmse, val_rmse
 
-    def _spore_loss_idx(self, cfg: dict, idxs: List[int], core_days: int) -> Tuple[float, float]:
+    def _spore_loss_idx(self, cfg: dict, idxs: List[int], core_days: int) -> Tuple[float, float, float]:
         losses = []
         recalls = []
+        precisions = []
         for i in idxs:
             row = self.rows[i]
             key = (str(row.plot), int(row.first_infection_date.year))
@@ -429,12 +434,14 @@ class ModelWorker:
             if not obs:
                 losses.append(1.0)
                 recalls.append(0.0)
+                precisions.append(0.0)
                 continue
             rb_key = f"{row.plot}_{row.variety}_{row.first_infection_date.year}"
             rb_path = os.path.join(DATA_DIR, f"{rb_key}_grape_rb.json")
             if not os.path.exists(rb_path):
                 losses.append(1.0)
                 recalls.append(0.0)
+                precisions.append(0.0)
                 continue
             try:
                 rb = self._load_rb_cached_lru(rb_path)
@@ -443,11 +450,13 @@ class ModelWorker:
                 if cs.primary_chain_unique is None or cs.primary_chain_unique.empty:
                     losses.append(1.0)
                     recalls.append(0.0)
+                    precisions.append(0.0)
                     continue
                 oil_start_dt = pd.to_datetime(cs.primary_chain_unique.iloc[0]["oil_spot_start"]).normalize()
             except Exception:
                 losses.append(1.0)
                 recalls.append(0.0)
+                precisions.append(0.0)
                 continue
 
             win_start = (oil_start_dt - pd.Timedelta(days=core_days)).date()
@@ -477,6 +486,7 @@ class ModelWorker:
             if total_sim == 0:
                 losses.append(1.0)
                 recalls.append(0.0)
+                precisions.append(0.0)
                 continue
 
             matched_sim = 0
@@ -496,17 +506,21 @@ class ModelWorker:
                 recall = 0.0
             else:
                 recall = (len(matched_obs) + SPORE_SMOOTH_ALPHA) / (total_obs + 2 * SPORE_SMOOTH_ALPHA)
-            losses.append(1.0 - float(precision))
+            losses.append(1.0 - float(recall))
             recalls.append(recall)
+            precisions.append(float(precision))
         mean_loss = float(np.mean(losses)) if losses else 1.0
         mean_recall = float(np.mean(recalls)) if recalls else 0.0
-        return mean_loss, mean_recall
+        mean_precision = float(np.mean(precisions)) if precisions else 0.0
+        return mean_loss, mean_recall, mean_precision
 
-    def eval_spore(self, params: Dict[str, float], train_idx: List[int], val_idx: List[int], core_days: int) -> Tuple[float, float, float, float]:
+    def eval_spore(
+        self, params: Dict[str, float], train_idx: List[int], val_idx: List[int], core_days: int
+    ) -> Tuple[float, float, float, float, float, float]:
         cfg = apply_params(config, params)
-        train_loss, train_recall = self._spore_loss_idx(cfg, train_idx, core_days)
-        val_loss, val_recall = self._spore_loss_idx(cfg, val_idx, core_days)
-        return train_loss, val_loss, train_recall, val_recall
+        train_loss, train_recall, train_precision = self._spore_loss_idx(cfg, train_idx, core_days)
+        val_loss, val_recall, val_precision = self._spore_loss_idx(cfg, val_idx, core_days)
+        return train_loss, val_loss, train_recall, val_recall, train_precision, val_precision
 
 
 def _make_workers(n_jobs: int, rows_ref, spore_ref) -> List[ray.actor.ActorHandle]:
@@ -665,7 +679,7 @@ def run_baseline_kfold(
         train_mae, train_std, train_rmse = compute_error_stats(cfg, train_rows)
         val_mae, val_std, val_rmse = compute_error_stats(cfg, val_rows)
         spore_worker = workers[0]
-        train_spore_loss, val_spore_loss, train_spore_recall, val_spore_recall = ray.get(
+        train_spore_loss, val_spore_loss, train_spore_recall, val_spore_recall, train_spore_precision, val_spore_precision = ray.get(
             spore_worker.eval_spore.remote(best_params, train_idx, val_idx, SPORE_CORE_DAYS)
         )
         train_spore_cons = 1.0 - float(train_spore_loss)
@@ -685,6 +699,8 @@ def run_baseline_kfold(
             "val_spore_consistency": float(val_spore_cons),
             "train_spore_recall": float(train_spore_recall),
             "val_spore_recall": float(val_spore_recall),
+            "train_spore_precision": float(train_spore_precision),
+            "val_spore_precision": float(val_spore_precision),
         })
 
         best_out = os.path.join(RESULT_DIR, f"baseline_kfold_best_params_fold{fold_id}.json")
@@ -703,6 +719,8 @@ def run_baseline_kfold(
                 "val_spore_consistency": float(val_spore_cons),
                 "train_spore_recall": float(train_spore_recall),
                 "val_spore_recall": float(val_spore_recall),
+                "train_spore_precision": float(train_spore_precision),
+                "val_spore_precision": float(val_spore_precision),
                 "params": best_params,
             }, f, indent=2)
 
@@ -726,6 +744,10 @@ def run_baseline_kfold(
         "train_spore_recall_std": float(summary["train_spore_recall"].std(ddof=0)),
         "val_spore_recall_mean": float(summary["val_spore_recall"].mean()),
         "val_spore_recall_std": float(summary["val_spore_recall"].std(ddof=0)),
+        "train_spore_precision_mean": float(summary["train_spore_precision"].mean()),
+        "train_spore_precision_std": float(summary["train_spore_precision"].std(ddof=0)),
+        "val_spore_precision_mean": float(summary["val_spore_precision"].mean()),
+        "val_spore_precision_std": float(summary["val_spore_precision"].std(ddof=0)),
         "n_folds": int(len(summary)),
     }
     summary_json = os.path.join(RESULT_DIR, "baseline_kfold_summary.json")
@@ -847,7 +869,7 @@ def run_spore_two_stage_loo(
                 done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
                 for fut in done_ids:
                     trial, params, worker = pending.pop(fut)
-                    train_loss, val_loss, train_recall, val_recall = ray.get(fut)
+                    train_loss, val_loss, train_recall, val_recall, train_precision, val_precision = ray.get(fut)
                     train_consistency = 1.0 - float(train_loss)
                     val_consistency = 1.0 - float(val_loss)
                     study1.tell(trial, train_loss)
@@ -858,6 +880,8 @@ def run_spore_two_stage_loo(
                         "val_consistency": float(val_consistency),
                         "train_recall": float(train_recall),
                         "val_recall": float(val_recall),
+                        "train_precision": float(train_precision),
+                        "val_precision": float(val_precision),
                         **params
                     })
                     completed += 1
@@ -908,6 +932,8 @@ def run_spore_two_stage_loo(
                     "val_consistency": float(best1["val_consistency"]),
                     "train_recall": float(best1["train_recall"]),
                     "val_recall": float(best1["val_recall"]),
+                    "train_precision": float(best1["train_precision"]),
+                    "val_precision": float(best1["val_precision"]),
                     "params": stage1_centers_params[0],
                     "centers": stage1_centers_params,
                 }, f, indent=2)
@@ -917,6 +943,13 @@ def run_spore_two_stage_loo(
         total_centers = max(1, len(stage1_centers_params))
         for center_idx, center_params in enumerate(stage1_centers_params, start=1):
             stage2_ranges = {k: v for k, v in stage1_local.items() if k in STAGE2_PARAMS}
+            for param_name, delta in STAGE2_RELAX_ABS.items():
+                if param_name not in global_best:
+                    continue
+                g_lo, g_hi = global_ranges[param_name]
+                lo = max(g_lo, global_best[param_name] - delta)
+                hi = min(g_hi, global_best[param_name] + delta)
+                stage2_ranges[param_name] = (lo, hi)
             for param_name, delta in STAGE1_RELAX_ABS.items():
                 if param_name not in center_params:
                     continue
@@ -1010,7 +1043,7 @@ def run_spore_two_stage_loo(
         train_mae, train_std, train_rmse = compute_error_stats(cfg, train_rows)
         val_mae, val_std, val_rmse = compute_error_stats(cfg, val_rows)
         spore_worker = workers[0]
-        train_spore_loss, val_spore_loss, train_spore_recall, val_spore_recall = ray.get(
+        train_spore_loss, val_spore_loss, train_spore_recall, val_spore_recall, train_spore_precision, val_spore_precision = ray.get(
             spore_worker.eval_spore.remote(best_params, train_idx, val_idx, SPORE_CORE_DAYS)
         )
         train_spore_cons = 1.0 - float(train_spore_loss)
@@ -1030,6 +1063,8 @@ def run_spore_two_stage_loo(
             "val_spore_consistency": float(val_spore_cons),
             "train_spore_recall": float(train_spore_recall),
             "val_spore_recall": float(val_spore_recall),
+            "train_spore_precision": float(train_spore_precision),
+            "val_spore_precision": float(val_spore_precision),
         })
 
         best_out = os.path.join(RESULT_DIR, f"spore_kfold_best_params_fold{fold_id}.json")
@@ -1048,6 +1083,8 @@ def run_spore_two_stage_loo(
                 "val_spore_consistency": float(val_spore_cons),
                 "train_spore_recall": float(train_spore_recall),
                 "val_spore_recall": float(val_spore_recall),
+                "train_spore_precision": float(train_spore_precision),
+                "val_spore_precision": float(val_spore_precision),
                 "params": best_params,
             }, f, indent=2)
 
@@ -1080,6 +1117,13 @@ def run_spore_two_stage_loo(
             "train_spore_recall_std": float(summary["train_spore_recall"].std(ddof=0)),
             "val_spore_recall_mean": float(summary["val_spore_recall"].mean()),
             "val_spore_recall_std": float(summary["val_spore_recall"].std(ddof=0)),
+        })
+    if "train_spore_precision" in summary.columns:
+        summary_stats.update({
+            "train_spore_precision_mean": float(summary["train_spore_precision"].mean()),
+            "train_spore_precision_std": float(summary["train_spore_precision"].std(ddof=0)),
+            "val_spore_precision_mean": float(summary["val_spore_precision"].mean()),
+            "val_spore_precision_std": float(summary["val_spore_precision"].std(ddof=0)),
         })
     summary_json = os.path.join(RESULT_DIR, "spore_kfold_summary.json")
     with open(summary_json, "w") as f:
