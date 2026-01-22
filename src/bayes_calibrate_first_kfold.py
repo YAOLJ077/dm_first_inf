@@ -1050,6 +1050,11 @@ def main() -> None:
             raise FileNotFoundError(f"Missing baseline best file: {baseline_best_path}")
         with open(baseline_best_path, "r") as f:
             global_best_info = json.load(f)
+        if "best_params" not in global_best_info:
+            if "params" in global_best_info:
+                global_best_info["best_params"] = global_best_info["params"]
+            else:
+                raise KeyError(f"Missing 'best_params' in {baseline_best_path}. Keys: {list(global_best_info.keys())}")
     else:
         fold_params, summary, global_best_info = run_baseline_kfold(
             rows=rows,
