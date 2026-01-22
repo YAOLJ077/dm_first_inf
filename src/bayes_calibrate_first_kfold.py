@@ -68,6 +68,8 @@ TOPK_PCT = 1.0
 
 SPORE_CORE_DAYS = 14
 SPORE_SMOOTH_ALPHA = 0.5
+# Number of stage1 spore centers to carry into stage2.
+SPORE_STAGE1_TOPK_CENTERS = 3
 
 # Base ranges (global)
 BASE_RANGES = {
@@ -442,21 +444,52 @@ class ModelWorker:
 
             win_start = (oil_start_dt - pd.Timedelta(days=core_days)).date()
             win_end = oil_start_dt.date()
-            total = 0
-            hit = 0
+            obs_present = []
             for s, e, present in obs:
                 if e < win_start or s > win_end:
                     continue
-                total += 1
                 if present:
-                    hit += 1
-            if total == 0:
+                    obs_present.append((s, e))
+
+            sim_windows = []
+            if cs.deposition is not None and not cs.deposition.empty:
+                for _, c in cs.deposition.iterrows():
+                    if c.get("dispersal_type") != "wind":
+                        continue
+                    if pd.isna(c.get("deposition_datetime")) or pd.isna(c.get("dispersal_datetime")):
+                        continue
+                    s = pd.to_datetime(c["dispersal_datetime"]).date()
+                    e = pd.to_datetime(c["deposition_datetime"]).date()
+                    if e < win_start or s > win_end:
+                        continue
+                    sim_windows.append((s, e))
+
+            total_sim = len(sim_windows)
+            total_obs = len(obs_present)
+            if total_sim == 0:
                 losses.append(1.0)
                 recalls.append(0.0)
+                continue
+
+            matched_sim = 0
+            matched_obs = set()
+            for si, (s1, e1) in enumerate(sim_windows):
+                hit = False
+                for oi, (s2, e2) in enumerate(obs_present):
+                    if e1 < s2 or s1 > e2:
+                        continue
+                    hit = True
+                    matched_obs.add(oi)
+                if hit:
+                    matched_sim += 1
+
+            precision = (matched_sim + SPORE_SMOOTH_ALPHA) / (total_sim + 2 * SPORE_SMOOTH_ALPHA)
+            if total_obs == 0:
+                recall = 0.0
             else:
-                smoothed = (hit + SPORE_SMOOTH_ALPHA) / (total + 2 * SPORE_SMOOTH_ALPHA)
-                losses.append(1.0 - smoothed)
-                recalls.append(1.0 if hit > 0 else 0.0)
+                recall = (len(matched_obs) + SPORE_SMOOTH_ALPHA) / (total_obs + 2 * SPORE_SMOOTH_ALPHA)
+            losses.append(1.0 - float(precision))
+            recalls.append(recall)
         mean_loss = float(np.mean(losses)) if losses else 1.0
         mean_recall = float(np.mean(recalls)) if recalls else 0.0
         return mean_loss, mean_recall
@@ -748,6 +781,7 @@ def run_spore_two_stage_loo(
     n_startup_stage2: int,
     progress_interval: float,
     seed: int,
+    stage1_centers: int,
     skip_stage1: bool = False,
     start_fold: int = 1,
 ) -> None:
@@ -770,7 +804,11 @@ def run_spore_two_stage_loo(
             if not os.path.exists(stage1_best_path):
                 raise FileNotFoundError(f"Missing stage1 best file: {stage1_best_path}")
             with open(stage1_best_path, "r") as f:
-                stage1_best = json.load(f)["params"]
+                stage1_payload = json.load(f)
+            if "centers" in stage1_payload:
+                stage1_centers_params = stage1_payload["centers"]
+            else:
+                stage1_centers_params = [stage1_payload["params"]]
         else:
             stage1_ranges = {k: v for k, v in stage1_local.items() if k in STAGE1_PARAMS}
             fixed_base = {k: global_best[k] for k in global_best if k not in STAGE1_PARAMS}
@@ -824,12 +862,34 @@ def run_spore_two_stage_loo(
             df_stage1 = pd.DataFrame(trial_rows).sort_values("train_loss")
             stage1_out = os.path.join(RESULT_DIR, f"spore_kfold_stage1_fold{fold_id}.csv")
             df_stage1.to_csv(stage1_out, index=False)
-            best1 = select_topk_val_best_loss(df_stage1, TOPK_PCT)
-            stage1_best = {
-                param_name: best1[param_name]
-                for param_name in best1.index
-                if "__" in param_name
-            }
+            topk_train = _topk_by_train(df_stage1, TOPK_PCT, loss_col="train_loss")
+            sorted_topk = topk_train.sort_values(["train_loss", "val_loss"])
+            unique_rows = []
+            seen_loss = set()
+            for _, row in sorted_topk.iterrows():
+                loss_val = float(row["train_loss"])
+                if loss_val in seen_loss:
+                    continue
+                seen_loss.add(loss_val)
+                unique_rows.append(row)
+                if len(unique_rows) >= max(1, stage1_centers):
+                    break
+            if len(unique_rows) < max(1, stage1_centers):
+                used_idx = {r.name for r in unique_rows}
+                for _, row in sorted_topk.iterrows():
+                    if row.name in used_idx:
+                        continue
+                    unique_rows.append(row)
+                    if len(unique_rows) >= max(1, stage1_centers):
+                        break
+            stage1_centers_params = []
+            for row in unique_rows:
+                stage1_centers_params.append({
+                    param_name: row[param_name]
+                    for param_name in row.index
+                    if "__" in param_name
+                })
+            best1 = unique_rows[0]
             stage1_best_out = os.path.join(RESULT_DIR, f"spore_kfold_stage1_best_fold{fold_id}.json")
             with open(stage1_best_out, "w") as f:
                 json.dump({
@@ -840,63 +900,92 @@ def run_spore_two_stage_loo(
                     "val_consistency": float(best1["val_consistency"]),
                     "train_recall": float(best1["train_recall"]),
                     "val_recall": float(best1["val_recall"]),
-                    "params": stage1_best,
+                    "params": stage1_centers_params[0],
+                    "centers": stage1_centers_params,
                 }, f, indent=2)
 
-        # Stage 2: MAE calibration
-        stage2_ranges = {k: v for k, v in stage1_local.items() if k in STAGE2_PARAMS}
-        for param_name, delta in STAGE1_RELAX_ABS.items():
-            if param_name not in stage1_best:
-                continue
-            g_lo, g_hi = global_ranges[param_name]
-            lo = max(g_lo, stage1_best[param_name] - delta)
-            hi = min(g_hi, stage1_best[param_name] + delta)
-            stage2_ranges[param_name] = (lo, hi)
-
-        fixed_stage2 = {k: stage1_best[k] for k in stage1_best if k not in STAGE2_PARAMS}
-
-        sampler2 = TPESampler(seed=seed + fold_id + 3000, multivariate=True, n_startup_trials=n_startup_stage2)
-        study2 = optuna.create_study(sampler=sampler2, direction="minimize")
+        # Stage 2: MAE calibration (multi-center)
         trial_rows = []
-        last_ts = 0.0
-        pending = {}
-        completed = 0
-        max_conc = max(1, n_jobs)
-        available = list(workers)
-        next_restart = restart_every if restart_every > 0 else None
-        _stage_start(f"[Spore][Fold {fold_id}/{k}][Stage2]", n_trials_stage2, 0, max_conc)
-        last_ts = _progress_print(0, n_trials_stage2, 0, max_conc, f"[Spore][Fold {fold_id}/{k}][Stage2]", last_ts, progress_interval)
-        while completed < n_trials_stage2:
-            while available and len(pending) < max_conc and completed + len(pending) < n_trials_stage2:
-                trial = study2.ask()
-                params = define_search_space(trial, stage2_ranges)
-                params = {**fixed_stage2, **params}
-                worker = available.pop(0)
-                fut = worker.eval_mae.remote(params, train_idx, val_idx)
-                pending[fut] = (trial, params, worker)
-            if not pending:
-                time.sleep(0.01)
-                continue
-            done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
-            for fut in done_ids:
-                trial, params, worker = pending.pop(fut)
-                train_mae, val_mae, train_std, val_std, train_rmse, val_rmse = ray.get(fut)
-                study2.tell(trial, train_mae)
-                trial_rows.append({
-                    "train_mae": float(train_mae),
-                    "val_mae": float(val_mae),
-                    "train_std": float(train_std),
-                    "val_std": float(val_std),
-                    "train_rmse": float(train_rmse),
-                    "val_rmse": float(val_rmse),
-                    **params
-                })
-                completed += 1
-                if next_restart is not None and completed >= next_restart:
-                    worker = _replace_worker(workers, worker, rows_ref, spore_ref)
-                    next_restart += restart_every
-                available.append(worker)
-            last_ts = _progress_print(completed, n_trials_stage2, len(pending), max_conc, f"[Spore][Fold {fold_id}/{k}][Stage2]", last_ts, progress_interval)
+        total_centers = max(1, len(stage1_centers_params))
+        for center_idx, center_params in enumerate(stage1_centers_params, start=1):
+            stage2_ranges = {k: v for k, v in stage1_local.items() if k in STAGE2_PARAMS}
+            for param_name, delta in STAGE1_RELAX_ABS.items():
+                if param_name not in center_params:
+                    continue
+                g_lo, g_hi = global_ranges[param_name]
+                lo = max(g_lo, center_params[param_name] - delta)
+                hi = min(g_hi, center_params[param_name] + delta)
+                stage2_ranges[param_name] = (lo, hi)
+
+            fixed_stage2 = {k: center_params[k] for k in center_params if k not in STAGE2_PARAMS}
+
+            sampler2 = TPESampler(
+                seed=seed + fold_id + 3000 + center_idx,
+                multivariate=True,
+                n_startup_trials=n_startup_stage2,
+            )
+            study2 = optuna.create_study(sampler=sampler2, direction="minimize")
+            last_ts = 0.0
+            pending = {}
+            completed = 0
+            max_conc = max(1, n_jobs)
+            available = list(workers)
+            next_restart = restart_every if restart_every > 0 else None
+            _stage_start(
+                f"[Spore][Fold {fold_id}/{k}][Stage2-C{center_idx}/{total_centers}]",
+                n_trials_stage2,
+                0,
+                max_conc,
+            )
+            last_ts = _progress_print(
+                0,
+                n_trials_stage2,
+                0,
+                max_conc,
+                f"[Spore][Fold {fold_id}/{k}][Stage2-C{center_idx}/{total_centers}]",
+                last_ts,
+                progress_interval,
+            )
+            while completed < n_trials_stage2:
+                while available and len(pending) < max_conc and completed + len(pending) < n_trials_stage2:
+                    trial = study2.ask()
+                    params = define_search_space(trial, stage2_ranges)
+                    params = {**fixed_stage2, **params}
+                    worker = available.pop(0)
+                    fut = worker.eval_mae.remote(params, train_idx, val_idx)
+                    pending[fut] = (trial, params, worker)
+                if not pending:
+                    time.sleep(0.01)
+                    continue
+                done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
+                for fut in done_ids:
+                    trial, params, worker = pending.pop(fut)
+                    train_mae, val_mae, train_std, val_std, train_rmse, val_rmse = ray.get(fut)
+                    study2.tell(trial, train_mae)
+                    trial_rows.append({
+                        "center_id": int(center_idx),
+                        "train_mae": float(train_mae),
+                        "val_mae": float(val_mae),
+                        "train_std": float(train_std),
+                        "val_std": float(val_std),
+                        "train_rmse": float(train_rmse),
+                        "val_rmse": float(val_rmse),
+                        **params
+                    })
+                    completed += 1
+                    if next_restart is not None and completed >= next_restart:
+                        worker = _replace_worker(workers, worker, rows_ref, spore_ref)
+                        next_restart += restart_every
+                    available.append(worker)
+                last_ts = _progress_print(
+                    completed,
+                    n_trials_stage2,
+                    len(pending),
+                    max_conc,
+                    f"[Spore][Fold {fold_id}/{k}][Stage2-C{center_idx}/{total_centers}]",
+                    last_ts,
+                    progress_interval,
+                )
 
         df_stage2 = pd.DataFrame(trial_rows).sort_values("train_mae")
         stage2_out = os.path.join(RESULT_DIR, f"spore_kfold_stage2_fold{fold_id}.csv")
@@ -931,6 +1020,8 @@ def run_spore_two_stage_loo(
             "val_rmse": float(val_rmse),
             "train_spore_consistency": float(train_spore_cons),
             "val_spore_consistency": float(val_spore_cons),
+            "train_spore_recall": float(train_spore_recall),
+            "val_spore_recall": float(val_spore_recall),
         })
 
         best_out = os.path.join(RESULT_DIR, f"spore_kfold_best_params_fold{fold_id}.json")
@@ -947,6 +1038,8 @@ def run_spore_two_stage_loo(
                 "val_rmse": float(val_rmse),
                 "train_spore_consistency": float(train_spore_cons),
                 "val_spore_consistency": float(val_spore_cons),
+                "train_spore_recall": float(train_spore_recall),
+                "val_spore_recall": float(val_spore_recall),
                 "params": best_params,
             }, f, indent=2)
 
@@ -1031,6 +1124,7 @@ def main() -> None:
     parser.add_argument("--n-trials-spore-stage2", type=int, default=8000)
     parser.add_argument("--n-startup-spore-stage1", type=int, default=3000)
     parser.add_argument("--n-startup-spore-stage2", type=int, default=1600)
+    parser.add_argument("--spore-stage1-centers", type=int, default=SPORE_STAGE1_TOPK_CENTERS)
     parser.add_argument("--skip-spore-stage1", action="store_true")
     parser.add_argument("--skip-baseline", action="store_true")
     parser.add_argument("--spore-start-fold", type=int, default=1)
@@ -1096,6 +1190,7 @@ def main() -> None:
         n_startup_stage2=args.n_startup_spore_stage2,
         progress_interval=args.progress_interval,
         seed=args.seed,
+        stage1_centers=args.spore_stage1_centers,
         skip_stage1=args.skip_spore_stage1,
         start_fold=args.spore_start_fold,
     )
