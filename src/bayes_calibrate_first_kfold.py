@@ -748,7 +748,8 @@ def run_spore_two_stage_loo(
     n_startup_stage2: int,
     progress_interval: float,
     seed: int,
-    skip_stage1: bool = False
+    skip_stage1: bool = False,
+    start_fold: int = 1,
 ) -> None:
     folds = build_folds(len(rows), k, FOLD_SEED)
     stage2_best_rows = []
@@ -757,6 +758,8 @@ def run_spore_two_stage_loo(
     stage1_local = build_local_ranges_from_center(global_best, global_ranges, LOCAL_ABS_SPORE)
 
     for fold_id, val_idx in enumerate(folds, start=1):
+        if fold_id < start_fold:
+            continue
         train_idx = [i for i in range(len(rows)) if i not in val_idx]
         train_rows = [rows[i] for i in train_idx]
         val_rows = [rows[i] for i in val_idx]
@@ -1023,6 +1026,8 @@ def main() -> None:
     parser.add_argument("--n-startup-spore-stage1", type=int, default=3000)
     parser.add_argument("--n-startup-spore-stage2", type=int, default=1600)
     parser.add_argument("--skip-spore-stage1", action="store_true")
+    parser.add_argument("--skip-baseline", action="store_true")
+    parser.add_argument("--spore-start-fold", type=int, default=1)
     parser.add_argument("--progress-interval", type=float, default=5.0)
     parser.add_argument("--restart-every", type=int, default=200)
     args = parser.parse_args()
@@ -1039,22 +1044,29 @@ def main() -> None:
     workers = _make_workers(args.n_jobs, rows_ref, spore_ref)
 
     # Part A: baseline
-    fold_params, summary, global_best_info = run_baseline_kfold(
-        rows=rows,
-        k=args.kfold,
-        global_ranges=global_ranges,
-        workers=workers,
-        rows_ref=rows_ref,
-        spore_ref=spore_ref,
-        n_jobs=args.n_jobs,
-        restart_every=args.restart_every,
-        n_trials_stage1=args.n_trials_base_stage1,
-        n_trials_stage2=args.n_trials_base_stage2,
-        n_startup_stage1=args.n_startup_base_stage1,
-        n_startup_stage2=args.n_startup_base_stage2,
-        progress_interval=args.progress_interval,
-        seed=args.seed,
-    )
+    if args.skip_baseline:
+        baseline_best_path = os.path.join(RESULT_DIR, "baseline_kfold_best_global.json")
+        if not os.path.exists(baseline_best_path):
+            raise FileNotFoundError(f"Missing baseline best file: {baseline_best_path}")
+        with open(baseline_best_path, "r") as f:
+            global_best_info = json.load(f)
+    else:
+        fold_params, summary, global_best_info = run_baseline_kfold(
+            rows=rows,
+            k=args.kfold,
+            global_ranges=global_ranges,
+            workers=workers,
+            rows_ref=rows_ref,
+            spore_ref=spore_ref,
+            n_jobs=args.n_jobs,
+            restart_every=args.restart_every,
+            n_trials_stage1=args.n_trials_base_stage1,
+            n_trials_stage2=args.n_trials_base_stage2,
+            n_startup_stage1=args.n_startup_base_stage1,
+            n_startup_stage2=args.n_startup_base_stage2,
+            progress_interval=args.progress_interval,
+            seed=args.seed,
+        )
 
     # Part B: spore-process continuation from baseline global best
     run_spore_two_stage_loo(
@@ -1074,6 +1086,7 @@ def main() -> None:
         progress_interval=args.progress_interval,
         seed=args.seed,
         skip_stage1=args.skip_spore_stage1,
+        start_fold=args.spore_start_fold,
     )
 
     ray.shutdown()
