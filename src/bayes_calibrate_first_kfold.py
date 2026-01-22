@@ -332,6 +332,14 @@ def build_local_ranges_from_center(
     return local
 
 
+def _topk_by_train(df: pd.DataFrame, pct: float, loss_col: str) -> pd.DataFrame:
+    if df.empty:
+        raise ValueError("Empty trials dataframe.")
+    df_sorted = df.sort_values(loss_col).reset_index(drop=False)
+    n_top = max(1, int(math.ceil(len(df_sorted) * pct / 100.0)))
+    return df_sorted.iloc[:n_top]
+
+
 def select_topk_val_best(df: pd.DataFrame, pct: float) -> pd.Series:
     if df.empty:
         raise ValueError("Empty trials dataframe.")
