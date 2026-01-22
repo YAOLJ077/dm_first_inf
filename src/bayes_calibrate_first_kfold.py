@@ -962,18 +962,24 @@ def run_spore_two_stage_loo(
         "val_mae_var": float(summary["val_mae"].var(ddof=0)),
         "train_rmse": float(np.sqrt(np.mean(np.square(summary["train_mae"])))),
         "val_rmse": float(np.sqrt(np.mean(np.square(summary["val_mae"])))),
-        "train_spore_consistency_mean": float(summary["train_spore_consistency"].mean()),
-        "train_spore_consistency_std": float(summary["train_spore_consistency"].std(ddof=0)),
-        "val_spore_consistency_mean": float(summary["val_spore_consistency"].mean()),
-        "val_spore_consistency_std": float(summary["val_spore_consistency"].std(ddof=0)),
-        "train_spore_recall_mean": float(summary["train_spore_recall"].mean()),
-        "train_spore_recall_std": float(summary["train_spore_recall"].std(ddof=0)),
-        "val_spore_recall_mean": float(summary["val_spore_recall"].mean()),
-        "val_spore_recall_std": float(summary["val_spore_recall"].std(ddof=0)),
         "n_folds": int(len(summary)),
         "spore_core_days": int(SPORE_CORE_DAYS),
         "spore_smooth_alpha": float(SPORE_SMOOTH_ALPHA),
     }
+    if "train_spore_consistency" in summary.columns:
+        summary_stats.update({
+            "train_spore_consistency_mean": float(summary["train_spore_consistency"].mean()),
+            "train_spore_consistency_std": float(summary["train_spore_consistency"].std(ddof=0)),
+            "val_spore_consistency_mean": float(summary["val_spore_consistency"].mean()),
+            "val_spore_consistency_std": float(summary["val_spore_consistency"].std(ddof=0)),
+        })
+    if "train_spore_recall" in summary.columns:
+        summary_stats.update({
+            "train_spore_recall_mean": float(summary["train_spore_recall"].mean()),
+            "train_spore_recall_std": float(summary["train_spore_recall"].std(ddof=0)),
+            "val_spore_recall_mean": float(summary["val_spore_recall"].mean()),
+            "val_spore_recall_std": float(summary["val_spore_recall"].std(ddof=0)),
+        })
     summary_json = os.path.join(RESULT_DIR, "spore_kfold_summary.json")
     with open(summary_json, "w") as f:
         json.dump(summary_stats, f, indent=2)
