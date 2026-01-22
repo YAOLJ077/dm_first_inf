@@ -747,7 +747,8 @@ def run_spore_two_stage_loo(
     n_startup_stage1: int,
     n_startup_stage2: int,
     progress_interval: float,
-    seed: int
+    seed: int,
+    skip_stage1: bool = False
 ) -> None:
     folds = build_folds(len(rows), k, FOLD_SEED)
     stage2_best_rows = []
@@ -761,76 +762,83 @@ def run_spore_two_stage_loo(
         val_rows = [rows[i] for i in val_idx]
 
         # Stage 1: spore consistency
-        stage1_ranges = {k: v for k, v in stage1_local.items() if k in STAGE1_PARAMS}
-        fixed_base = {k: global_best[k] for k in global_best if k not in STAGE1_PARAMS}
+        if skip_stage1:
+            stage1_best_path = os.path.join(RESULT_DIR, f"spore_kfold_stage1_best_fold{fold_id}.json")
+            if not os.path.exists(stage1_best_path):
+                raise FileNotFoundError(f"Missing stage1 best file: {stage1_best_path}")
+            with open(stage1_best_path, "r") as f:
+                stage1_best = json.load(f)["params"]
+        else:
+            stage1_ranges = {k: v for k, v in stage1_local.items() if k in STAGE1_PARAMS}
+            fixed_base = {k: global_best[k] for k in global_best if k not in STAGE1_PARAMS}
 
-        sampler1 = TPESampler(seed=seed + fold_id + 2000, multivariate=True, n_startup_trials=n_startup_stage1)
-        study1 = optuna.create_study(sampler=sampler1, direction="minimize")
-        trial_rows = []
-        last_ts = 0.0
-        pending = {}
-        completed = 0
-        max_conc = max(1, n_jobs)
-        available = list(workers)
-        next_restart = restart_every if restart_every > 0 else None
-        _stage_start(f"[Spore][Fold {fold_id}/{k}][Stage1]", n_trials_stage1, 0, max_conc)
-        last_ts = _progress_print(0, n_trials_stage1, 0, max_conc, f"[Spore][Fold {fold_id}/{k}][Stage1]", last_ts, progress_interval)
+            sampler1 = TPESampler(seed=seed + fold_id + 2000, multivariate=True, n_startup_trials=n_startup_stage1)
+            study1 = optuna.create_study(sampler=sampler1, direction="minimize")
+            trial_rows = []
+            last_ts = 0.0
+            pending = {}
+            completed = 0
+            max_conc = max(1, n_jobs)
+            available = list(workers)
+            next_restart = restart_every if restart_every > 0 else None
+            _stage_start(f"[Spore][Fold {fold_id}/{k}][Stage1]", n_trials_stage1, 0, max_conc)
+            last_ts = _progress_print(0, n_trials_stage1, 0, max_conc, f"[Spore][Fold {fold_id}/{k}][Stage1]", last_ts, progress_interval)
 
-        while completed < n_trials_stage1:
-            while available and len(pending) < max_conc and completed + len(pending) < n_trials_stage1:
-                trial = study1.ask()
-                params = define_search_space(trial, stage1_ranges)
-                params = {**fixed_base, **params}
-                worker = available.pop(0)
-                fut = worker.eval_spore.remote(params, train_idx, val_idx, SPORE_CORE_DAYS)
-                pending[fut] = (trial, params, worker)
-            if not pending:
-                time.sleep(0.01)
-                continue
-            done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
-            for fut in done_ids:
-                trial, params, worker = pending.pop(fut)
-                train_loss, val_loss, train_recall, val_recall = ray.get(fut)
-                train_consistency = 1.0 - float(train_loss)
-                val_consistency = 1.0 - float(val_loss)
-                study1.tell(trial, train_loss)
-                trial_rows.append({
-                    "train_loss": float(train_loss),
-                    "val_loss": float(val_loss),
-                    "train_consistency": float(train_consistency),
-                    "val_consistency": float(val_consistency),
-                    "train_recall": float(train_recall),
-                    "val_recall": float(val_recall),
-                    **params
-                })
-                completed += 1
-                if next_restart is not None and completed >= next_restart:
-                    worker = _replace_worker(workers, worker, rows_ref, spore_ref)
-                    next_restart += restart_every
-                available.append(worker)
-            last_ts = _progress_print(completed, n_trials_stage1, len(pending), max_conc, f"[Spore][Fold {fold_id}/{k}][Stage1]", last_ts, progress_interval)
+            while completed < n_trials_stage1:
+                while available and len(pending) < max_conc and completed + len(pending) < n_trials_stage1:
+                    trial = study1.ask()
+                    params = define_search_space(trial, stage1_ranges)
+                    params = {**fixed_base, **params}
+                    worker = available.pop(0)
+                    fut = worker.eval_spore.remote(params, train_idx, val_idx, SPORE_CORE_DAYS)
+                    pending[fut] = (trial, params, worker)
+                if not pending:
+                    time.sleep(0.01)
+                    continue
+                done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
+                for fut in done_ids:
+                    trial, params, worker = pending.pop(fut)
+                    train_loss, val_loss, train_recall, val_recall = ray.get(fut)
+                    train_consistency = 1.0 - float(train_loss)
+                    val_consistency = 1.0 - float(val_loss)
+                    study1.tell(trial, train_loss)
+                    trial_rows.append({
+                        "train_loss": float(train_loss),
+                        "val_loss": float(val_loss),
+                        "train_consistency": float(train_consistency),
+                        "val_consistency": float(val_consistency),
+                        "train_recall": float(train_recall),
+                        "val_recall": float(val_recall),
+                        **params
+                    })
+                    completed += 1
+                    if next_restart is not None and completed >= next_restart:
+                        worker = _replace_worker(workers, worker, rows_ref, spore_ref)
+                        next_restart += restart_every
+                    available.append(worker)
+                last_ts = _progress_print(completed, n_trials_stage1, len(pending), max_conc, f"[Spore][Fold {fold_id}/{k}][Stage1]", last_ts, progress_interval)
 
-        df_stage1 = pd.DataFrame(trial_rows).sort_values("train_loss")
-        stage1_out = os.path.join(RESULT_DIR, f"spore_kfold_stage1_fold{fold_id}.csv")
-        df_stage1.to_csv(stage1_out, index=False)
-        best1 = select_topk_val_best_loss(df_stage1, TOPK_PCT)
-        stage1_best = {
-            param_name: best1[param_name]
-            for param_name in best1.index
-            if "__" in param_name
-        }
-        stage1_best_out = os.path.join(RESULT_DIR, f"spore_kfold_stage1_best_fold{fold_id}.json")
-        with open(stage1_best_out, "w") as f:
-            json.dump({
-                "fold": fold_id,
-                "train_loss": float(best1["train_loss"]),
-                "val_loss": float(best1["val_loss"]),
-                "train_consistency": float(best1["train_consistency"]),
-                "val_consistency": float(best1["val_consistency"]),
-                "train_recall": float(best1["train_recall"]),
-                "val_recall": float(best1["val_recall"]),
-                "params": stage1_best,
-            }, f, indent=2)
+            df_stage1 = pd.DataFrame(trial_rows).sort_values("train_loss")
+            stage1_out = os.path.join(RESULT_DIR, f"spore_kfold_stage1_fold{fold_id}.csv")
+            df_stage1.to_csv(stage1_out, index=False)
+            best1 = select_topk_val_best_loss(df_stage1, TOPK_PCT)
+            stage1_best = {
+                param_name: best1[param_name]
+                for param_name in best1.index
+                if "__" in param_name
+            }
+            stage1_best_out = os.path.join(RESULT_DIR, f"spore_kfold_stage1_best_fold{fold_id}.json")
+            with open(stage1_best_out, "w") as f:
+                json.dump({
+                    "fold": fold_id,
+                    "train_loss": float(best1["train_loss"]),
+                    "val_loss": float(best1["val_loss"]),
+                    "train_consistency": float(best1["train_consistency"]),
+                    "val_consistency": float(best1["val_consistency"]),
+                    "train_recall": float(best1["train_recall"]),
+                    "val_recall": float(best1["val_recall"]),
+                    "params": stage1_best,
+                }, f, indent=2)
 
         # Stage 2: MAE calibration
         stage2_ranges = {k: v for k, v in stage1_local.items() if k in STAGE2_PARAMS}
@@ -902,7 +910,7 @@ def run_spore_two_stage_loo(
         train_mae, train_std, train_rmse = compute_error_stats(cfg, train_rows)
         val_mae, val_std, val_rmse = compute_error_stats(cfg, val_rows)
         spore_worker = workers[0]
-        train_spore_loss, val_spore_loss = ray.get(
+        train_spore_loss, val_spore_loss, train_spore_recall, val_spore_recall = ray.get(
             spore_worker.eval_spore.remote(best_params, train_idx, val_idx, SPORE_CORE_DAYS)
         )
         train_spore_cons = 1.0 - float(train_spore_loss)
@@ -1014,6 +1022,7 @@ def main() -> None:
     parser.add_argument("--n-trials-spore-stage2", type=int, default=8000)
     parser.add_argument("--n-startup-spore-stage1", type=int, default=3000)
     parser.add_argument("--n-startup-spore-stage2", type=int, default=1600)
+    parser.add_argument("--skip-spore-stage1", action="store_true")
     parser.add_argument("--progress-interval", type=float, default=5.0)
     parser.add_argument("--restart-every", type=int, default=200)
     args = parser.parse_args()
@@ -1064,6 +1073,7 @@ def main() -> None:
         n_startup_stage2=args.n_startup_spore_stage2,
         progress_interval=args.progress_interval,
         seed=args.seed,
+        skip_stage1=args.skip_spore_stage1,
     )
 
     ray.shutdown()
