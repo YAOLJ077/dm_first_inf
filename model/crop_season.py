@@ -1,5 +1,5 @@
 import pandas as pd
-from model.fitst_infection_soft import FirstInfection
+from model.first_infection import FirstInfection
 
 
 class CropSeasonFirst:
