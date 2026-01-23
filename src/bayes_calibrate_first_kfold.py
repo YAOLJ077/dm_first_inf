@@ -701,7 +701,6 @@ def main() -> None:
     seed_globals = []
 
     for seed in seed_list:
-        global RESULT_DIR
         RESULT_DIR = os.path.join(base_result_dir, f"seed_{seed}")
         os.makedirs(RESULT_DIR, exist_ok=True)
         print(f"[Seed {seed}] Output -> {RESULT_DIR}", flush=True)
