@@ -57,9 +57,9 @@ from model.config import config
 PENALTY_DAYS = 120.0
 RANDOM_SEED = 42
 FOLD_SEED = 42
-N_JOBS = 128
-RB_CACHE_MAX = 128
-TOPK_PCT = 1.0
+N_JOBS = 256
+RB_CACHE_MAX = 256
+TOPK_PCT = 5.0
 
 # Base ranges (global)
 BASE_RANGES = {
@@ -492,12 +492,13 @@ def run_baseline_kfold(
         df_trials = pd.DataFrame(trial_rows).sort_values("train_mae")
         stage1_out = os.path.join(RESULT_DIR, f"baseline_kfold_fold_{fold_id}_stage1_trials.csv")
         df_trials.to_csv(stage1_out, index=False)
-        best_row = select_topk_val_best_constrained(df_trials, TOPK_PCT)
+        best_row_stage1 = select_topk_val_best_constrained(df_trials, TOPK_PCT)
         best_params_stage1 = {
-            param_name: best_row[param_name]
-            for param_name in best_row.index
+            param_name: best_row_stage1[param_name]
+            for param_name in best_row_stage1.index
             if "__" in param_name
         }
+        best_stage1_mae = (float(best_row_stage1["train_mae"]), float(best_row_stage1["val_mae"]))
         local_ranges = build_local_ranges_from_center(best_params_stage1, stage2_base_ranges, LOCAL_ABS_BASELINE)
 
         # Stage 2 (local)
@@ -547,12 +548,21 @@ def run_baseline_kfold(
         df_trials = pd.DataFrame(trial_rows).sort_values("train_mae")
         stage2_out = os.path.join(RESULT_DIR, f"baseline_kfold_fold_{fold_id}_trials.csv")
         df_trials.to_csv(stage2_out, index=False)
-        best_row = select_topk_val_best_constrained(df_trials, TOPK_PCT)
-        best_params = {
-            param_name: best_row[param_name]
-            for param_name in best_row.index
+        best_row_stage2 = select_topk_val_best_constrained(df_trials, TOPK_PCT)
+        best_params_stage2 = {
+            param_name: best_row_stage2[param_name]
+            for param_name in best_row_stage2.index
             if "__" in param_name
         }
+        best_stage2_mae = (float(best_row_stage2["train_mae"]), float(best_row_stage2["val_mae"]))
+
+        # Fallback: keep stage1 if stage2 does not improve val_mae.
+        if best_stage2_mae[1] < best_stage1_mae[1]:
+            best_params = best_params_stage2
+            chosen_stage = "stage2"
+        else:
+            best_params = best_params_stage1
+            chosen_stage = "stage1"
         fold_params.append(best_params)
 
         cfg = apply_params(config, best_params)
@@ -575,6 +585,7 @@ def run_baseline_kfold(
             "val_precision": float(val_prec),
             "train_recall": float(train_rec),
             "val_recall": float(val_rec),
+            "selected_stage": str(chosen_stage),
         })
 
         best_out = os.path.join(RESULT_DIR, f"baseline_kfold_best_params_fold{fold_id}.json")
@@ -595,6 +606,7 @@ def run_baseline_kfold(
                 "val_precision": float(val_prec),
                 "train_recall": float(train_rec),
                 "val_recall": float(val_rec),
+                "selected_stage": str(chosen_stage),
                 "params": best_params,
             }, f, indent=2)
 
@@ -679,7 +691,7 @@ def main() -> None:
     parser.add_argument("--n-trials-base-stage1", type=int, default=15000)
     parser.add_argument("--n-trials-base-stage2", type=int, default=6000)
     parser.add_argument("--n-startup-base-stage1", type=int, default=3000)
-    parser.add_argument("--n-startup-base-stage2", type=int, default=6000)
+    parser.add_argument("--n-startup-base-stage2", type=int, default=1200)
     parser.add_argument("--skip-baseline", action="store_true")
     parser.add_argument("--progress-interval", type=float, default=5.0)
     parser.add_argument("--restart-every", type=int, default=200)
