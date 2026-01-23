@@ -44,14 +44,14 @@ from model.config import config
 # ======================================================
 # GLOBAL SETTINGS
 # ======================================================
-N_JOBS = min(32, os.cpu_count())
+N_JOBS = min(128, os.cpu_count())
 RANDOM_SEED = 42
-PENALTY_DAYS = 60.0
+PENALTY_DAYS = 120.0
 
 # Morris settings
 N_TRAJ_LIST = [256, 512]
 NUM_LEVELS = 6
-SEEDS = [42, 123, 2024]
+SEEDS = [42, 123]
 OPT_TRAJ = None  # set int to optimize trajectories
 
 # ======================================================
