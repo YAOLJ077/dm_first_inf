@@ -432,7 +432,8 @@ def run_baseline_kfold(
     n_startup_stage1: int,
     n_startup_stage2: int,
     progress_interval: float,
-    seed: int
+    seed: int,
+    seed_tag: str = ""
 ) -> Tuple[List[Dict[str, float]], pd.DataFrame, Dict[str, float]]:
     folds = build_folds(len(rows), k, FOLD_SEED)
     fold_best_rows = []
@@ -453,8 +454,9 @@ def run_baseline_kfold(
         max_conc = max(1, n_jobs)
         available = list(workers)
         next_restart = restart_every if restart_every > 0 else None
-        _stage_start(f"[Baseline][Fold {fold_id}/{k}][Stage1]", n_trials_stage1, 0, max_conc)
-        last_ts = _progress_print(0, n_trials_stage1, 0, max_conc, f"[Baseline][Fold {fold_id}/{k}][Stage1]", last_ts, progress_interval)
+        prefix1 = f"{seed_tag}[Baseline][Fold {fold_id}/{k}][Stage1]"
+        _stage_start(prefix1, n_trials_stage1, 0, max_conc)
+        last_ts = _progress_print(0, n_trials_stage1, 0, max_conc, prefix1, last_ts, progress_interval)
 
         while completed < n_trials_stage1:
             while available and len(pending) < max_conc and completed + len(pending) < n_trials_stage1:
@@ -485,7 +487,7 @@ def run_baseline_kfold(
                     worker = _replace_worker(workers, worker, rows_ref)
                     next_restart += restart_every
                 available.append(worker)
-            last_ts = _progress_print(completed, n_trials_stage1, len(pending), max_conc, f"[Baseline][Fold {fold_id}/{k}][Stage1]", last_ts, progress_interval)
+            last_ts = _progress_print(completed, n_trials_stage1, len(pending), max_conc, prefix1, last_ts, progress_interval)
 
         df_trials = pd.DataFrame(trial_rows).sort_values("train_mae")
         stage1_out = os.path.join(RESULT_DIR, f"baseline_kfold_fold_{fold_id}_stage1_trials.csv")
@@ -508,8 +510,9 @@ def run_baseline_kfold(
         max_conc = max(1, n_jobs)
         available = list(workers)
         next_restart = restart_every if restart_every > 0 else None
-        _stage_start(f"[Baseline][Fold {fold_id}/{k}][Stage2]", n_trials_stage2, 0, max_conc)
-        last_ts = _progress_print(0, n_trials_stage2, 0, max_conc, f"[Baseline][Fold {fold_id}/{k}][Stage2]", last_ts, progress_interval)
+        prefix2 = f"{seed_tag}[Baseline][Fold {fold_id}/{k}][Stage2]"
+        _stage_start(prefix2, n_trials_stage2, 0, max_conc)
+        last_ts = _progress_print(0, n_trials_stage2, 0, max_conc, prefix2, last_ts, progress_interval)
         while completed < n_trials_stage2:
             while available and len(pending) < max_conc and completed + len(pending) < n_trials_stage2:
                 trial = study2.ask()
@@ -539,7 +542,7 @@ def run_baseline_kfold(
                     worker = _replace_worker(workers, worker, rows_ref)
                     next_restart += restart_every
                 available.append(worker)
-            last_ts = _progress_print(completed, n_trials_stage2, len(pending), max_conc, f"[Baseline][Fold {fold_id}/{k}][Stage2]", last_ts, progress_interval)
+            last_ts = _progress_print(completed, n_trials_stage2, len(pending), max_conc, prefix2, last_ts, progress_interval)
 
         df_trials = pd.DataFrame(trial_rows).sort_values("train_mae")
         stage2_out = os.path.join(RESULT_DIR, f"baseline_kfold_fold_{fold_id}_trials.csv")
@@ -732,6 +735,7 @@ def main() -> None:
                 n_startup_stage2=args.n_startup_base_stage2,
                 progress_interval=args.progress_interval,
                 seed=seed,
+                seed_tag=f"[Seed {seed}] ",
             )
 
         summary_path = os.path.join(RESULT_DIR, "baseline_kfold_summary.json")
