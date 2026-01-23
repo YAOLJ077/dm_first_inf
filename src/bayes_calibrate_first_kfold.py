@@ -3,9 +3,11 @@
 Baseline calibration (Bayes + TPE + k-fold).
 
 Per fold:
-  - Stage1: optimize train_mae; select best by val_mae within train topK
-            under the constraint val_mae >= train_mae (or closest if none).
-  - Stage2: local refinement around stage1 best with the same selection rule.
+  - Stage1: global search (1.5x expanded ranges) to optimize train_mae;
+            select best by val_mae within train topK under the constraint
+            val_mae > train_mae (or equal/closest if none).
+  - Stage2: local refinement around stage1 best using BASE_RANGES with
+            absolute local deltas (no 1.5x expansion), same selection rule.
 Outputs:
   - Per-fold best params and metrics (mae/std/rmse/coverage/precision/recall).
   - Summary across folds.
@@ -79,13 +81,13 @@ BASE_RANGES = {
 
 # Local absolute ranges for baseline local refinement (absolute deltas).
 LOCAL_ABS_BASELINE = {
-    "mp_tmp__rh_wet_night": 1.0,
+    "mp_tmp__rh_wet_night": 2.0,
     "sporulation__MP_min": 1.0,
     "sporulation__Tmin": 0.5,
     "sporulation__Topt": 0.5,
     "sporulation__Tmax": 1.0,
-    "dispersal__rain_min": 2.0,
-    "dispersal__wind_min": 2.0,
+    "dispersal__rain_min": 1.5,
+    "dispersal__wind_min": 1.5,
     "deposition__rain_min": 2.0,
     "zoospore_alive__rain": 1.0,
     "zoospore_alive__vpd": 1.0,
@@ -419,7 +421,8 @@ def _replace_worker(workers: List[ray.actor.ActorHandle], old_worker, rows_ref):
 def run_baseline_kfold(
     rows: List[pd.Series],
     k: int,
-    global_ranges: Dict[str, Tuple[float, float]],
+    stage1_ranges: Dict[str, Tuple[float, float]],
+    stage2_base_ranges: Dict[str, Tuple[float, float]],
     workers: List[ray.actor.ActorHandle],
     rows_ref,
     n_jobs: int,
@@ -456,7 +459,7 @@ def run_baseline_kfold(
         while completed < n_trials_stage1:
             while available and len(pending) < max_conc and completed + len(pending) < n_trials_stage1:
                 trial = study1.ask()
-                params = define_search_space(trial, global_ranges)
+                params = define_search_space(trial, stage1_ranges)
                 worker = available.pop(0)
                 fut = worker.eval_mae.remote(params, train_idx, val_idx)
                 pending[fut] = (trial, params, worker)
@@ -493,7 +496,7 @@ def run_baseline_kfold(
             for param_name in best_row.index
             if "__" in param_name
         }
-        local_ranges = build_local_ranges_from_center(best_params_stage1, global_ranges, LOCAL_ABS_BASELINE)
+        local_ranges = build_local_ranges_from_center(best_params_stage1, stage2_base_ranges, LOCAL_ABS_BASELINE)
 
         # Stage 2 (local)
         sampler2 = TPESampler(seed=seed + fold_id + 1000, multivariate=True, n_startup_trials=n_startup_stage2)
@@ -664,54 +667,115 @@ def run_baseline_kfold(
 
 
 def main() -> None:
+    global RESULT_DIR
     parser = argparse.ArgumentParser()
     parser.add_argument("--kfold", type=int, default=3)
     parser.add_argument("--n-jobs", type=int, default=N_JOBS)
     parser.add_argument("--seed", type=int, default=RANDOM_SEED)
-    parser.add_argument("--n-trials-base-stage1", type=int, default=18000)
+    parser.add_argument("--seed-list", type=str, default="42,123,2024")
+    parser.add_argument("--n-trials-base-stage1", type=int, default=15000)
     parser.add_argument("--n-trials-base-stage2", type=int, default=6000)
-    parser.add_argument("--n-startup-base-stage1", type=int, default=3600)
+    parser.add_argument("--n-startup-base-stage1", type=int, default=3000)
     parser.add_argument("--n-startup-base-stage2", type=int, default=6000)
     parser.add_argument("--skip-baseline", action="store_true")
     parser.add_argument("--progress-interval", type=float, default=5.0)
     parser.add_argument("--restart-every", type=int, default=200)
     args = parser.parse_args()
 
+    seed_list = []
+    if args.seed_list.strip():
+        seed_list = [int(x) for x in args.seed_list.split(",") if x.strip()]
+    if not seed_list:
+        seed_list = [args.seed]
+
     ray.init(num_cpus=args.n_jobs, include_dashboard=False, logging_level="ERROR")
 
     rows = list(load_actual().itertuples(index=False))
-    global_ranges = build_param_ranges()
+    stage1_ranges = build_param_ranges()
+    stage2_base_ranges = {k: (float(v[0]), float(v[1])) for k, v in BASE_RANGES.items()}
     rows_ref = ray.put(rows)
     workers = _make_workers(args.n_jobs, rows_ref)
 
-    # Part A: baseline
-    if args.skip_baseline:
-        baseline_best_path = os.path.join(RESULT_DIR, "baseline_kfold_best_global.json")
-        if not os.path.exists(baseline_best_path):
-            raise FileNotFoundError(f"Missing baseline best file: {baseline_best_path}")
-        with open(baseline_best_path, "r") as f:
-            global_best_info = json.load(f)
-        if "best_params" not in global_best_info:
-            if "params" in global_best_info:
-                global_best_info["best_params"] = global_best_info["params"]
-            else:
-                raise KeyError(f"Missing 'best_params' in {baseline_best_path}. Keys: {list(global_best_info.keys())}")
-    else:
-        fold_params, summary, global_best_info = run_baseline_kfold(
-            rows=rows,
-            k=args.kfold,
-            global_ranges=global_ranges,
-            workers=workers,
-            rows_ref=rows_ref,
-            n_jobs=args.n_jobs,
-            restart_every=args.restart_every,
-            n_trials_stage1=args.n_trials_base_stage1,
-            n_trials_stage2=args.n_trials_base_stage2,
-            n_startup_stage1=args.n_startup_base_stage1,
-            n_startup_stage2=args.n_startup_base_stage2,
-            progress_interval=args.progress_interval,
-            seed=args.seed,
-        )
+    base_result_dir = RESULT_DIR
+    seed_summaries = []
+    seed_globals = []
+
+    for seed in seed_list:
+        global RESULT_DIR
+        RESULT_DIR = os.path.join(base_result_dir, f"seed_{seed}")
+        os.makedirs(RESULT_DIR, exist_ok=True)
+        print(f"[Seed {seed}] Output -> {RESULT_DIR}", flush=True)
+
+        if args.skip_baseline:
+            baseline_best_path = os.path.join(RESULT_DIR, "baseline_kfold_best_global.json")
+            if not os.path.exists(baseline_best_path):
+                raise FileNotFoundError(f"Missing baseline best file: {baseline_best_path}")
+            with open(baseline_best_path, "r") as f:
+                global_best_info = json.load(f)
+            if "best_params" not in global_best_info:
+                if "params" in global_best_info:
+                    global_best_info["best_params"] = global_best_info["params"]
+                else:
+                    raise KeyError(f"Missing 'best_params' in {baseline_best_path}. Keys: {list(global_best_info.keys())}")
+        else:
+            _, _, _ = run_baseline_kfold(
+                rows=rows,
+                k=args.kfold,
+                stage1_ranges=stage1_ranges,
+                stage2_base_ranges=stage2_base_ranges,
+                workers=workers,
+                rows_ref=rows_ref,
+                n_jobs=args.n_jobs,
+                restart_every=args.restart_every,
+                n_trials_stage1=args.n_trials_base_stage1,
+                n_trials_stage2=args.n_trials_base_stage2,
+                n_startup_stage1=args.n_startup_base_stage1,
+                n_startup_stage2=args.n_startup_base_stage2,
+                progress_interval=args.progress_interval,
+                seed=seed,
+            )
+
+        summary_path = os.path.join(RESULT_DIR, "baseline_kfold_summary.json")
+        if os.path.exists(summary_path):
+            with open(summary_path, "r") as f:
+                s = json.load(f)
+            s["seed"] = seed
+            seed_summaries.append(s)
+        global_path = os.path.join(RESULT_DIR, "baseline_kfold_best_global.json")
+        if os.path.exists(global_path):
+            with open(global_path, "r") as f:
+                g = json.load(f)
+            g["seed"] = seed
+            seed_globals.append(g)
+
+    if len(seed_list) > 1 and seed_summaries:
+        df = pd.DataFrame(seed_summaries)
+        seed_csv = os.path.join(base_result_dir, "baseline_kfold_summary_seeds.csv")
+        df.to_csv(seed_csv, index=False)
+        agg = {}
+        for col in df.columns:
+            if col == "seed":
+                continue
+            if pd.api.types.is_numeric_dtype(df[col]):
+                agg[f"{col}_mean"] = float(df[col].mean())
+                agg[f"{col}_std"] = float(df[col].std(ddof=0))
+        agg["n_seeds"] = int(len(seed_summaries))
+        summary_path = os.path.join(base_result_dir, "baseline_kfold_summary_seeds.json")
+        with open(summary_path, "w") as f:
+            json.dump(agg, f, indent=2)
+        if seed_globals:
+            df_g = pd.DataFrame(seed_globals)
+            globals_csv = os.path.join(base_result_dir, "baseline_kfold_best_global_seeds.csv")
+            df_g.to_csv(globals_csv, index=False)
+            if "global_mae" in df_g.columns:
+                agg_g = {
+                    "global_mae_mean": float(df_g["global_mae"].mean()),
+                    "global_mae_std": float(df_g["global_mae"].std(ddof=0)),
+                    "n_seeds": int(len(seed_globals)),
+                }
+                gpath = os.path.join(base_result_dir, "baseline_kfold_best_global_seeds.json")
+                with open(gpath, "w") as f:
+                    json.dump(agg_g, f, indent=2)
 
     ray.shutdown()
 
