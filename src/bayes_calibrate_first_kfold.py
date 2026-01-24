@@ -1,15 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-Baseline calibration (Bayes + TPE + k-fold).
+Baseline calibration (Bayes + TPE + k-fold, single-stage).
 
 Per fold:
-  - Stage1: global search (1.5x expanded ranges) to optimize train_mae;
-            select best by val_mae within train topK under the constraint
-            val_mae > train_mae (or equal/closest if none).
-  - Stage2: local refinement around stage1 best using BASE_RANGES with
-            absolute local deltas (no 1.5x expansion), same selection rule.
+  - Single-stage global search (1.5x expanded ranges) to optimize train_mae;
+    select best by val_mae within train topK under the constraint
+    val_mae > train_mae (or equal/closest if none).
 Outputs:
-  - Per-fold best params and metrics (mae/std/rmse/coverage/precision/recall).
+  - Per-fold best params and metrics (mae/std/rmse + spore consistency).
   - Summary across folds.
   - Global-best: evaluate each fold-best params on all samples.
 """
@@ -45,6 +43,7 @@ if PROJECT_ROOT not in sys.path:
 
 DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 ACTUAL_DATA_PATH = os.path.join(DATA_DIR, "actual_data.xlsx")
+SPORE_DATA_PATH = os.path.join(DATA_DIR, "Spore_overall.xlsx")
 RESULT_DIR = os.path.join(PROJECT_ROOT, "result", "calibration")
 os.makedirs(RESULT_DIR, exist_ok=True)
 
@@ -58,8 +57,10 @@ PENALTY_DAYS = 120.0
 RANDOM_SEED = 42
 FOLD_SEED = 42
 N_JOBS = 256
-RB_CACHE_MAX = 256
+RB_CACHE_MAX = 64
 TOPK_PCT = 5.0
+SPORE_CORE_DAYS = 14
+SPORE_SMOOTH_ALPHA = 0.5
 
 # Base ranges (global)
 BASE_RANGES = {
@@ -76,24 +77,6 @@ BASE_RANGES = {
     "infection__infection_condition": (50, 200),
     "incubation__spl_end": (1.0, 1.5),
     "thresholds__min_spores": (0.02, 0.06)
-}
-
-
-# Local absolute ranges for baseline local refinement (absolute deltas).
-LOCAL_ABS_BASELINE = {
-    "mp_tmp__rh_wet_night": 2.0,
-    "sporulation__MP_min": 1.0,
-    "sporulation__Tmin": 0.5,
-    "sporulation__Topt": 0.5,
-    "sporulation__Tmax": 1.0,
-    "dispersal__rain_min": 1.5,
-    "dispersal__wind_min": 1.5,
-    "deposition__rain_min": 2.0,
-    "zoospore_alive__rain": 1.0,
-    "zoospore_alive__vpd": 1.0,
-    "infection__infection_condition": 25.0,
-    "incubation__spl_end": 0.1,
-    "thresholds__min_spores": 0.02,
 }
 
 
@@ -156,16 +139,6 @@ def _calc_error(actual_date, event_df: pd.DataFrame) -> float:
     return 0.0
 
 
-def _calc_coverage(actual_date, event_df: pd.DataFrame) -> float:
-    if event_df is None or event_df.empty:
-        return 0.0
-    first = event_df.iloc[0]
-    start = pd.to_datetime(first["oil_spot_start"]).normalize()
-    end = pd.to_datetime(first["oil_spot_end"]).normalize()
-    act = pd.to_datetime(actual_date).normalize()
-    return 1.0 if start <= act <= end else 0.0
-
-
 def compute_error_stats(cfg: dict, rows: List[pd.Series]) -> Tuple[float, float, float]:
     errors = []
     for row in rows:
@@ -193,38 +166,112 @@ def compute_error_stats(cfg: dict, rows: List[pd.Series]) -> Tuple[float, float,
     return mae, std, rmse
 
 
-def compute_error_stats_with_coverage(cfg: dict, rows: List[pd.Series]) -> Tuple[float, float, float, float, float, float]:
-    errors = []
-    covers = []
+def _normalize_spore_columns(df: pd.DataFrame) -> pd.DataFrame:
+    cols = {c.lower(): c for c in df.columns}
+    required = {"plot", "year", "date", "spore"}
+    missing = required - set(cols.keys())
+    if missing:
+        raise ValueError(f"Spore data missing columns: {missing}")
+    out = df.rename(columns={
+        cols["plot"]: "plot",
+        cols["year"]: "year",
+        cols["date"]: "date",
+        cols["spore"]: "spore",
+    })
+    out["date"] = pd.to_datetime(out["date"])
+    out["spore"] = pd.to_numeric(out["spore"], errors="coerce").fillna(0.0)
+    return out[["plot", "year", "date", "spore"]]
+
+
+def load_spore_windows() -> Dict[Tuple[str, int], List[Tuple[pd.Timestamp, pd.Timestamp, bool]]]:
+    df = pd.read_excel(SPORE_DATA_PATH)
+    df = _normalize_spore_columns(df)
+    windows: Dict[Tuple[str, int], List[Tuple[pd.Timestamp, pd.Timestamp, bool]]] = {}
+    for (plot, year), g in df.groupby(["plot", "year"]):
+        g = g.sort_values("date")
+        prev = None
+        for _, row in g.iterrows():
+            cur = row["date"].normalize()
+            present = float(row["spore"]) > 0.0
+            if prev is not None:
+                windows.setdefault((str(plot), int(year)), []).append((prev, cur, present))
+            prev = cur
+    return windows
+
+
+def compute_spore_consistency(
+    cfg: dict,
+    rows: List[pd.Series],
+    spore_windows: Dict[Tuple[str, int], List[Tuple[pd.Timestamp, pd.Timestamp, bool]]],
+    core_days: int,
+    alpha: float
+) -> Tuple[float, float, float]:
+    scores = []
+    total_obs = 0
+    total_sim = 0
     for row in rows:
-        key = f"{row.plot}_{row.variety}_{row.first_infection_date.year}"
-        rb_path = os.path.join(DATA_DIR, f"{key}_grape_rb.json")
+        key = (str(row.plot), int(row.first_infection_date.year))
+        obs_windows = spore_windows.get(key, [])
+        if not obs_windows:
+            scores.append(0.0)
+            continue
+        rb_key = f"{row.plot}_{row.variety}_{row.first_infection_date.year}"
+        rb_path = os.path.join(DATA_DIR, f"{rb_key}_grape_rb.json")
         if not os.path.exists(rb_path):
-            errors.append(float(PENALTY_DAYS))
-            covers.append(0.0)
+            scores.append(0.0)
             continue
         try:
             rb = load_rb_cached(rb_path)
             cs = CropSeasonFirst(csrb=rb, config=cfg)
             cs.simulate()
-            err = _calc_error(row.first_infection_date, cs.primary_chain_unique)
-            cov = _calc_coverage(row.first_infection_date, cs.primary_chain_unique)
+            if cs.primary_chain_unique is None or cs.primary_chain_unique.empty:
+                scores.append(0.0)
+                continue
+            oil_start = pd.to_datetime(cs.primary_chain_unique.iloc[0]["oil_spot_start"]).normalize()
         except Exception:
-            err = np.nan
-            cov = 0.0
-        if np.isfinite(err):
-            errors.append(float(err))
-        else:
-            errors.append(float(PENALTY_DAYS))
-        covers.append(float(cov))
-    if not errors:
-        return PENALTY_DAYS, 0.0, PENALTY_DAYS, 0.0, 0.0, 0.0
-    abs_err = np.abs(np.array(errors, dtype=float))
-    mae = float(abs_err.mean())
-    std = float(abs_err.std(ddof=0))
-    rmse = float(np.sqrt(np.mean(np.square(abs_err))))
-    cov_mean = float(np.mean(covers)) if covers else 0.0
-    return mae, std, rmse, cov_mean, cov_mean, cov_mean
+            scores.append(0.0)
+            continue
+
+        win_start = oil_start - pd.Timedelta(days=core_days)
+        win_end = oil_start
+
+        obs_present = [(s, e) for (s, e, present) in obs_windows if present and not (e < win_start or s > win_end)]
+        total_obs += len(obs_present)
+
+        sim_windows = []
+        if cs.deposition is not None and not cs.deposition.empty:
+            for _, c in cs.deposition.iterrows():
+                if c.get("dispersal_type") != "wind":
+                    continue
+                if pd.isna(c.get("deposition_datetime")) or pd.isna(c.get("dispersal_datetime")):
+                    continue
+                s = pd.to_datetime(c["dispersal_datetime"]).normalize()
+                e = pd.to_datetime(c["deposition_datetime"]).normalize()
+                if e < win_start or s > win_end:
+                    continue
+                sim_windows.append((s, e))
+
+        total_sim += len(sim_windows)
+        if len(sim_windows) == 0:
+            scores.append(0.0)
+            continue
+        matched_sim = 0
+        for (s1, e1) in sim_windows:
+            hit = False
+            for (s2, e2) in obs_present:
+                if e1 < s2 or s1 > e2:
+                    continue
+                hit = True
+                break
+            if hit:
+                matched_sim += 1
+
+        precision = (matched_sim + alpha) / (len(sim_windows) + 2 * alpha)
+        scores.append(float(precision))
+    mean_score = float(np.mean(scores)) if scores else 0.0
+    mean_obs = float(total_obs) / max(1, len(rows))
+    mean_sim = float(total_sim) / max(1, len(rows))
+    return mean_score, mean_obs, mean_sim
 
 
 def build_folds(n: int, k: int, seed: int) -> List[List[int]]:
@@ -422,15 +469,13 @@ def run_baseline_kfold(
     rows: List[pd.Series],
     k: int,
     stage1_ranges: Dict[str, Tuple[float, float]],
-    stage2_base_ranges: Dict[str, Tuple[float, float]],
+    spore_windows: Dict[Tuple[str, int], List[Tuple[pd.Timestamp, pd.Timestamp, bool]]],
     workers: List[ray.actor.ActorHandle],
     rows_ref,
     n_jobs: int,
     restart_every: int,
     n_trials_stage1: int,
-    n_trials_stage2: int,
     n_startup_stage1: int,
-    n_startup_stage2: int,
     progress_interval: float,
     seed: int,
     seed_tag: str = ""
@@ -444,9 +489,8 @@ def run_baseline_kfold(
         train_rows = [rows[i] for i in train_idx]
         val_rows = [rows[i] for i in val_idx]
 
-        # Stage 1 (global)
-        sampler1 = TPESampler(seed=seed + fold_id, multivariate=True, n_startup_trials=n_startup_stage1)
-        study1 = optuna.create_study(sampler=sampler1, direction="minimize")
+        sampler = TPESampler(seed=seed + fold_id, multivariate=True, n_startup_trials=n_startup_stage1)
+        study = optuna.create_study(sampler=sampler, direction="minimize")
         trial_rows = []
         last_ts = 0.0
         pending = {}
@@ -454,13 +498,13 @@ def run_baseline_kfold(
         max_conc = max(1, n_jobs)
         available = list(workers)
         next_restart = restart_every if restart_every > 0 else None
-        prefix1 = f"{seed_tag}[Baseline][Fold {fold_id}/{k}][Stage1]"
-        _stage_start(prefix1, n_trials_stage1, 0, max_conc)
-        last_ts = _progress_print(0, n_trials_stage1, 0, max_conc, prefix1, last_ts, progress_interval)
+        prefix = f"{seed_tag}[Baseline][Fold {fold_id}/{k}]"
+        _stage_start(prefix, n_trials_stage1, 0, max_conc)
+        last_ts = _progress_print(0, n_trials_stage1, 0, max_conc, prefix, last_ts, progress_interval)
 
         while completed < n_trials_stage1:
             while available and len(pending) < max_conc and completed + len(pending) < n_trials_stage1:
-                trial = study1.ask()
+                trial = study.ask()
                 params = define_search_space(trial, stage1_ranges)
                 worker = available.pop(0)
                 fut = worker.eval_mae.remote(params, train_idx, val_idx)
@@ -472,7 +516,7 @@ def run_baseline_kfold(
             for fut in done_ids:
                 trial, params, worker = pending.pop(fut)
                 train_mae, val_mae, train_std, val_std, train_rmse, val_rmse = ray.get(fut)
-                study1.tell(trial, train_mae)
+                study.tell(trial, train_mae)
                 trial_rows.append({
                     "train_mae": float(train_mae),
                     "val_mae": float(val_mae),
@@ -487,87 +531,28 @@ def run_baseline_kfold(
                     worker = _replace_worker(workers, worker, rows_ref)
                     next_restart += restart_every
                 available.append(worker)
-            last_ts = _progress_print(completed, n_trials_stage1, len(pending), max_conc, prefix1, last_ts, progress_interval)
+            last_ts = _progress_print(completed, n_trials_stage1, len(pending), max_conc, prefix, last_ts, progress_interval)
 
         df_trials = pd.DataFrame(trial_rows).sort_values("train_mae")
-        stage1_out = os.path.join(RESULT_DIR, f"baseline_kfold_fold_{fold_id}_stage1_trials.csv")
-        df_trials.to_csv(stage1_out, index=False)
-        best_row_stage1 = select_topk_val_best_constrained(df_trials, TOPK_PCT)
-        best_params_stage1 = {
-            param_name: best_row_stage1[param_name]
-            for param_name in best_row_stage1.index
+        trials_out = os.path.join(RESULT_DIR, f"baseline_kfold_fold_{fold_id}_trials.csv")
+        df_trials.to_csv(trials_out, index=False)
+        best_row = select_topk_val_best_constrained(df_trials, TOPK_PCT)
+        best_params = {
+            param_name: best_row[param_name]
+            for param_name in best_row.index
             if "__" in param_name
         }
-        best_stage1_mae = (float(best_row_stage1["train_mae"]), float(best_row_stage1["val_mae"]))
-        local_ranges = build_local_ranges_from_center(best_params_stage1, stage2_base_ranges, LOCAL_ABS_BASELINE)
-
-        # Stage 2 (local)
-        sampler2 = TPESampler(seed=seed + fold_id + 1000, multivariate=True, n_startup_trials=n_startup_stage2)
-        study2 = optuna.create_study(sampler=sampler2, direction="minimize")
-        trial_rows = []
-        last_ts = 0.0
-        pending = {}
-        completed = 0
-        max_conc = max(1, n_jobs)
-        available = list(workers)
-        next_restart = restart_every if restart_every > 0 else None
-        prefix2 = f"{seed_tag}[Baseline][Fold {fold_id}/{k}][Stage2]"
-        _stage_start(prefix2, n_trials_stage2, 0, max_conc)
-        last_ts = _progress_print(0, n_trials_stage2, 0, max_conc, prefix2, last_ts, progress_interval)
-        while completed < n_trials_stage2:
-            while available and len(pending) < max_conc and completed + len(pending) < n_trials_stage2:
-                trial = study2.ask()
-                params = define_search_space(trial, local_ranges)
-                worker = available.pop(0)
-                fut = worker.eval_mae.remote(params, train_idx, val_idx)
-                pending[fut] = (trial, params, worker)
-            if not pending:
-                time.sleep(0.01)
-                continue
-            done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
-            for fut in done_ids:
-                trial, params, worker = pending.pop(fut)
-                train_mae, val_mae, train_std, val_std, train_rmse, val_rmse = ray.get(fut)
-                study2.tell(trial, train_mae)
-                trial_rows.append({
-                    "train_mae": float(train_mae),
-                    "val_mae": float(val_mae),
-                    "train_std": float(train_std),
-                    "val_std": float(val_std),
-                    "train_rmse": float(train_rmse),
-                    "val_rmse": float(val_rmse),
-                    **params
-                })
-                completed += 1
-                if next_restart is not None and completed >= next_restart:
-                    worker = _replace_worker(workers, worker, rows_ref)
-                    next_restart += restart_every
-                available.append(worker)
-            last_ts = _progress_print(completed, n_trials_stage2, len(pending), max_conc, prefix2, last_ts, progress_interval)
-
-        df_trials = pd.DataFrame(trial_rows).sort_values("train_mae")
-        stage2_out = os.path.join(RESULT_DIR, f"baseline_kfold_fold_{fold_id}_trials.csv")
-        df_trials.to_csv(stage2_out, index=False)
-        best_row_stage2 = select_topk_val_best_constrained(df_trials, TOPK_PCT)
-        best_params_stage2 = {
-            param_name: best_row_stage2[param_name]
-            for param_name in best_row_stage2.index
-            if "__" in param_name
-        }
-        best_stage2_mae = (float(best_row_stage2["train_mae"]), float(best_row_stage2["val_mae"]))
-
-        # Fallback: keep stage1 if stage2 does not improve val_mae.
-        if best_stage2_mae[1] < best_stage1_mae[1]:
-            best_params = best_params_stage2
-            chosen_stage = "stage2"
-        else:
-            best_params = best_params_stage1
-            chosen_stage = "stage1"
         fold_params.append(best_params)
 
         cfg = apply_params(config, best_params)
-        train_mae, train_std, train_rmse, train_cov, train_prec, train_rec = compute_error_stats_with_coverage(cfg, train_rows)
-        val_mae, val_std, val_rmse, val_cov, val_prec, val_rec = compute_error_stats_with_coverage(cfg, val_rows)
+        train_mae, train_std, train_rmse = compute_error_stats(cfg, train_rows)
+        val_mae, val_std, val_rmse = compute_error_stats(cfg, val_rows)
+        train_spore, train_obs_cnt, train_sim_cnt = compute_spore_consistency(
+            cfg, train_rows, spore_windows, SPORE_CORE_DAYS, SPORE_SMOOTH_ALPHA
+        )
+        val_spore, val_obs_cnt, val_sim_cnt = compute_spore_consistency(
+            cfg, val_rows, spore_windows, SPORE_CORE_DAYS, SPORE_SMOOTH_ALPHA
+        )
 
         fold_best_rows.append({
             "fold": fold_id,
@@ -579,13 +564,12 @@ def run_baseline_kfold(
             "val_var": float(val_std ** 2),
             "train_rmse": float(train_rmse),
             "val_rmse": float(val_rmse),
-            "train_coverage": float(train_cov),
-            "val_coverage": float(val_cov),
-            "train_precision": float(train_prec),
-            "val_precision": float(val_prec),
-            "train_recall": float(train_rec),
-            "val_recall": float(val_rec),
-            "selected_stage": str(chosen_stage),
+            "train_spore_consistency": float(train_spore),
+            "val_spore_consistency": float(val_spore),
+            "train_spore_obs_count": float(train_obs_cnt),
+            "val_spore_obs_count": float(val_obs_cnt),
+            "train_spore_sim_count": float(train_sim_cnt),
+            "val_spore_sim_count": float(val_sim_cnt),
         })
 
         best_out = os.path.join(RESULT_DIR, f"baseline_kfold_best_params_fold{fold_id}.json")
@@ -600,13 +584,12 @@ def run_baseline_kfold(
                 "val_var": float(val_std ** 2),
                 "train_rmse": float(train_rmse),
                 "val_rmse": float(val_rmse),
-                "train_coverage": float(train_cov),
-                "val_coverage": float(val_cov),
-                "train_precision": float(train_prec),
-                "val_precision": float(val_prec),
-                "train_recall": float(train_rec),
-                "val_recall": float(val_rec),
-                "selected_stage": str(chosen_stage),
+                "train_spore_consistency": float(train_spore),
+                "val_spore_consistency": float(val_spore),
+                "train_spore_obs_count": float(train_obs_cnt),
+                "val_spore_obs_count": float(val_obs_cnt),
+                "train_spore_sim_count": float(train_sim_cnt),
+                "val_spore_sim_count": float(val_sim_cnt),
                 "params": best_params,
             }, f, indent=2)
 
@@ -622,19 +605,21 @@ def run_baseline_kfold(
         "val_mae_var": float(summary["val_mae"].var(ddof=0)),
         "train_rmse": float(np.sqrt(np.mean(np.square(summary["train_mae"])))),
         "val_rmse": float(np.sqrt(np.mean(np.square(summary["val_mae"])))),
-        "train_coverage_mean": float(summary["train_coverage"].mean()),
-        "train_coverage_std": float(summary["train_coverage"].std(ddof=0)),
-        "val_coverage_mean": float(summary["val_coverage"].mean()),
-        "val_coverage_std": float(summary["val_coverage"].std(ddof=0)),
-        "train_precision_mean": float(summary["train_precision"].mean()),
-        "train_precision_std": float(summary["train_precision"].std(ddof=0)),
-        "val_precision_mean": float(summary["val_precision"].mean()),
-        "val_precision_std": float(summary["val_precision"].std(ddof=0)),
-        "train_recall_mean": float(summary["train_recall"].mean()),
-        "train_recall_std": float(summary["train_recall"].std(ddof=0)),
-        "val_recall_mean": float(summary["val_recall"].mean()),
-        "val_recall_std": float(summary["val_recall"].std(ddof=0)),
+        "train_spore_consistency_mean": float(summary["train_spore_consistency"].mean()),
+        "train_spore_consistency_std": float(summary["train_spore_consistency"].std(ddof=0)),
+        "val_spore_consistency_mean": float(summary["val_spore_consistency"].mean()),
+        "val_spore_consistency_std": float(summary["val_spore_consistency"].std(ddof=0)),
+        "train_spore_obs_count_mean": float(summary["train_spore_obs_count"].mean()),
+        "train_spore_obs_count_std": float(summary["train_spore_obs_count"].std(ddof=0)),
+        "val_spore_obs_count_mean": float(summary["val_spore_obs_count"].mean()),
+        "val_spore_obs_count_std": float(summary["val_spore_obs_count"].std(ddof=0)),
+        "train_spore_sim_count_mean": float(summary["train_spore_sim_count"].mean()),
+        "train_spore_sim_count_std": float(summary["train_spore_sim_count"].std(ddof=0)),
+        "val_spore_sim_count_mean": float(summary["val_spore_sim_count"].mean()),
+        "val_spore_sim_count_std": float(summary["val_spore_sim_count"].std(ddof=0)),
         "n_folds": int(len(summary)),
+        "spore_core_days": int(SPORE_CORE_DAYS),
+        "spore_smooth_alpha": float(SPORE_SMOOTH_ALPHA),
     }
     summary_json = os.path.join(RESULT_DIR, "baseline_kfold_summary.json")
     with open(summary_json, "w") as f:
@@ -688,13 +673,11 @@ def main() -> None:
     parser.add_argument("--n-jobs", type=int, default=N_JOBS)
     parser.add_argument("--seed", type=int, default=RANDOM_SEED)
     parser.add_argument("--seed-list", type=str, default="42,123,2024")
-    parser.add_argument("--n-trials-base-stage1", type=int, default=15000)
-    parser.add_argument("--n-trials-base-stage2", type=int, default=6000)
-    parser.add_argument("--n-startup-base-stage1", type=int, default=3000)
-    parser.add_argument("--n-startup-base-stage2", type=int, default=1200)
+    parser.add_argument("--n-trials-base", type=int, default=20000)
+    parser.add_argument("--n-startup-base", type=int, default=8000)
     parser.add_argument("--skip-baseline", action="store_true")
     parser.add_argument("--progress-interval", type=float, default=5.0)
-    parser.add_argument("--restart-every", type=int, default=200)
+    parser.add_argument("--restart-every", type=int, default=100)
     args = parser.parse_args()
 
     seed_list = []
@@ -707,7 +690,7 @@ def main() -> None:
 
     rows = list(load_actual().itertuples(index=False))
     stage1_ranges = build_param_ranges()
-    stage2_base_ranges = {k: (float(v[0]), float(v[1])) for k, v in BASE_RANGES.items()}
+    spore_windows = load_spore_windows()
     rows_ref = ray.put(rows)
     workers = _make_workers(args.n_jobs, rows_ref)
 
@@ -736,15 +719,13 @@ def main() -> None:
                 rows=rows,
                 k=args.kfold,
                 stage1_ranges=stage1_ranges,
-                stage2_base_ranges=stage2_base_ranges,
+                spore_windows=spore_windows,
                 workers=workers,
                 rows_ref=rows_ref,
                 n_jobs=args.n_jobs,
                 restart_every=args.restart_every,
-                n_trials_stage1=args.n_trials_base_stage1,
-                n_trials_stage2=args.n_trials_base_stage2,
-                n_startup_stage1=args.n_startup_base_stage1,
-                n_startup_stage2=args.n_startup_base_stage2,
+                n_trials_stage1=args.n_trials_base,
+                n_startup_stage1=args.n_startup_base,
                 progress_interval=args.progress_interval,
                 seed=seed,
                 seed_tag=f"[Seed {seed}] ",
