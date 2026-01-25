@@ -647,7 +647,7 @@ def run_baseline_kfold(
             last_ts = _progress_print(completed, n_trials_stage1, len(pending), max_conc, prefix, last_ts, progress_interval)
 
         df_trials = pd.DataFrame(trial_rows).sort_values("train_loss")
-        trials_out = os.path.join(RESULT_DIR, f"baseline_kfold_fold_{fold_id}_trials.csv")
+        trials_out = os.path.join(RESULT_DIR, f"baseline_kfold_fold_{fold_id}_trials_spore.csv")
         df_trials.to_csv(trials_out, index=False)
         best_row = select_topk_val_best_constrained(df_trials, TOPK_PCT)
         best_params = {
@@ -688,7 +688,7 @@ def run_baseline_kfold(
             "val_spore_sim_count": float(val_sim_cnt),
         })
 
-        best_out = os.path.join(RESULT_DIR, f"baseline_kfold_best_params_fold{fold_id}.json")
+        best_out = os.path.join(RESULT_DIR, f"baseline_kfold_best_params_fold{fold_id}_spore.json")
         with open(best_out, "w") as f:
             json.dump({
                 "fold": fold_id,
@@ -713,7 +713,7 @@ def run_baseline_kfold(
             }, f, indent=2)
 
     summary = pd.DataFrame(fold_best_rows)
-    summary_out = os.path.join(RESULT_DIR, "baseline_kfold_summary.csv")
+    summary_out = os.path.join(RESULT_DIR, "baseline_kfold_summary_spore.csv")
     summary.to_csv(summary_out, index=False)
     summary_stats = {
         "train_mae_mean": float(summary["train_mae"].mean()),
@@ -749,7 +749,7 @@ def run_baseline_kfold(
         "spore_p_false": float(spore_p_false),
         "spore_lambda": float(spore_lambda),
     }
-    summary_json = os.path.join(RESULT_DIR, "baseline_kfold_summary.json")
+    summary_json = os.path.join(RESULT_DIR, "baseline_kfold_summary_spore.json")
     with open(summary_json, "w") as f:
         json.dump(summary_stats, f, indent=2)
 
@@ -769,7 +769,7 @@ def run_baseline_kfold(
     best_fold = int(df_global.loc[best_idx, "fold"])
     best_params = fold_params[best_idx]
     best_row = summary[summary["fold"] == best_fold].iloc[0]
-    global_out = os.path.join(RESULT_DIR, "baseline_kfold_best_global.json")
+    global_out = os.path.join(RESULT_DIR, "baseline_kfold_best_global_spore.json")
     with open(global_out, "w") as f:
         json.dump({
             "best_from_fold": best_fold,
@@ -837,12 +837,12 @@ def main() -> None:
     seed_globals = []
 
     for seed in seed_list:
-        RESULT_DIR = os.path.join(base_result_dir, f"seed_{seed}")
+        RESULT_DIR = os.path.join(base_result_dir, f"seed_{seed}_spore")
         os.makedirs(RESULT_DIR, exist_ok=True)
         print(f"[Seed {seed}] Output -> {RESULT_DIR}", flush=True)
 
         if args.skip_baseline:
-            baseline_best_path = os.path.join(RESULT_DIR, "baseline_kfold_best_global.json")
+            baseline_best_path = os.path.join(RESULT_DIR, "baseline_kfold_best_global_spore.json")
             if not os.path.exists(baseline_best_path):
                 raise FileNotFoundError(f"Missing baseline best file: {baseline_best_path}")
             with open(baseline_best_path, "r") as f:
@@ -874,13 +874,13 @@ def main() -> None:
                 spore_lambda=args.spore_lambda,
             )
 
-        summary_path = os.path.join(RESULT_DIR, "baseline_kfold_summary.json")
+        summary_path = os.path.join(RESULT_DIR, "baseline_kfold_summary_spore.json")
         if os.path.exists(summary_path):
             with open(summary_path, "r") as f:
                 s = json.load(f)
             s["seed"] = seed
             seed_summaries.append(s)
-        global_path = os.path.join(RESULT_DIR, "baseline_kfold_best_global.json")
+        global_path = os.path.join(RESULT_DIR, "baseline_kfold_best_global_spore.json")
         if os.path.exists(global_path):
             with open(global_path, "r") as f:
                 g = json.load(f)
@@ -889,7 +889,7 @@ def main() -> None:
 
     if len(seed_list) > 1 and seed_summaries:
         df = pd.DataFrame(seed_summaries)
-        seed_csv = os.path.join(base_result_dir, "baseline_kfold_summary_seeds.csv")
+        seed_csv = os.path.join(base_result_dir, "baseline_kfold_summary_seeds_spore.csv")
         df.to_csv(seed_csv, index=False)
         agg = {}
         for col in df.columns:
@@ -899,12 +899,12 @@ def main() -> None:
                 agg[f"{col}_mean"] = float(df[col].mean())
                 agg[f"{col}_std"] = float(df[col].std(ddof=0))
         agg["n_seeds"] = int(len(seed_summaries))
-        summary_path = os.path.join(base_result_dir, "baseline_kfold_summary_seeds.json")
+        summary_path = os.path.join(base_result_dir, "baseline_kfold_summary_seeds_spore.json")
         with open(summary_path, "w") as f:
             json.dump(agg, f, indent=2)
         if seed_globals:
             df_g = pd.DataFrame(seed_globals)
-            globals_csv = os.path.join(base_result_dir, "baseline_kfold_best_global_seeds.csv")
+            globals_csv = os.path.join(base_result_dir, "baseline_kfold_best_global_seeds_spore.csv")
             df_g.to_csv(globals_csv, index=False)
             if "global_mae" in df_g.columns:
                 agg_g = {
@@ -912,7 +912,7 @@ def main() -> None:
                     "global_mae_std": float(df_g["global_mae"].std(ddof=0)),
                     "n_seeds": int(len(seed_globals)),
                 }
-                gpath = os.path.join(base_result_dir, "baseline_kfold_best_global_seeds.json")
+                gpath = os.path.join(base_result_dir, "baseline_kfold_best_global_seeds_spore.json")
                 with open(gpath, "w") as f:
                     json.dump(agg_g, f, indent=2)
 
