@@ -10,6 +10,7 @@ Key idea:
 """
 
 import os
+import platform
 import sys
 import json
 import copy
@@ -735,11 +736,12 @@ def run_baseline_kfold_joblib(
         _stage_start(prefix, n_trials_stage1, 0, max_conc)
         last_ts = _progress_print(0, n_trials_stage1, 0, max_conc, prefix, last_ts, progress_interval)
         filled_logged = False
+        joblib_batch = min(JOBLIB_BATCH, max_conc)
 
         batch_id = 0
         while completed < n_trials_stage1:
             batch_id += 1
-            batch = min(JOBLIB_BATCH, max_conc, n_trials_stage1 - completed)
+            batch = min(joblib_batch, n_trials_stage1 - completed)
             trials = []
             params_list = []
             hypers_list = []
@@ -868,6 +870,12 @@ def main() -> None:
     parser.add_argument("--early-stop-nll", type=float, default=PENALTY_DAYS)
     parser.add_argument("--no-obs-nll", type=float, default=NO_OBS_NLL)
     args = parser.parse_args()
+
+    if platform.system().lower().startswith("win"):
+        max_win_jobs = 32
+        if args.n_jobs > max_win_jobs:
+            print(f"[Info] Windows max_workers capped to {max_win_jobs} (was {args.n_jobs})", flush=True)
+            args.n_jobs = max_win_jobs
 
     actual_df = load_actual()
     rows = list(actual_df.itertuples(index=False))
