@@ -377,6 +377,103 @@ def compute_spore_assim_nll(
     return float(np.mean(nlls)) if nlls else 0.0
 
 
+def _spore_nll_for_row(
+    row: pd.Series,
+    rb: dict,
+    cs: CropSeasonFirst,
+    win_obs: List[Tuple[pd.Timestamp, pd.Timestamp, float]],
+    k_scale: float,
+    nb_disp: float,
+    zi: float,
+    use_nb: bool,
+    rain_weight: float,
+    end_mode: str,
+    no_obs_nll: float
+) -> float:
+    if not win_obs:
+        return float(no_obs_nll)
+
+    cohorts = cs.detached_survival
+    if cohorts is None or cohorts.empty:
+        return float(no_obs_nll)
+
+    bbch53 = _pick_bbch53_date(row, rb)
+    start_candidate = bbch53 - pd.Timedelta(days=14) if pd.notna(bbch53) else pd.NaT
+    start_date = _calc_assim_start(win_obs, start_candidate)
+
+    if end_mode == "sim":
+        if cs.primary_chain_unique is not None and not cs.primary_chain_unique.empty:
+            end_date = pd.to_datetime(cs.primary_chain_unique.iloc[0]["oil_spot_start"])
+        else:
+            end_date = pd.NaT
+    else:
+        end_date = pd.to_datetime(row.first_infection_date)
+
+    if pd.isna(end_date):
+        end_date = win_obs[-1][1]
+
+    sim_windows = []
+    for _, c in cohorts.iterrows():
+        s = pd.to_datetime(c.get("dispersal_datetime")).normalize()
+        dep = c.get("deposition_datetime")
+        alive_end = c.get("sporangia_alive_end")
+        end = None
+        if pd.notna(dep):
+            end = pd.to_datetime(dep).normalize()
+        if pd.notna(alive_end):
+            ae = pd.to_datetime(alive_end).normalize()
+            end = ae if end is None else min(end, ae)
+        if end is None:
+            continue
+        if end < s:
+            continue
+        dtype = c.get("dispersal_type", "wind")
+        w = rain_weight if dtype == "rain" else 1.0
+        sim_windows.append((s, end, float(c.get("airborne_amount", 0.0)) * w))
+
+    if not sim_windows:
+        return float(no_obs_nll)
+
+    total_nll = 0.0
+    used = 0
+    for (s_obs, e_obs, y) in win_obs:
+        if e_obs < start_date or s_obs > end_date:
+            continue
+        s_obs = max(s_obs, start_date)
+        e_obs = min(e_obs, end_date)
+        if e_obs < s_obs:
+            continue
+        used += 1
+        y_int = int(round(max(y, 0.0)))
+        intensity = 0.0
+        window_days = (e_obs - s_obs).days + 1
+        if window_days <= 0:
+            continue
+        for (s_sim, e_sim, amt) in sim_windows:
+            start = max(s_obs, s_sim)
+            end = min(e_obs, e_sim)
+            if end < start:
+                continue
+            overlap_days = (end - start).days + 1
+            overlap_ratio = float(overlap_days) / float(window_days)
+            intensity += amt * overlap_ratio
+
+        mu = max(0.0, k_scale * intensity)
+        if use_nb:
+            logpmf = _nb_logpmf(y_int, mu, nb_disp)
+            logpmf_zero = _nb_logpmf(0, mu, nb_disp)
+        else:
+            logpmf = _pois_logpmf(y_int, mu)
+            logpmf_zero = _pois_logpmf(0, mu)
+
+        logp = _zi_logpmf(y_int, logpmf, zi, logpmf_zero)
+        total_nll += -logp
+
+    if used == 0:
+        return float(no_obs_nll)
+    return float(total_nll / float(used))
+
+
 def build_folds(n: int, k: int, seed: int) -> List[List[int]]:
     if k <= 1 or k > n:
         k = n
@@ -523,6 +620,56 @@ class ModelWorker:
         rmse = float(np.sqrt(np.mean(np.square(abs_err))))
         return mae, std, rmse
 
+    def _compute_stats_idx(
+        self,
+        cfg: dict,
+        idxs: List[int],
+        k_scale: float,
+        nb_disp: float,
+        zi: float,
+        use_nb: bool,
+        rain_weight: float,
+        end_mode: str,
+        no_obs_nll: float
+    ) -> Tuple[float, float, float, float]:
+        errors = []
+        nlls = []
+        for i in idxs:
+            row = self.rows[i]
+            key = f"{row.plot}_{row.variety}_{row.first_infection_date.year}"
+            rb_path = os.path.join(DATA_DIR, f"{key}_grape_rb.json")
+            if not os.path.exists(rb_path):
+                errors.append(float(PENALTY_DAYS))
+                nlls.append(float(no_obs_nll))
+                continue
+            try:
+                rb = self._load_rb_cached_lru(rb_path)
+                cs = CropSeasonFirst(csrb=rb, config=cfg)
+                cs.simulate()
+                err = _calc_error(row.first_infection_date, cs.primary_chain_unique)
+                if not np.isfinite(err):
+                    err = float(PENALTY_DAYS)
+                nll = _spore_nll_for_row(
+                    row, rb, cs,
+                    self.spore_windows.get((str(row.plot), int(row.first_infection_date.year)), []),
+                    k_scale, nb_disp, zi, use_nb, rain_weight, end_mode, no_obs_nll
+                )
+            except Exception:
+                err = float(PENALTY_DAYS)
+                nll = float(no_obs_nll)
+
+            errors.append(float(err))
+            nlls.append(float(nll))
+
+        if not errors:
+            return PENALTY_DAYS, 0.0, PENALTY_DAYS, float(no_obs_nll)
+        abs_err = np.abs(np.array(errors, dtype=float))
+        mae = float(abs_err.mean())
+        std = float(abs_err.std(ddof=0))
+        rmse = float(np.sqrt(np.mean(np.square(abs_err))))
+        nll = float(np.mean(nlls)) if nlls else float(no_obs_nll)
+        return mae, std, rmse, nll
+
     def eval_mae(
         self,
         params: Dict[str, float],
@@ -540,22 +687,18 @@ class ModelWorker:
         cfg = apply_params(config, params)
         k_scale = float(hypers.get("spore_k_scale", SPORE_K_SCALE))
         zi = float(hypers.get("spore_zero_infl", SPORE_ZERO_INFL))
-        train_mae, train_std, train_rmse = self._compute_error_stats_idx(cfg, train_idx)
+        train_mae, train_std, train_rmse, train_nll = self._compute_stats_idx(
+            cfg, train_idx, k_scale, nb_disp, zi, use_nb, rain_weight, end_mode, no_obs_nll
+        )
         if early_stop_mae > 0 and train_mae >= early_stop_mae:
-            val_mae, val_std, val_rmse = self._compute_error_stats_idx(cfg, val_idx)
+            val_mae, val_std, val_rmse, _val_nll = self._compute_stats_idx(
+                cfg, val_idx, k_scale, nb_disp, zi, use_nb, rain_weight, end_mode, no_obs_nll
+            )
             train_nll = early_stop_nll
             val_nll = early_stop_nll
             return train_mae, val_mae, train_std, val_std, train_rmse, val_rmse, train_nll, val_nll
-        val_mae, val_std, val_rmse = self._compute_error_stats_idx(cfg, val_idx)
-        train_rows = [self.rows[i] for i in train_idx]
-        val_rows = [self.rows[i] for i in val_idx]
-        train_nll = compute_spore_assim_nll(
-            cfg, train_rows, self.spore_windows, k_scale, nb_disp, zi, use_nb, rain_weight, end_mode, no_obs_nll,
-            self._load_rb_cached_lru
-        )
-        val_nll = compute_spore_assim_nll(
-            cfg, val_rows, self.spore_windows, k_scale, nb_disp, zi, use_nb, rain_weight, end_mode, no_obs_nll,
-            self._load_rb_cached_lru
+        val_mae, val_std, val_rmse, val_nll = self._compute_stats_idx(
+            cfg, val_idx, k_scale, nb_disp, zi, use_nb, rain_weight, end_mode, no_obs_nll
         )
         return train_mae, val_mae, train_std, val_std, train_rmse, val_rmse, train_nll, val_nll
 
