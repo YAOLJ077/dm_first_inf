@@ -29,11 +29,25 @@ import time
 if __name__ == "__main__":
     print("[Boot] starting imports...", flush=True)
 
-import numpy as np
-import pandas as pd
-import optuna
-from optuna.samplers import TPESampler
-from joblib import Parallel, delayed
+import importlib
+
+_t_import = time.time()
+np = importlib.import_module("numpy")
+print(f"[Boot] numpy imported in {time.time() - _t_import:.1f}s", flush=True)
+_t_import = time.time()
+pd = importlib.import_module("pandas")
+print(f"[Boot] pandas imported in {time.time() - _t_import:.1f}s", flush=True)
+_t_import = time.time()
+optuna = importlib.import_module("optuna")
+print(f"[Boot] optuna imported in {time.time() - _t_import:.1f}s", flush=True)
+_t_import = time.time()
+TPESampler = importlib.import_module("optuna.samplers").TPESampler
+print(f"[Boot] optuna.samplers imported in {time.time() - _t_import:.1f}s", flush=True)
+_t_import = time.time()
+joblib = importlib.import_module("joblib")
+Parallel = joblib.Parallel
+delayed = joblib.delayed
+print(f"[Boot] joblib imported in {time.time() - _t_import:.1f}s", flush=True)
 
 # ======================================================
 # PATHS
