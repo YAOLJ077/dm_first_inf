@@ -25,29 +25,11 @@ os.environ.setdefault("RAY_METRICS_EXPORT_PORT", "0")
 os.environ.setdefault("RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO", "0")
 
 import time
-
-if __name__ == "__main__":
-    print("[Boot] starting imports...", flush=True)
-
-import importlib
-
-_t_import = time.time()
-np = importlib.import_module("numpy")
-print(f"[Boot] numpy imported in {time.time() - _t_import:.1f}s", flush=True)
-_t_import = time.time()
-pd = importlib.import_module("pandas")
-print(f"[Boot] pandas imported in {time.time() - _t_import:.1f}s", flush=True)
-_t_import = time.time()
-optuna = importlib.import_module("optuna")
-print(f"[Boot] optuna imported in {time.time() - _t_import:.1f}s", flush=True)
-_t_import = time.time()
-TPESampler = importlib.import_module("optuna.samplers").TPESampler
-print(f"[Boot] optuna.samplers imported in {time.time() - _t_import:.1f}s", flush=True)
-_t_import = time.time()
-joblib = importlib.import_module("joblib")
-Parallel = joblib.Parallel
-delayed = joblib.delayed
-print(f"[Boot] joblib imported in {time.time() - _t_import:.1f}s", flush=True)
+import numpy as np
+import pandas as pd
+import optuna
+from optuna.samplers import TPESampler
+from joblib import Parallel, delayed
 
 # ======================================================
 # PATHS
@@ -75,7 +57,6 @@ FOLD_SEED = 42
 N_JOBS = 32
 RB_CACHE_MAX = 128
 TOPK_PCT = 5.0
-JOBLIB_BATCH = 8  # trials per batch submission
 
 # Spore assimilation hyperparams (defaults)
 SPORE_LAMBDA = 0.3
@@ -631,6 +612,30 @@ def eval_mae_joblib(
     return train_mae, val_mae, train_std, val_std, train_rmse, val_rmse, train_nll, val_nll
 
 
+def _eval_mae_joblib_idx(
+    idx: int,
+    params: Dict[str, float],
+    hypers: Dict[str, float],
+    train_idx: List[int],
+    val_idx: List[int],
+    nb_disp: float,
+    use_nb: bool,
+    rain_weight: float,
+    end_mode: str,
+    early_stop_mae: float,
+    early_stop_nll: float,
+    no_obs_nll: float,
+    data_dir: str,
+    rb_cache_max: int
+) -> Tuple[int, Tuple[float, float, float, float, float, float, float, float]]:
+    return idx, eval_mae_joblib(
+        params, hypers, train_idx, val_idx,
+        nb_disp, use_nb, rain_weight, end_mode,
+        early_stop_mae, early_stop_nll, no_obs_nll,
+        data_dir, rb_cache_max
+    )
+
+
 def build_folds(n: int, k: int, seed: int) -> List[List[int]]:
     if k <= 1 or k > n:
         k = n
@@ -753,63 +758,73 @@ def run_baseline_kfold_joblib(
         prefix = f"{seed_tag}[Assimilation][Fold {fold_id}/{k}]"
         _stage_start(prefix, n_trials_stage1, 0, max_conc)
         last_ts = _progress_print(0, n_trials_stage1, 0, max_conc, prefix, last_ts, progress_interval)
-        filled_logged = False
-        joblib_batch = min(JOBLIB_BATCH, max_conc)
 
-        batch_id = 0
-        while completed < n_trials_stage1:
-            batch_id += 1
-            batch = min(joblib_batch, n_trials_stage1 - completed)
-            trials = []
-            params_list = []
-            hypers_list = []
-            for _ in range(batch):
-                trial = study.ask()
-                params, hypers = define_search_space(trial, stage1_ranges, hyper_ranges)
-                trials.append(trial)
-                params_list.append(params)
-                hypers_list.append(hypers)
+        trials = []
+        params_list = []
+        hypers_list = []
+        for idx in range(n_trials_stage1):
+            trial = study.ask()
+            params, hypers = define_search_space(trial, stage1_ranges, hyper_ranges)
+            trials.append(trial)
+            params_list.append(params)
+            hypers_list.append(hypers)
 
-            if batch == max_conc and not filled_logged:
-                print(f"{prefix} Dispatch | filled {batch}/{max_conc}", flush=True)
-                filled_logged = True
-            print(f"{prefix} Batch {batch_id} | size={batch}", flush=True)
+        print(f"{prefix} Dispatch | filled {max_conc}/{max_conc}", flush=True)
 
-            results = Parallel(n_jobs=n_jobs, backend="loky", verbose=0)(
-                delayed(eval_mae_joblib)(
-                    params_list[i], hypers_list[i], train_idx, val_idx,
-                    nb_disp, use_nb, rain_weight, end_mode,
-                    early_stop_mae, early_stop_nll, no_obs_nll,
-                    DATA_DIR, RB_CACHE_MAX
-                )
-                for i in range(batch)
+        tasks = (
+            delayed(_eval_mae_joblib_idx)(
+                i, params_list[i], hypers_list[i], train_idx, val_idx,
+                nb_disp, use_nb, rain_weight, end_mode,
+                early_stop_mae, early_stop_nll, no_obs_nll,
+                DATA_DIR, RB_CACHE_MAX
             )
+            for i in range(n_trials_stage1)
+        )
 
-            for i, res in enumerate(results):
-                train_mae, val_mae, train_std, val_std, train_rmse, val_rmse, train_nll, val_nll = res
-                spore_lambda = float(hypers_list[i].get("spore_lambda", SPORE_LAMBDA))
-                train_loss = float(train_mae + spore_lambda * train_nll)
-                val_loss = float(val_mae + spore_lambda * val_nll)
+        try:
+            results_iter = Parallel(
+                n_jobs=n_jobs,
+                backend="loky",
+                verbose=0,
+                batch_size=1,
+                pre_dispatch=max_conc,
+                return_as="generator",
+            )(tasks)
+        except TypeError:
+            results_iter = Parallel(
+                n_jobs=n_jobs,
+                backend="loky",
+                verbose=0,
+                batch_size=1,
+                pre_dispatch=max_conc,
+            )(tasks)
 
-                study.tell(trials[i], train_loss)
-                trial_rows.append({
-                    **params_list[i],
-                    **hypers_list[i],
-                    "train_mae": float(train_mae),
-                    "val_mae": float(val_mae),
-                    "train_std": float(train_std),
-                    "val_std": float(val_std),
-                    "train_rmse": float(train_rmse),
-                    "val_rmse": float(val_rmse),
-                    "train_spore_nll": float(train_nll),
-                    "val_spore_nll": float(val_nll),
-                    "train_loss": train_loss,
-                    "val_loss": val_loss,
-                    "timeout": 0,
-                })
+        for res in results_iter:
+            idx, metrics = res
+            train_mae, val_mae, train_std, val_std, train_rmse, val_rmse, train_nll, val_nll = metrics
+            spore_lambda = float(hypers_list[idx].get("spore_lambda", SPORE_LAMBDA))
+            train_loss = float(train_mae + spore_lambda * train_nll)
+            val_loss = float(val_mae + spore_lambda * val_nll)
 
-                completed += 1
-                last_ts = _progress_print(completed, n_trials_stage1, max_conc, max_conc, prefix, last_ts, progress_interval)
+            study.tell(trials[idx], train_loss)
+            trial_rows.append({
+                **params_list[idx],
+                **hypers_list[idx],
+                "train_mae": float(train_mae),
+                "val_mae": float(val_mae),
+                "train_std": float(train_std),
+                "val_std": float(val_std),
+                "train_rmse": float(train_rmse),
+                "val_rmse": float(val_rmse),
+                "train_spore_nll": float(train_nll),
+                "val_spore_nll": float(val_nll),
+                "train_loss": train_loss,
+                "val_loss": val_loss,
+                "timeout": 0,
+            })
+
+            completed += 1
+            last_ts = _progress_print(completed, n_trials_stage1, max_conc, max_conc, prefix, last_ts, progress_interval)
 
         df_trials = pd.DataFrame(trial_rows)
         fold_dir = os.path.join(RESULT_DIR, f"seed_{seed}_assimilation")
@@ -899,7 +914,7 @@ def main() -> None:
         if args.n_jobs > max_win_jobs:
             print(f"[Info] Windows max_workers capped to {max_win_jobs} (was {args.n_jobs})", flush=True)
             args.n_jobs = max_win_jobs
-    print(f"[Info] Effective n_jobs={args.n_jobs} | JOBLIB_BATCH={JOBLIB_BATCH}", flush=True)
+    print(f"[Info] Effective n_jobs={args.n_jobs}", flush=True)
 
     t0 = time.time()
     print("[Init] Loading actual_data.xlsx...", flush=True)
