@@ -872,6 +872,7 @@ def run_baseline_kfold_joblib(
 
 def main() -> None:
     print("[Boot] entering main()", flush=True)
+    print("[Boot] building argparse...", flush=True)
     parser = argparse.ArgumentParser()
     parser.add_argument("--k", type=int, default=3)
     parser.add_argument("--n-trials", type=int, default=25000)
@@ -888,8 +889,11 @@ def main() -> None:
     parser.add_argument("--early-stop-mae", type=float, default=EARLY_STOP_MAE)
     parser.add_argument("--early-stop-nll", type=float, default=PENALTY_DAYS)
     parser.add_argument("--no-obs-nll", type=float, default=NO_OBS_NLL)
+    print("[Boot] parsing args...", flush=True)
     args = parser.parse_args()
+    print("[Boot] args parsed", flush=True)
 
+    print("[Boot] platform check...", flush=True)
     if platform.system().lower().startswith("win"):
         max_win_jobs = 32
         if args.n_jobs > max_win_jobs:
