@@ -871,6 +871,7 @@ def run_baseline_kfold_joblib(
 
 
 def main() -> None:
+    print("[Boot] entering main()", flush=True)
     parser = argparse.ArgumentParser()
     parser.add_argument("--k", type=int, default=3)
     parser.add_argument("--n-trials", type=int, default=25000)
@@ -942,4 +943,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    print("[Boot] calling main()", flush=True)
     main()
+    print("[Boot] main returned", flush=True)
