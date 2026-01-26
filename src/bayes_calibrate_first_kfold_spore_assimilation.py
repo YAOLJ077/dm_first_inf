@@ -485,12 +485,29 @@ _MP_RB_CACHE = OrderedDict()
 _MP_RB_CACHE_MAX = 64
 
 
-def _mp_init(rows, spore_windows, rb_cache_max: int) -> None:
+def _mp_init(data_dir: str, rb_cache_max: int) -> None:
     global _MP_ROWS, _MP_SPORE_WINDOWS, _MP_RB_CACHE, _MP_RB_CACHE_MAX
-    _MP_ROWS = rows
-    _MP_SPORE_WINDOWS = spore_windows
     _MP_RB_CACHE = OrderedDict()
     _MP_RB_CACHE_MAX = rb_cache_max
+    actual_path = os.path.join(data_dir, "actual_data.xlsx")
+    spore_path = os.path.join(data_dir, "Spore_Overall.xlsx")
+    df = pd.read_excel(actual_path)
+    df["first_infection_date"] = pd.to_datetime(df["first_infection_date"])
+    _MP_ROWS = list(df.itertuples(index=False))
+    df_spore = pd.read_excel(spore_path)
+    df_spore = _normalize_spore_columns(df_spore)
+    windows: Dict[Tuple[str, int], List[Tuple[pd.Timestamp, pd.Timestamp, float]]] = {}
+    for (plot, year), g in df_spore.groupby(["plot", "year"]):
+        g = g.sort_values("date")
+        g = g[g["spore"].notna()]
+        prev = None
+        for _, row in g.iterrows():
+            cur = row["date"].normalize()
+            y = float(row["spore"])
+            if prev is not None:
+                windows.setdefault((str(plot), int(year)), []).append((prev, cur, y))
+            prev = cur
+    _MP_SPORE_WINDOWS = windows
 
 
 def _mp_load_rb_cached_lru(path: str) -> dict:
@@ -1067,12 +1084,14 @@ def run_baseline_kfold_process(
         last_ts = _progress_print(0, n_trials_stage1, 0, max_conc, prefix, last_ts, progress_interval)
         filled_logged = False
 
+        print(f"{prefix} ProcessPool starting | workers={n_jobs}", flush=True)
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=n_jobs,
             initializer=_mp_init,
-            initargs=(rows, spore_windows, RB_CACHE_MAX),
+            initargs=(DATA_DIR, RB_CACHE_MAX),
             mp_context=multiprocessing.get_context("spawn"),
         ) as executor:
+            print(f"{prefix} ProcessPool ready", flush=True)
             while completed < n_trials_stage1:
                 while len(pending) < max_conc and completed + len(pending) < n_trials_stage1:
                     trial = study.ask()
