@@ -893,8 +893,8 @@ def main() -> None:
     args = parser.parse_args()
     print("[Boot] args parsed", flush=True)
 
-    print("[Boot] platform check...", flush=True)
-    if platform.system().lower().startswith("win"):
+    print(f"[Boot] platform check... sys.platform={sys.platform}", flush=True)
+    if sys.platform.lower().startswith("win"):
         max_win_jobs = 32
         if args.n_jobs > max_win_jobs:
             print(f"[Info] Windows max_workers capped to {max_win_jobs} (was {args.n_jobs})", flush=True)
