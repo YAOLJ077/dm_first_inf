@@ -793,10 +793,17 @@ def main() -> None:
     rows = list(actual_df.itertuples(index=False))
     spore_windows = load_spore_obs_windows()
 
-    ray.init(ignore_reinit_error=True, include_dashboard=False)
+    print("Initializing Ray...", flush=True)
+    ray.init(ignore_reinit_error=True, include_dashboard=False, num_cpus=args.n_jobs)
+    try:
+        print("Ray resources:", ray.available_resources(), flush=True)
+    except Exception:
+        pass
     rows_ref = ray.put(rows)
     spore_ref = ray.put(spore_windows)
+    print(f"Creating {args.n_jobs} workers...", flush=True)
     workers = _make_workers(args.n_jobs, rows_ref, spore_ref)
+    print("Workers ready.", flush=True)
 
     seeds = [int(x) for x in args.seed_list.split(",") if x.strip()] if args.seed_list else [args.seed]
     ranges = build_param_ranges()
