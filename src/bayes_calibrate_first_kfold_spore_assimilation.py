@@ -57,7 +57,7 @@ FOLD_SEED = 42
 N_JOBS = 256
 RB_CACHE_MAX = 128
 TOPK_PCT = 5.0
-JOBLIB_BATCH = 256  # trials per batch submission
+JOBLIB_BATCH = 16  # trials per batch submission
 
 # Spore assimilation hyperparams (defaults)
 SPORE_LAMBDA = 0.3
