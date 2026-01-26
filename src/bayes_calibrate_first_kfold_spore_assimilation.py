@@ -54,7 +54,7 @@ from model.config import config
 PENALTY_DAYS = 120.0
 RANDOM_SEED = 42
 FOLD_SEED = 42
-N_JOBS = 32
+N_JOBS = 0  # auto: use (cpu_count - 1) at runtime
 RB_CACHE_MAX = 128
 TOPK_PCT = 5.0
 
@@ -875,12 +875,19 @@ def main() -> None:
     print("[Boot] args parsed", flush=True)
 
     print(f"[Boot] platform check... sys.platform={sys.platform}", flush=True)
+    cpu_total = os.cpu_count() or 1
+    if args.n_jobs <= 0:
+        args.n_jobs = max(1, cpu_total - 1)
+    if cpu_total - 1 >= 64 and args.n_jobs < 64:
+        args.n_jobs = 64
+    if cpu_total - 1 < 64:
+        print(f"[Info] cpu_total-1 < 64; using {args.n_jobs}", flush=True)
     if sys.platform.lower().startswith("win"):
-        max_win_jobs = 32
+        max_win_jobs = 61
         if args.n_jobs > max_win_jobs:
             print(f"[Info] Windows max_workers capped to {max_win_jobs} (was {args.n_jobs})", flush=True)
             args.n_jobs = max_win_jobs
-    print(f"[Info] Effective n_jobs={args.n_jobs}", flush=True)
+    print(f"[Info] Effective n_jobs={args.n_jobs} (cpu_total={cpu_total})", flush=True)
 
     t0 = time.time()
     print("[Init] Loading actual_data.xlsx...", flush=True)
