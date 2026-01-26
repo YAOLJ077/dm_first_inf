@@ -24,11 +24,15 @@ os.environ.setdefault("RAY_DISABLE_USAGE_STATS", "1")
 os.environ.setdefault("RAY_METRICS_EXPORT_PORT", "0")
 os.environ.setdefault("RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO", "0")
 
+import time
+
+if __name__ == "__main__":
+    print("[Boot] starting imports...", flush=True)
+
 import numpy as np
 import pandas as pd
 import optuna
 from optuna.samplers import TPESampler
-import time
 from joblib import Parallel, delayed
 
 # ======================================================
