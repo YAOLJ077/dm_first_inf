@@ -53,8 +53,8 @@ from model.config import config
 PENALTY_DAYS = 120.0
 RANDOM_SEED = 42
 FOLD_SEED = 42
-N_JOBS = 128
-RB_CACHE_MAX = 128
+N_JOBS = 256
+RB_CACHE_MAX = 64
 TOPK_PCT = 5.0
 
 # Spore assimilation hyperparams (defaults)
@@ -588,7 +588,6 @@ def run_baseline_kfold(
     early_stop_mae: float = 0.0,
     early_stop_nll: float = PENALTY_DAYS,
     no_obs_nll: float = NO_OBS_NLL,
-    trial_timeout_s: float = 0.0,
 ) -> Tuple[List[Dict[str, float]], pd.DataFrame, Dict[str, float]]:
     folds = build_folds(len(rows), k, FOLD_SEED)
     fold_best_rows = []
@@ -623,7 +622,7 @@ def run_baseline_kfold(
                     params, hypers, train_idx, val_idx, nb_disp, use_nb, rain_weight, end_mode,
                     early_stop_mae, early_stop_nll, no_obs_nll
                 )
-                pending[fut] = (trial, params, hypers, worker, time.time(), 0)
+                pending[fut] = (trial, params, hypers, worker)
                 submitted += 1
 
             if pending and len(pending) == max_conc and not filled_logged:
@@ -633,65 +632,13 @@ def run_baseline_kfold(
             if not pending:
                 continue
 
-            wait_n = min(len(pending), max(1, max_conc // 2))
-            done_futs, _ = ray.wait(list(pending.keys()), num_returns=wait_n, timeout=1.0)
+            if not pending:
+                time.sleep(0.01)
+                continue
 
-            if trial_timeout_s and trial_timeout_s > 0:
-                now = time.time()
-                timed_out = [
-                    fut for fut, (_, _, _, _, ts, _) in pending.items()
-                    if now - ts >= trial_timeout_s
-                ]
-                for fut in timed_out:
-                    trial, params, hypers, worker, _ts, retries = pending.pop(fut)
-                    try:
-                        ray.cancel(fut, force=True)
-                    except Exception:
-                        pass
-                    if retries < 1:
-                        new_worker = _replace_worker(workers, worker, rows_ref, spore_windows_ref)
-                        available.append(new_worker)
-                        if available:
-                            retry_worker = available.pop(0)
-                            retry_fut = retry_worker.eval_mae.remote(
-                                params, hypers, train_idx, val_idx, nb_disp, use_nb, rain_weight, end_mode,
-                                early_stop_mae, early_stop_nll, no_obs_nll
-                            )
-                            pending[retry_fut] = (trial, params, hypers, retry_worker, time.time(), retries + 1)
-                        continue
-
-                    spore_lambda = float(hypers.get("spore_lambda", SPORE_LAMBDA))
-                    train_mae = PENALTY_DAYS
-                    val_mae = PENALTY_DAYS
-                    train_std = 0.0
-                    val_std = 0.0
-                    train_rmse = PENALTY_DAYS
-                    val_rmse = PENALTY_DAYS
-                    train_nll = no_obs_nll
-                    val_nll = no_obs_nll
-                    train_loss = float(train_mae + spore_lambda * train_nll)
-                    val_loss = float(val_mae + spore_lambda * val_nll)
-                    study.tell(trial, train_loss)
-                    trial_rows.append({
-                        **params,
-                        **hypers,
-                        "train_mae": float(train_mae),
-                        "val_mae": float(val_mae),
-                        "train_std": float(train_std),
-                        "val_std": float(val_std),
-                        "train_rmse": float(train_rmse),
-                        "val_rmse": float(val_rmse),
-                        "train_spore_nll": float(train_nll),
-                        "val_spore_nll": float(val_nll),
-                        "train_loss": train_loss,
-                        "val_loss": val_loss,
-                        "timeout": 1,
-                    })
-                    completed += 1
-                    new_worker = _replace_worker(workers, worker, rows_ref, spore_windows_ref)
-                    available.append(new_worker)
+            done_futs, _ = ray.wait(list(pending.keys()), num_returns=1)
             for fut in done_futs:
-                trial, params, hypers, worker, _ts, _retries = pending.pop(fut)
+                trial, params, hypers, worker = pending.pop(fut)
                 try:
                     train_mae, val_mae, train_std, val_std, train_rmse, val_rmse, train_nll, val_nll = ray.get(fut)
                 except Exception:
@@ -806,7 +753,6 @@ def main() -> None:
     parser.add_argument("--early-stop-mae", type=float, default=EARLY_STOP_MAE)
     parser.add_argument("--early-stop-nll", type=float, default=PENALTY_DAYS)
     parser.add_argument("--no-obs-nll", type=float, default=NO_OBS_NLL)
-    parser.add_argument("--trial-timeout", type=float, default=180.0)
     args = parser.parse_args()
 
     actual_df = load_actual()
@@ -814,7 +760,7 @@ def main() -> None:
     spore_windows = load_spore_obs_windows()
 
     print("Initializing Ray...", flush=True)
-    ray.init(ignore_reinit_error=True, include_dashboard=False, num_cpus=args.n_jobs)
+    ray.init(num_cpus=args.n_jobs, include_dashboard=False, logging_level="ERROR")
     try:
         print("Ray resources:", ray.available_resources(), flush=True)
     except Exception:
@@ -853,7 +799,6 @@ def main() -> None:
             early_stop_mae=args.early_stop_mae,
             early_stop_nll=args.early_stop_nll,
             no_obs_nll=args.no_obs_nll,
-            trial_timeout_s=args.trial_timeout,
         )
 
         out_dir = os.path.join(RESULT_DIR, f"seed_{seed}_assimilation")
