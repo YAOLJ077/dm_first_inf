@@ -54,7 +54,7 @@ PENALTY_DAYS = 120.0
 RANDOM_SEED = 42
 FOLD_SEED = 42
 N_JOBS = 256
-RB_CACHE_MAX = 64
+RB_CACHE_MAX = 128
 TOPK_PCT = 5.0
 
 # Spore assimilation hyperparams (defaults)
@@ -270,7 +270,8 @@ def compute_spore_assim_nll(
     use_nb: bool,
     rain_weight: float,
     end_mode: str,
-    no_obs_nll: float
+    no_obs_nll: float,
+    load_rb_fn
 ) -> float:
     nlls: List[float] = []
     for row in rows:
@@ -285,7 +286,7 @@ def compute_spore_assim_nll(
             nlls.append(float(no_obs_nll))
             continue
         try:
-            rb = load_rb_cached(rb_path)
+            rb = load_rb_fn(rb_path)
             cs = CropSeasonFirst(csrb=rb, config=cfg)
             cs.simulate()
             cohorts = cs.detached_survival
@@ -485,6 +486,16 @@ class ModelWorker:
             self.rb_cache.popitem(last=False)
         return data
 
+    def preload_rb(self, paths: List[str]) -> int:
+        loaded = 0
+        for p in paths:
+            try:
+                self._load_rb_cached_lru(p)
+                loaded += 1
+            except Exception:
+                continue
+        return loaded
+
     def _compute_error_stats_idx(self, cfg: dict, idxs: List[int]) -> Tuple[float, float, float]:
         errors = []
         for i in idxs:
@@ -539,10 +550,12 @@ class ModelWorker:
         train_rows = [self.rows[i] for i in train_idx]
         val_rows = [self.rows[i] for i in val_idx]
         train_nll = compute_spore_assim_nll(
-            cfg, train_rows, self.spore_windows, k_scale, nb_disp, zi, use_nb, rain_weight, end_mode, no_obs_nll
+            cfg, train_rows, self.spore_windows, k_scale, nb_disp, zi, use_nb, rain_weight, end_mode, no_obs_nll,
+            self._load_rb_cached_lru
         )
         val_nll = compute_spore_assim_nll(
-            cfg, val_rows, self.spore_windows, k_scale, nb_disp, zi, use_nb, rain_weight, end_mode, no_obs_nll
+            cfg, val_rows, self.spore_windows, k_scale, nb_disp, zi, use_nb, rain_weight, end_mode, no_obs_nll,
+            self._load_rb_cached_lru
         )
         return train_mae, val_mae, train_std, val_std, train_rmse, val_rmse, train_nll, val_nll
 
@@ -597,6 +610,24 @@ def run_baseline_kfold(
         train_idx = [i for i in range(len(rows)) if i not in val_idx]
         train_rows = [rows[i] for i in train_idx]
         val_rows = [rows[i] for i in val_idx]
+        # Preload RB files for this fold to reduce I/O stalls
+        rb_paths = []
+        seen = set()
+        for row in train_rows + val_rows:
+            key = f"{row.plot}_{row.variety}_{row.first_infection_date.year}"
+            rb_path = os.path.join(DATA_DIR, f"{key}_grape_rb.json")
+            if rb_path in seen:
+                continue
+            if os.path.exists(rb_path):
+                seen.add(rb_path)
+                rb_paths.append(rb_path)
+        if rb_paths:
+            print(f"{seed_tag}[Assimilation][Fold {fold_id}/{k}] Preload | rb files: {len(rb_paths)}", flush=True)
+            preload_futs = [w.preload_rb.remote(rb_paths) for w in workers]
+            try:
+                ray.get(preload_futs)
+            except Exception:
+                pass
 
         sampler = TPESampler(seed=seed + fold_id, multivariate=True, n_startup_trials=n_startup_stage1)
         study = optuna.create_study(sampler=sampler, direction="minimize")
