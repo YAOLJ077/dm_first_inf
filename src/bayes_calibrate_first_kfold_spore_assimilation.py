@@ -623,7 +623,7 @@ def run_baseline_kfold(
                     params, hypers, train_idx, val_idx, nb_disp, use_nb, rain_weight, end_mode,
                     early_stop_mae, early_stop_nll, no_obs_nll
                 )
-                pending[fut] = (trial, params, hypers, worker, time.time())
+                pending[fut] = (trial, params, hypers, worker, time.time(), 0)
                 submitted += 1
 
             if pending and len(pending) == max_conc and not filled_logged:
@@ -633,20 +633,33 @@ def run_baseline_kfold(
             if not pending:
                 continue
 
-            done_futs, _ = ray.wait(list(pending.keys()), num_returns=1, timeout=1.0)
+            wait_n = min(len(pending), max(1, max_conc // 2))
+            done_futs, _ = ray.wait(list(pending.keys()), num_returns=wait_n, timeout=1.0)
 
             if trial_timeout_s and trial_timeout_s > 0:
                 now = time.time()
                 timed_out = [
-                    fut for fut, (_, _, _, _, ts) in pending.items()
+                    fut for fut, (_, _, _, _, ts, _) in pending.items()
                     if now - ts >= trial_timeout_s
                 ]
                 for fut in timed_out:
-                    trial, params, hypers, worker, _ts = pending.pop(fut)
+                    trial, params, hypers, worker, _ts, retries = pending.pop(fut)
                     try:
                         ray.cancel(fut, force=True)
                     except Exception:
                         pass
+                    if retries < 1:
+                        new_worker = _replace_worker(workers, worker, rows_ref, spore_windows_ref)
+                        available.append(new_worker)
+                        if available:
+                            retry_worker = available.pop(0)
+                            retry_fut = retry_worker.eval_mae.remote(
+                                params, hypers, train_idx, val_idx, nb_disp, use_nb, rain_weight, end_mode,
+                                early_stop_mae, early_stop_nll, no_obs_nll
+                            )
+                            pending[retry_fut] = (trial, params, hypers, retry_worker, time.time(), retries + 1)
+                        continue
+
                     spore_lambda = float(hypers.get("spore_lambda", SPORE_LAMBDA))
                     train_mae = PENALTY_DAYS
                     val_mae = PENALTY_DAYS
@@ -678,7 +691,7 @@ def run_baseline_kfold(
                     new_worker = _replace_worker(workers, worker, rows_ref, spore_windows_ref)
                     available.append(new_worker)
             for fut in done_futs:
-                trial, params, hypers, worker, _ts = pending.pop(fut)
+                trial, params, hypers, worker, _ts, _retries = pending.pop(fut)
                 try:
                     train_mae, val_mae, train_std, val_std, train_rmse, val_rmse, train_nll, val_nll = ray.get(fut)
                 except Exception:
