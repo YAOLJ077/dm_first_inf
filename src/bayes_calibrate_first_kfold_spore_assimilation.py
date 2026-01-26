@@ -54,10 +54,10 @@ from model.config import config
 PENALTY_DAYS = 120.0
 RANDOM_SEED = 42
 FOLD_SEED = 42
-N_JOBS = 256
+N_JOBS = 32
 RB_CACHE_MAX = 128
 TOPK_PCT = 5.0
-JOBLIB_BATCH = 16  # trials per batch submission
+JOBLIB_BATCH = 8  # trials per batch submission
 
 # Spore assimilation hyperparams (defaults)
 SPORE_LAMBDA = 0.3
@@ -876,6 +876,7 @@ def main() -> None:
         if args.n_jobs > max_win_jobs:
             print(f"[Info] Windows max_workers capped to {max_win_jobs} (was {args.n_jobs})", flush=True)
             args.n_jobs = max_win_jobs
+    print(f"[Info] Effective n_jobs={args.n_jobs} | JOBLIB_BATCH={JOBLIB_BATCH}", flush=True)
 
     actual_df = load_actual()
     rows = list(actual_df.itertuples(index=False))
