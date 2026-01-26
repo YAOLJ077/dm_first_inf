@@ -751,6 +751,13 @@ def run_baseline_kfold(
             "spore_k_scale": k_scale,
             "spore_zero_infl": zi,
         })
+        print(
+            f"{prefix} Done | train_mae={fold_best_rows[-1]['train_mae']:.2f} "
+            f"val_mae={fold_best_rows[-1]['val_mae']:.2f} "
+            f"train_loss={fold_best_rows[-1]['train_loss']:.2f} "
+            f"val_loss={fold_best_rows[-1]['val_loss']:.2f}",
+            flush=True
+        )
 
     df_best = pd.DataFrame(fold_best_rows)
     summary = {
@@ -769,7 +776,7 @@ def main() -> None:
     parser.add_argument("--n-startup", type=int, default=10000)
     parser.add_argument("--n-jobs", type=int, default=N_JOBS)
     parser.add_argument("--restart-every", type=int, default=100)
-    parser.add_argument("--progress-interval", type=float, default=10.0)
+    parser.add_argument("--progress-interval", type=float, default=5.0)
     parser.add_argument("--seed", type=int, default=RANDOM_SEED)
     parser.add_argument("--seed-list", type=str, default="42,123,2024")
     parser.add_argument("--assim-end", type=str, default="sim", choices=["actual", "sim"])
@@ -795,6 +802,7 @@ def main() -> None:
     ranges = build_param_ranges()
 
     for seed in seeds:
+        print(f"\n=== Seed {seed} ===", flush=True)
         _, df_best, summary = run_baseline_kfold(
             rows,
             k=args.k,
