@@ -605,12 +605,14 @@ def run_baseline_kfold(
         last_ts = 0.0
         pending = {}
         completed = 0
+        submitted = 0
         max_conc = max(1, n_jobs)
         available = list(workers)
         next_restart = restart_every if restart_every > 0 else None
         prefix = f"{seed_tag}[Assimilation][Fold {fold_id}/{k}]"
         _stage_start(prefix, n_trials_stage1, 0, max_conc)
         last_ts = _progress_print(0, n_trials_stage1, 0, max_conc, prefix, last_ts, progress_interval)
+        filled_logged = False
 
         while completed < n_trials_stage1:
             while available and len(pending) < max_conc and completed + len(pending) < n_trials_stage1:
@@ -622,6 +624,11 @@ def run_baseline_kfold(
                     early_stop_mae, early_stop_nll, no_obs_nll
                 )
                 pending[fut] = (trial, params, hypers, worker, time.time())
+                submitted += 1
+
+            if pending and len(pending) == max_conc and not filled_logged:
+                print(f"{prefix} Dispatch | filled {len(pending)}/{max_conc}", flush=True)
+                filled_logged = True
 
             if not pending:
                 continue
