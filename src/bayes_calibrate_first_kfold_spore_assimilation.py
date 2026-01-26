@@ -878,9 +878,15 @@ def main() -> None:
             args.n_jobs = max_win_jobs
     print(f"[Info] Effective n_jobs={args.n_jobs} | JOBLIB_BATCH={JOBLIB_BATCH}", flush=True)
 
+    t0 = time.time()
+    print("[Init] Loading actual_data.xlsx...", flush=True)
     actual_df = load_actual()
+    print(f"[Init] Loaded actual_data.xlsx in {time.time() - t0:.1f}s", flush=True)
+    t1 = time.time()
+    print("[Init] Loading Spore_Overall.xlsx...", flush=True)
     rows = list(actual_df.itertuples(index=False))
     spore_windows = load_spore_obs_windows()
+    print(f"[Init] Loaded Spore_Overall.xlsx in {time.time() - t1:.1f}s", flush=True)
 
     seeds = [int(x) for x in args.seed_list.split(",") if x.strip()] if args.seed_list else [args.seed]
     ranges = build_param_ranges()
