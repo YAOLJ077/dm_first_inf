@@ -511,8 +511,8 @@ def _jb_ensure_loaded(data_dir: str, rb_cache_max: int) -> None:
     _JB_SPORE_WINDOWS = windows
     # Preload all rb jsons to reduce per-trial I/O
     for row in _JB_ROWS:
-        key = f\"{row.plot}_{row.variety}_{row.first_infection_date.year}\"
-        rb_path = os.path.join(data_dir, f\"{key}_grape_rb.json\")
+        key = f"{row.plot}_{row.variety}_{row.first_infection_date.year}"
+        rb_path = os.path.join(data_dir, f"{key}_grape_rb.json")
         if os.path.exists(rb_path):
             try:
                 _jb_load_rb_cached_lru(rb_path)
