@@ -71,7 +71,7 @@ def summarize_topk(result_dir: str, folds: List[int], topk_list: List[float], se
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--result-dir", required=True)
+    parser.add_argument("--result-dir", default=os.path.join("result", "calibration"))
     parser.add_argument("--seed-list", type=str, default="42,123,2024")
     parser.add_argument("--folds", type=str, default="1,2,3")
     parser.add_argument("--topk", type=str, default="1,2,3,5,10")
