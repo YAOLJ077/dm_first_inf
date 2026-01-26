@@ -55,7 +55,7 @@ PENALTY_DAYS = 120.0
 RANDOM_SEED = 42
 FOLD_SEED = 42
 N_JOBS = 0  # auto: use (cpu_count - 1) at runtime
-RB_CACHE_MAX = 128
+RB_CACHE_MAX = 512
 TOPK_PCT = 5.0
 
 # Spore assimilation hyperparams (defaults)
@@ -509,6 +509,15 @@ def _jb_ensure_loaded(data_dir: str, rb_cache_max: int) -> None:
                 windows.setdefault((str(plot), int(year)), []).append((prev, cur, y))
             prev = cur
     _JB_SPORE_WINDOWS = windows
+    # Preload all rb jsons to reduce per-trial I/O
+    for row in _JB_ROWS:
+        key = f\"{row.plot}_{row.variety}_{row.first_infection_date.year}\"
+        rb_path = os.path.join(data_dir, f\"{key}_grape_rb.json\")
+        if os.path.exists(rb_path):
+            try:
+                _jb_load_rb_cached_lru(rb_path)
+            except Exception:
+                continue
 
 
 def _jb_load_rb_cached_lru(path: str) -> dict:
