@@ -29,6 +29,8 @@ import ray
 import optuna
 from optuna.samplers import TPESampler
 import time
+import concurrent.futures
+import multiprocessing
 
 # ======================================================
 # PATHS
@@ -474,6 +476,119 @@ def _spore_nll_for_row(
     return float(total_nll / float(used))
 
 
+# ======================================================
+# Multiprocessing backend (no Ray)
+# ======================================================
+_MP_ROWS = None
+_MP_SPORE_WINDOWS = None
+_MP_RB_CACHE = OrderedDict()
+_MP_RB_CACHE_MAX = 64
+
+
+def _mp_init(rows, spore_windows, rb_cache_max: int) -> None:
+    global _MP_ROWS, _MP_SPORE_WINDOWS, _MP_RB_CACHE, _MP_RB_CACHE_MAX
+    _MP_ROWS = rows
+    _MP_SPORE_WINDOWS = spore_windows
+    _MP_RB_CACHE = OrderedDict()
+    _MP_RB_CACHE_MAX = rb_cache_max
+
+
+def _mp_load_rb_cached_lru(path: str) -> dict:
+    global _MP_RB_CACHE, _MP_RB_CACHE_MAX
+    if path in _MP_RB_CACHE:
+        _MP_RB_CACHE.move_to_end(path)
+        return _MP_RB_CACHE[path]
+    with open(path, "r") as f:
+        data = json.load(f)
+    _MP_RB_CACHE[path] = data
+    _MP_RB_CACHE.move_to_end(path)
+    if _MP_RB_CACHE_MAX > 0 and len(_MP_RB_CACHE) > _MP_RB_CACHE_MAX:
+        _MP_RB_CACHE.popitem(last=False)
+    return data
+
+
+def _mp_compute_stats_idx(
+    cfg: dict,
+    idxs: List[int],
+    k_scale: float,
+    nb_disp: float,
+    zi: float,
+    use_nb: bool,
+    rain_weight: float,
+    end_mode: str,
+    no_obs_nll: float
+) -> Tuple[float, float, float, float]:
+    errors = []
+    nlls = []
+    for i in idxs:
+        row = _MP_ROWS[i]
+        key = f"{row.plot}_{row.variety}_{row.first_infection_date.year}"
+        rb_path = os.path.join(DATA_DIR, f"{key}_grape_rb.json")
+        if not os.path.exists(rb_path):
+            errors.append(float(PENALTY_DAYS))
+            nlls.append(float(no_obs_nll))
+            continue
+        try:
+            rb = _mp_load_rb_cached_lru(rb_path)
+            cs = CropSeasonFirst(csrb=rb, config=cfg)
+            cs.simulate()
+            err = _calc_error(row.first_infection_date, cs.primary_chain_unique)
+            if not np.isfinite(err):
+                err = float(PENALTY_DAYS)
+            nll = _spore_nll_for_row(
+                row, rb, cs,
+                _MP_SPORE_WINDOWS.get((str(row.plot), int(row.first_infection_date.year)), []),
+                k_scale, nb_disp, zi, use_nb, rain_weight, end_mode, no_obs_nll
+            )
+        except Exception:
+            err = float(PENALTY_DAYS)
+            nll = float(no_obs_nll)
+
+        errors.append(float(err))
+        nlls.append(float(nll))
+
+    if not errors:
+        return PENALTY_DAYS, 0.0, PENALTY_DAYS, float(no_obs_nll)
+    abs_err = np.abs(np.array(errors, dtype=float))
+    mae = float(abs_err.mean())
+    std = float(abs_err.std(ddof=0))
+    rmse = float(np.sqrt(np.mean(np.square(abs_err))))
+    nll = float(np.mean(nlls)) if nlls else float(no_obs_nll)
+    return mae, std, rmse, nll
+
+
+def eval_mae_mp(
+    params: Dict[str, float],
+    hypers: Dict[str, float],
+    train_idx: List[int],
+    val_idx: List[int],
+    nb_disp: float,
+    use_nb: bool,
+    rain_weight: float,
+    end_mode: str,
+    early_stop_mae: float,
+    early_stop_nll: float,
+    no_obs_nll: float
+) -> Tuple[float, float, float, float, float, float, float, float]:
+    cfg = apply_params(config, params)
+    k_scale = float(hypers.get("spore_k_scale", SPORE_K_SCALE))
+    zi = float(hypers.get("spore_zero_infl", SPORE_ZERO_INFL))
+    train_mae, train_std, train_rmse, train_nll = _mp_compute_stats_idx(
+        cfg, train_idx, k_scale, nb_disp, zi, use_nb, rain_weight, end_mode, no_obs_nll
+    )
+    if early_stop_mae > 0 and train_mae >= early_stop_mae:
+        val_mae, val_std, val_rmse, _val_nll = _mp_compute_stats_idx(
+            cfg, val_idx, k_scale, nb_disp, zi, use_nb, rain_weight, end_mode, no_obs_nll
+        )
+        train_nll = early_stop_nll
+        val_nll = early_stop_nll
+        return train_mae, val_mae, train_std, val_std, train_rmse, val_rmse, train_nll, val_nll
+    val_mae, val_std, val_rmse, val_nll = _mp_compute_stats_idx(
+        cfg, val_idx, k_scale, nb_disp, zi, use_nb, rain_weight, end_mode, no_obs_nll
+    )
+    return train_mae, val_mae, train_std, val_std, train_rmse, val_rmse, train_nll, val_nll
+
+
 def build_folds(n: int, k: int, seed: int) -> List[List[int]]:
     if k <= 1 or k > n:
         k = n
@@ -910,12 +1025,176 @@ def run_baseline_kfold(
     return fold_params, df_best, summary
 
 
+def run_baseline_kfold_process(
+    rows: List[pd.Series],
+    k: int,
+    stage1_ranges: Dict[str, Tuple[float, float]],
+    hyper_ranges: Dict[str, Tuple[float, float]],
+    spore_windows: Dict[Tuple[str, int], List[Tuple[pd.Timestamp, pd.Timestamp, float]]],
+    n_jobs: int,
+    restart_every: int,
+    n_trials_stage1: int,
+    n_startup_stage1: int,
+    progress_interval: float,
+    seed: int,
+    seed_tag: str = "",
+    nb_disp: float = SPORE_NB_DISP,
+    use_nb: bool = USE_NB,
+    rain_weight: float = SPORE_RAIN_WEIGHT,
+    end_mode: str = "actual",
+    early_stop_mae: float = 0.0,
+    early_stop_nll: float = PENALTY_DAYS,
+    no_obs_nll: float = NO_OBS_NLL,
+) -> Tuple[List[Dict[str, float]], pd.DataFrame, Dict[str, float]]:
+    folds = build_folds(len(rows), k, FOLD_SEED)
+    fold_best_rows = []
+    fold_params = []
+
+    for fold_id, val_idx in enumerate(folds, start=1):
+        train_idx = [i for i in range(len(rows)) if i not in val_idx]
+        train_rows = [rows[i] for i in train_idx]
+        val_rows = [rows[i] for i in val_idx]
+
+        sampler = TPESampler(seed=seed + fold_id, multivariate=True, n_startup_trials=n_startup_stage1)
+        study = optuna.create_study(sampler=sampler, direction="minimize")
+        trial_rows = []
+        last_ts = 0.0
+        pending = {}
+        completed = 0
+        max_conc = max(1, n_jobs)
+        prefix = f"{seed_tag}[Assimilation][Fold {fold_id}/{k}]"
+        _stage_start(prefix, n_trials_stage1, 0, max_conc)
+        last_ts = _progress_print(0, n_trials_stage1, 0, max_conc, prefix, last_ts, progress_interval)
+        filled_logged = False
+
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=n_jobs,
+            initializer=_mp_init,
+            initargs=(rows, spore_windows, RB_CACHE_MAX),
+            mp_context=multiprocessing.get_context("spawn"),
+        ) as executor:
+            while completed < n_trials_stage1:
+                while len(pending) < max_conc and completed + len(pending) < n_trials_stage1:
+                    trial = study.ask()
+                    params, hypers = define_search_space(trial, stage1_ranges, hyper_ranges)
+                    fut = executor.submit(
+                        eval_mae_mp,
+                        params, hypers, train_idx, val_idx,
+                        nb_disp, use_nb, rain_weight, end_mode,
+                        early_stop_mae, early_stop_nll, no_obs_nll
+                    )
+                    pending[fut] = (trial, params, hypers)
+
+                if pending and len(pending) == max_conc and not filled_logged:
+                    print(f"{prefix} Dispatch | filled {len(pending)}/{max_conc}", flush=True)
+                    filled_logged = True
+
+                if not pending:
+                    time.sleep(0.01)
+                    continue
+
+                done, _ = concurrent.futures.wait(
+                    pending.keys(),
+                    return_when=concurrent.futures.FIRST_COMPLETED,
+                    timeout=1.0
+                )
+
+                for fut in done:
+                    trial, params, hypers = pending.pop(fut)
+                    try:
+                        train_mae, val_mae, train_std, val_std, train_rmse, val_rmse, train_nll, val_nll = fut.result()
+                    except Exception:
+                        continue
+
+                    spore_lambda = float(hypers.get("spore_lambda", SPORE_LAMBDA))
+                    train_loss = float(train_mae + spore_lambda * train_nll)
+                    val_loss = float(val_mae + spore_lambda * val_nll)
+
+                    study.tell(trial, train_loss)
+                    trial_rows.append({
+                        **params,
+                        **hypers,
+                        "train_mae": float(train_mae),
+                        "val_mae": float(val_mae),
+                        "train_std": float(train_std),
+                        "val_std": float(val_std),
+                        "train_rmse": float(train_rmse),
+                        "val_rmse": float(val_rmse),
+                        "train_spore_nll": float(train_nll),
+                        "val_spore_nll": float(val_nll),
+                        "train_loss": train_loss,
+                        "val_loss": val_loss,
+                        "timeout": 0,
+                    })
+
+                    completed += 1
+                    last_ts = _progress_print(completed, n_trials_stage1, len(pending), max_conc, prefix, last_ts, progress_interval)
+
+        df_trials = pd.DataFrame(trial_rows)
+        fold_dir = os.path.join(RESULT_DIR, f"seed_{seed}_assimilation")
+        os.makedirs(fold_dir, exist_ok=True)
+        fold_csv = os.path.join(fold_dir, f"baseline_kfold_fold_{fold_id}_trials_assimilation.csv")
+        df_trials.to_csv(fold_csv, index=False)
+
+        best = select_topk_val_best_constrained(df_trials, TOPK_PCT)
+        fold_best_rows.append({
+            "fold": fold_id,
+            "train_mae": float(best["train_mae"]),
+            "val_mae": float(best["val_mae"]),
+            "train_std": float(best["train_std"]),
+            "val_std": float(best["val_std"]),
+            "train_rmse": float(best["train_rmse"]),
+            "val_rmse": float(best["val_rmse"]),
+            "train_spore_nll": float(best["train_spore_nll"]),
+            "val_spore_nll": float(best["val_spore_nll"]),
+            "train_loss": float(best["train_loss"]),
+            "val_loss": float(best["val_loss"]),
+        })
+
+        fold_params.append({k: float(best[k]) for k in stage1_ranges.keys()})
+
+        cfg_best = apply_params(config, fold_params[-1])
+        spore_lambda = float(best.get("spore_lambda", SPORE_LAMBDA))
+        k_scale = float(best.get("spore_k_scale", SPORE_K_SCALE))
+        zi = float(best.get("spore_zero_infl", SPORE_ZERO_INFL))
+        train_mae, train_std, train_rmse = compute_error_stats(cfg_best, train_rows)
+        val_mae, val_std, val_rmse = compute_error_stats(cfg_best, val_rows)
+        fold_best_rows[-1].update({
+            "train_mae_full": float(train_mae),
+            "val_mae_full": float(val_mae),
+            "train_std_full": float(train_std),
+            "val_std_full": float(val_std),
+            "train_rmse_full": float(train_rmse),
+            "val_rmse_full": float(val_rmse),
+            "spore_lambda": spore_lambda,
+            "spore_k_scale": k_scale,
+            "spore_zero_infl": zi,
+        })
+
+        print(
+            f"{prefix} Done | train_mae={fold_best_rows[-1]['train_mae']:.2f} "
+            f"val_mae={fold_best_rows[-1]['val_mae']:.2f} "
+            f"train_loss={fold_best_rows[-1]['train_loss']:.2f} "
+            f"val_loss={fold_best_rows[-1]['val_loss']:.2f}",
+            flush=True
+        )
+
+    df_best = pd.DataFrame(fold_best_rows)
+    summary = {
+        "mean_train_mae": float(df_best["train_mae"].mean()),
+        "mean_val_mae": float(df_best["val_mae"].mean()),
+        "mean_train_loss": float(df_best["train_loss"].mean()),
+        "mean_val_loss": float(df_best["val_loss"].mean()),
+    }
+    return fold_params, df_best, summary
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--k", type=int, default=3)
     parser.add_argument("--n-trials", type=int, default=25000)
-    parser.add_argument("--n-startup", type=int, default=10000)
-    parser.add_argument("--n-jobs", type=int, default=N_JOBS)
+    parser.add_argument("--n-startup", type=int, default=8000)
+    parser.add_argument("--n-jobs", type=int, default=256)
     parser.add_argument("--restart-every", type=int, default=100)
     parser.add_argument("--progress-interval", type=float, default=5.0)
     parser.add_argument("--seed", type=int, default=RANDOM_SEED)
@@ -927,53 +1206,81 @@ def main() -> None:
     parser.add_argument("--early-stop-mae", type=float, default=EARLY_STOP_MAE)
     parser.add_argument("--early-stop-nll", type=float, default=PENALTY_DAYS)
     parser.add_argument("--no-obs-nll", type=float, default=NO_OBS_NLL)
+    parser.add_argument("--backend", type=str, default="process", choices=["process", "ray"])
     args = parser.parse_args()
 
     actual_df = load_actual()
     rows = list(actual_df.itertuples(index=False))
     spore_windows = load_spore_obs_windows()
 
-    print("Initializing Ray...", flush=True)
-    ray.init(num_cpus=args.n_jobs, include_dashboard=False, logging_level="ERROR")
-    try:
-        print("Ray resources:", ray.available_resources(), flush=True)
-    except Exception:
-        pass
-    rows_ref = ray.put(rows)
-    spore_ref = ray.put(spore_windows)
-    print(f"Creating {args.n_jobs} workers...", flush=True)
-    workers = _make_workers(args.n_jobs, rows_ref, spore_ref)
-    print("Workers ready.", flush=True)
+    workers = None
+    rows_ref = None
+    spore_ref = None
+    if args.backend == "ray":
+        print("Initializing Ray...", flush=True)
+        ray.init(num_cpus=args.n_jobs, include_dashboard=False, logging_level="ERROR")
+        try:
+            print("Ray resources:", ray.available_resources(), flush=True)
+        except Exception:
+            pass
+        rows_ref = ray.put(rows)
+        spore_ref = ray.put(spore_windows)
+        print(f"Creating {args.n_jobs} workers...", flush=True)
+        workers = _make_workers(args.n_jobs, rows_ref, spore_ref)
+        print("Workers ready.", flush=True)
 
     seeds = [int(x) for x in args.seed_list.split(",") if x.strip()] if args.seed_list else [args.seed]
     ranges = build_param_ranges()
 
     for seed in seeds:
         print(f"\n=== Seed {seed} ===", flush=True)
-        _, df_best, summary = run_baseline_kfold(
-            rows,
-            k=args.k,
-            stage1_ranges=ranges,
-            hyper_ranges=HYPER_RANGES,
-            spore_windows=spore_windows,
-            workers=workers,
-            rows_ref=rows_ref,
-            spore_windows_ref=spore_ref,
-            n_jobs=args.n_jobs,
-            restart_every=args.restart_every,
-            n_trials_stage1=args.n_trials,
-            n_startup_stage1=args.n_startup,
-            progress_interval=args.progress_interval,
-            seed=seed,
-            seed_tag=f"[seed={seed}] ",
-            nb_disp=args.spore_nb_disp,
-            use_nb=not args.use_poisson,
-            rain_weight=args.spore_rain_weight,
-            end_mode=args.assim_end,
-            early_stop_mae=args.early_stop_mae,
-            early_stop_nll=args.early_stop_nll,
-            no_obs_nll=args.no_obs_nll,
-        )
+        if args.backend == "ray":
+            _, df_best, summary = run_baseline_kfold(
+                rows,
+                k=args.k,
+                stage1_ranges=ranges,
+                hyper_ranges=HYPER_RANGES,
+                spore_windows=spore_windows,
+                workers=workers,
+                rows_ref=rows_ref,
+                spore_windows_ref=spore_ref,
+                n_jobs=args.n_jobs,
+                restart_every=args.restart_every,
+                n_trials_stage1=args.n_trials,
+                n_startup_stage1=args.n_startup,
+                progress_interval=args.progress_interval,
+                seed=seed,
+                seed_tag=f"[seed={seed}] ",
+                nb_disp=args.spore_nb_disp,
+                use_nb=not args.use_poisson,
+                rain_weight=args.spore_rain_weight,
+                end_mode=args.assim_end,
+                early_stop_mae=args.early_stop_mae,
+                early_stop_nll=args.early_stop_nll,
+                no_obs_nll=args.no_obs_nll,
+            )
+        else:
+            _, df_best, summary = run_baseline_kfold_process(
+                rows,
+                k=args.k,
+                stage1_ranges=ranges,
+                hyper_ranges=HYPER_RANGES,
+                spore_windows=spore_windows,
+                n_jobs=args.n_jobs,
+                restart_every=args.restart_every,
+                n_trials_stage1=args.n_trials,
+                n_startup_stage1=args.n_startup,
+                progress_interval=args.progress_interval,
+                seed=seed,
+                seed_tag=f"[seed={seed}] ",
+                nb_disp=args.spore_nb_disp,
+                use_nb=not args.use_poisson,
+                rain_weight=args.spore_rain_weight,
+                end_mode=args.assim_end,
+                early_stop_mae=args.early_stop_mae,
+                early_stop_nll=args.early_stop_nll,
+                no_obs_nll=args.no_obs_nll,
+            )
 
         out_dir = os.path.join(RESULT_DIR, f"seed_{seed}_assimilation")
         os.makedirs(out_dir, exist_ok=True)
