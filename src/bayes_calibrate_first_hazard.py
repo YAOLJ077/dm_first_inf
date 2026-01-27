@@ -153,7 +153,12 @@ def build_folds(n: int, k: int, seed: int) -> List[List[int]]:
 def define_search_space(trial: optuna.Trial, ranges: Dict[str, Tuple[float, float]]) -> Dict[str, float]:
     params = {}
     for k, (lo, hi) in ranges.items():
-        params[k] = trial.suggest_float(k, lo, hi)
+        if k == "hazard__alpha":
+            params[k] = trial.suggest_float(k, lo, hi, log=True)
+        elif k == "hazard__threshold":
+            params[k] = trial.suggest_float(k, lo, hi, log=True)
+        else:
+            params[k] = trial.suggest_float(k, lo, hi)
     return params
 
 
@@ -163,10 +168,15 @@ def _calc_time_error(actual_date, event_df: pd.DataFrame) -> float:
     try:
         first = event_df.iloc[0]
         oil_spot_start = pd.to_datetime(first["oil_spot_start"]).normalize()
+        oil_spot_end = pd.to_datetime(first["oil_spot_end"]).normalize()
         actual = pd.to_datetime(actual_date).normalize()
-        if pd.isna(oil_spot_start) or pd.isna(actual):
+        if pd.isna(oil_spot_start) or pd.isna(oil_spot_end) or pd.isna(actual):
             return float(PENALTY_DAYS)
-        return float((oil_spot_start - actual).days)
+        if oil_spot_end < actual:
+            return float((oil_spot_end - actual).days)
+        if oil_spot_start > actual:
+            return float((oil_spot_start - actual).days)
+        return 0.0
     except Exception:
         return float(PENALTY_DAYS)
 
@@ -195,8 +205,9 @@ def compute_metrics(
     spore_windows: Dict[Tuple[str, int], List[Tuple[pd.Timestamp, pd.Timestamp, float]]],
     rb_cache: Dict[str, dict] | None = None
 ) -> Tuple[float, float]:
+    scale = 100.0
     time_errors = []
-    spore_sq_errors = []
+    spore_sq_errors_log = []
     for row in rows:
         rb_path = _rb_path_for_row(row)
         if not os.path.exists(rb_path):
@@ -213,14 +224,18 @@ def compute_metrics(
             time_errors.append(float(time_err))
             win_obs = spore_windows.get((str(row.plot), int(row.year)), [])
             if win_obs:
-                sim_df = _sim_spore_df(cs)
+                sim_df = cs.supply_wind if hasattr(cs, "supply_wind") else None
+                if sim_df is None or sim_df.empty:
+                    continue
                 for (s, e, y) in win_obs:
                     s = pd.to_datetime(s).normalize()
                     e = pd.to_datetime(e).normalize()
                     if e < s:
                         continue
                     sim_val = _window_sim_value(sim_df, s, e)
-                    spore_sq_errors.append(float((sim_val - float(y)) ** 2))
+                    obs_log = math.log(float(y) + 1.0)
+                    sim_log = math.log(scale * float(sim_val) + 1.0)
+                    spore_sq_errors_log.append(float((sim_log - obs_log) ** 2))
         except Exception:
             time_errors.append(float(PENALTY_DAYS))
 
@@ -229,12 +244,12 @@ def compute_metrics(
     else:
         time_mae = float(np.mean(np.abs(np.array(time_errors, dtype=float))))
 
-    if not spore_sq_errors:
-        spore_mse = 0.0
+    if not spore_sq_errors_log:
+        spore_mse_log = 0.0
     else:
-        spore_mse = float(np.mean(np.array(spore_sq_errors, dtype=float)))
+        spore_mse_log = float(np.mean(np.array(spore_sq_errors_log, dtype=float)))
 
-    return time_mae, spore_mse
+    return time_mae, spore_mse_log
 
 
 def eval_trial(
@@ -246,13 +261,13 @@ def eval_trial(
     rb_cache: Dict[str, dict] | None = None
 ) -> Dict[str, float]:
     cfg = apply_params(config, params)
-    train_time_mae, train_spore_mse = compute_metrics(cfg, train_rows, spore_windows, rb_cache=rb_cache)
+    train_time_mae, train_spore_mse_log = compute_metrics(cfg, train_rows, spore_windows, rb_cache=rb_cache)
     val_time_mae, _ = compute_metrics(cfg, val_rows, spore_windows, rb_cache=rb_cache)
-    train_loss = float(train_time_mae + spore_lambda * train_spore_mse)
+    train_loss = float(train_time_mae + spore_lambda * train_spore_mse_log)
     out = {
         "train_time_mae": float(train_time_mae),
         "val_time_mae": float(val_time_mae),
-        "train_spore_mse": float(train_spore_mse),
+        "train_spore_mse_log": float(train_spore_mse_log),
         "train_loss": float(train_loss),
     }
     for k, v in params.items():
@@ -359,7 +374,7 @@ def run_kfold(
             "fold": int(fold_id),
             "train_time_mae": float(best["train_time_mae"]),
             "val_time_mae": float(best["val_time_mae"]),
-            "train_spore_mse": float(best["train_spore_mse"]),
+            "train_spore_mse_log": float(best["train_spore_mse_log"]),
             "train_loss": float(best["train_loss"]),
         })
         fold_elapsed = time.time() - fold_start
@@ -381,7 +396,7 @@ def run_kfold(
         "seed": int(seed),
         "seed_mean_val_mae": float(fold_df["val_time_mae"].mean()),
         "seed_mean_train_loss": float(fold_df["train_loss"].mean()),
-        "seed_mean_spore_mse": float(fold_df["train_spore_mse"].mean()),
+        "seed_mean_spore_mse_log": float(fold_df["train_spore_mse_log"].mean()),
     }
     seed_summary_path = os.path.join(out_dir, "seed_summary.csv")
     pd.DataFrame([seed_summary]).to_csv(seed_summary_path, index=False)
