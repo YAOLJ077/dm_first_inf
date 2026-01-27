@@ -64,6 +64,46 @@ class FirstInfectionHazard:
             d: np.where(dates == d)[0] for d in np.unique(dates)
         }
 
+    def _build_wind_supply(self):
+        cohorts = self.cs.dispersal_cohorts
+        if cohorts is None or cohorts.empty:
+            self.cs.supply_wind = pd.DataFrame(columns=["date", "supply"])
+            return
+
+        wind = cohorts[cohorts["dispersal_type"] == "wind"].copy()
+        if wind.empty:
+            self.cs.supply_wind = pd.DataFrame(columns=["date", "supply"])
+            return
+
+        wind = wind.sort_values("dispersal_datetime").reset_index(drop=True)
+        supply_hourly = np.zeros(len(self.wh), dtype=float)
+
+        for i in range(len(wind)):
+            start_dt = wind.iloc[i]["dispersal_datetime"]
+            start_idx = np.searchsorted(self.time_index, np.datetime64(start_dt))
+            if not (0 <= start_idx < len(self.wh)):
+                continue
+
+            start_amt = float(wind.iloc[i]["airborne_amount"])
+
+            if i + 1 < len(wind):
+                end_dt = wind.iloc[i + 1]["dispersal_datetime"]
+                end_idx = np.searchsorted(self.time_index, np.datetime64(end_dt))
+                if end_idx <= start_idx:
+                    continue
+                end_amt = float(wind.iloc[i + 1]["airborne_amount"])
+                values = np.linspace(start_amt, end_amt, num=end_idx - start_idx, endpoint=False)
+                supply_hourly[start_idx:end_idx] += values
+            else:
+                supply_hourly[start_idx:] += start_amt
+
+        supply_df = (
+            pd.DataFrame({"date": self.wh["date"], "supply": supply_hourly})
+            .groupby("date", as_index=False)
+            .agg(supply=("supply", "sum"))
+        )
+        self.cs.supply_wind = supply_df
+
     # ======================================================
     # S1–S2. ATTACHED INVENTORY + DISPERSAL (WITH SOFT GATE)
     # ======================================================
@@ -150,6 +190,7 @@ class FirstInfectionHazard:
 
         self.cs.attached_inventory = pd.DataFrame(inventory)
         self.cs.dispersal_cohorts = pd.DataFrame(cohorts)
+        self._build_wind_supply()
 
     # ======================================================
     # S3. DEPOSITION
