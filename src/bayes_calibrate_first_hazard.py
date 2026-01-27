@@ -154,9 +154,11 @@ def define_search_space(trial: optuna.Trial, ranges: Dict[str, Tuple[float, floa
     params = {}
     for k, (lo, hi) in ranges.items():
         if k == "hazard__alpha":
-            params[k] = trial.suggest_float(k, lo, hi, log=True)
+            lo2 = max(lo, 1e-8)
+            params[k] = trial.suggest_float(k, lo2, hi, log=True)
         elif k == "hazard__threshold":
-            params[k] = trial.suggest_float(k, lo, hi, log=True)
+            lo2 = max(lo, 1e-8)
+            params[k] = trial.suggest_float(k, lo2, hi, log=True)
         else:
             params[k] = trial.suggest_float(k, lo, hi)
     return params
