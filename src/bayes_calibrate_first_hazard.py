@@ -54,10 +54,10 @@ BASE_RANGES = {
     "zoospore_alive__vpd": (1.5, 3.5),
 
     # === updated hazard parameter ranges ===
-    "hazard__alpha": (1e-4, 10.0),
-    "hazard__p": (0.8, 1.8),
-    "hazard__q": (0.8, 1.4),
-    "hazard__threshold": (0.1, 100.0),
+    "hazard__alpha": (1e-4, 3.0),
+    "hazard__p": (0.8, 1.6),
+    "hazard__q": (0.8, 1.6),
+    "hazard__threshold": (0.1, 500.0),
 
     "thresholds__min_spores": (0.02, 0.06),
     "incubation__spl_end": (1.0, 1.5),
