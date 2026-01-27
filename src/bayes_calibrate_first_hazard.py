@@ -5,6 +5,7 @@ import json
 import copy
 import argparse
 import math
+import time
 from typing import Dict, List, Tuple
 
 os.environ.setdefault("RAY_DISABLE_METRICS", "1")
@@ -290,8 +291,11 @@ def run_kfold(
     folds = build_folds(len(rows), k, FOLD_SEED)
     fold_rows = []
     os.makedirs(out_dir, exist_ok=True)
+    fold_durations: List[float] = []
 
     for fold_id, val_idx in enumerate(folds, start=1):
+        fold_start = time.time()
+        print(f"[Seed {seed}] Fold {fold_id}/{k} start", flush=True)
         train_idx = [i for i in range(len(rows)) if i not in val_idx]
         train_rows = [rows[i] for i in train_idx]
         val_rows = [rows[i] for i in val_idx]
@@ -331,6 +335,15 @@ def run_kfold(
                         res["fold"] = int(fold_id)
                         trial_rows.append(res)
                         completed += 1
+                    if completed > 0:
+                        elapsed = time.time() - fold_start
+                        rate = completed / max(elapsed, 1e-6)
+                        remaining = (n_trials - completed) / max(rate, 1e-6)
+                        print(
+                            f"[Seed {seed}] Fold {fold_id}/{k} {completed}/{n_trials} "
+                            f"elapsed={elapsed/60:.1f}m eta={remaining/60:.1f}m",
+                            flush=True
+                        )
                     if next_restart is not None and completed >= next_restart:
                         break
             if next_restart is not None and completed >= next_restart:
@@ -349,6 +362,16 @@ def run_kfold(
             "train_spore_mse": float(best["train_spore_mse"]),
             "train_loss": float(best["train_loss"]),
         })
+        fold_elapsed = time.time() - fold_start
+        fold_durations.append(fold_elapsed)
+        avg_fold = sum(fold_durations) / len(fold_durations)
+        remaining_folds = k - fold_id
+        eta_folds = avg_fold * remaining_folds
+        print(
+            f"[Seed {seed}] Fold {fold_id}/{k} done in {fold_elapsed/60:.1f}m | "
+            f"ETA remaining folds {eta_folds/60:.1f}m",
+            flush=True
+        )
 
     fold_df = pd.DataFrame(fold_rows)
     fold_df.loc["mean"] = fold_df.mean(numeric_only=True)
@@ -385,6 +408,8 @@ def main() -> None:
     n_jobs = args.n_jobs
     if n_jobs <= 0:
         n_jobs = max(1, (os.cpu_count() or 2) - 1)
+    if os.name == "nt":
+        n_jobs = min(n_jobs, 61)
     batch_size = args.batch_size if args.batch_size and args.batch_size > 0 else n_jobs
     if batch_size <= 0:
         batch_size = 1
@@ -398,6 +423,8 @@ def main() -> None:
     seed_summaries = []
 
     for seed in seed_list:
+        seed_start = time.time()
+        print(f"[Seed {seed}] start", flush=True)
         seed_dir = os.path.join(base_out, f"seed_{seed}")
         os.makedirs(seed_dir, exist_ok=True)
         summary = run_kfold(
@@ -416,6 +443,8 @@ def main() -> None:
             out_dir=seed_dir
         )
         seed_summaries.append(summary)
+        seed_elapsed = time.time() - seed_start
+        print(f"[Seed {seed}] done in {seed_elapsed/60:.1f}m", flush=True)
 
     if seed_summaries:
         df_global = pd.DataFrame(seed_summaries)
