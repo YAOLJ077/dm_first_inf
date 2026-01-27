@@ -1,5 +1,5 @@
 import pandas as pd
-from model.first_infection import FirstInfection
+from model.first_infection_hazard import FirstInfectionHazard
 
 
 class CropSeasonFirst:
@@ -12,13 +12,13 @@ class CropSeasonFirst:
         self.config = config
         self.year = csrb.get("year")
         self.place = csrb.get("Place")
+        self._delta_pre_bbch53 = 30  # days
 
         self.bbch_53_datetime = pd.to_datetime(
             csrb.get("HHCH_53"), errors="coerce"
         )
-        # Allow incubation period before BBCH53 by shifting the gate earlier.
-        self.bbch_53_gate_start = (
-            self.bbch_53_datetime - pd.Timedelta(days=7)
+        self.season_start = (
+            self.bbch_53_datetime - pd.Timedelta(days=self._delta_pre_bbch53)
             if pd.notna(self.bbch_53_datetime)
             else pd.NaT
         )
@@ -33,9 +33,9 @@ class CropSeasonFirst:
         )
 
 
-        if pd.notna(self.bbch_53_gate_start):
+        if pd.notna(self.season_start):
             self.weather_hourly = self.weather_hourly[
-                self.weather_hourly["datetime"] >= self.bbch_53_gate_start
+                self.weather_hourly["datetime"] >= self.season_start
             ].reset_index(drop=True)
 
         self.weather_daily = (
@@ -56,7 +56,7 @@ class CropSeasonFirst:
     # ==================================================
     def simulate(self, use_obs_gate=False, obs_gate=None):
 
-        model = FirstInfection(
+        model = FirstInfectionHazard(
             self,
             self.config,
             obs_gate=obs_gate if use_obs_gate else None
@@ -81,9 +81,9 @@ class CropSeasonFirst:
 
         # ---------- ensure column exists ----------
         if "infection_effective_bbch53" not in df.columns:
-            if pd.notna(self.bbch_53_gate_start):
+            if pd.notna(self.bbch_53_datetime):
                 df["infection_effective_bbch53"] = (
-                    df["oil_spot_start"] >= self.bbch_53_gate_start
+                    df["oil_spot_start"] >= self.bbch_53_datetime
                 )
             else:
                 df["infection_effective_bbch53"] = True
