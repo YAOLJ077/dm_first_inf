@@ -3,17 +3,63 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
+PARAM_ABBR = {
+    "dispersal__rain_min": "DIRM",
+    "infection__infection_condition": "IC",
+    "zoospore_alive__vpd": "ZVPD",
+    "mp_tmp__rh_wet_night": "MTWN",
+    "sporulation__Tmax": "STMX",
+    "dispersal__wind_min": "DIWM",
+    "sporulation__Topt": "STOP",
+    "sporulation__MP_min": "SMMI",
+    "deposition__rain_min": "DERM",
+    "sporulation__Tmin": "STMI",
+    "incubation__spl_end": "ISED",
+    "zoospore_alive__rain": "ZARA",
+    "zoospore_alibe__rain": "ZARA",
+}
+
+
 def _load(path: str) -> pd.DataFrame:
     if not os.path.exists(path):
         raise FileNotFoundError(path)
     return pd.read_excel(path)
 
 
-def _plot_one(ax, df: pd.DataFrame, title: str):
-    ax.barh(df["Parameter"], df["mu_star"])
-    ax.set_title(title)
-    ax.set_xlabel("mu_star (mean)")
+def _apply_abbr(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    out["abbr"] = out["Parameter"].map(PARAM_ABBR).fillna(out["Parameter"])
+    return out
+
+
+def _plot_mae(df: pd.DataFrame):
+    df = _apply_abbr(df).sort_values("mu_star", ascending=False)
+    fig, ax = plt.subplots(figsize=(7.2, 4.2))
+    ax.barh(df["abbr"], df["mu_star"], color="#4C78A8")
     ax.invert_yaxis()
+    ax.grid(axis="x", color="#DDDDDD", linewidth=0.6)
+    ax.set_xlabel("mu_star (mean)")
+    ax.set_title("Morris N=512 MAE (st)")
+    fig.tight_layout()
+    # out_path = os.path.join(fig_dir, "morris_first_inf_st_N512_MAE.png")
+    # fig.savefig(out_path, dpi=300)
+    return fig
+
+
+def _plot_signed(df: pd.DataFrame):
+    df = _apply_abbr(df).sort_values("mu", ascending=False)
+    fig, ax = plt.subplots(figsize=(7.2, 4.2))
+    colors = ["#E45756" if v < 0 else "#72B7B2" for v in df["mu"]]
+    ax.barh(df["abbr"], df["mu"], color=colors)
+    ax.invert_yaxis()
+    ax.axvline(0, color="#333333", linewidth=0.8)
+    ax.grid(axis="x", color="#DDDDDD", linewidth=0.6)
+    ax.set_xlabel("mu (signed mean)")
+    ax.set_title("Morris N=512 Signed (st)")
+    fig.tight_layout()
+    # out_path = os.path.join(fig_dir, "morris_first_inf_st_N512_Signed.png")
+    # fig.savefig(out_path, dpi=300)
+    return fig
 
 
 def main():
@@ -35,15 +81,18 @@ def main():
     mae_df = _load(mae_path)
     signed_df = _load(signed_path)
 
-    fig, axes = plt.subplots(1, 2, figsize=(14, 8), sharey=True)
-    _plot_one(axes[0], mae_df, "Morris N=512 MAE (st)")
-    _plot_one(axes[1], signed_df, "Morris N=512 Signed (st)")
-    plt.tight_layout()
+    plt.rcParams.update({
+        "font.family": "Times New Roman",
+        "font.size": 12,
+    })
 
-    # out_path = os.path.join(fig_dir, "morris_first_inf_st_N512_agg.png")
-    # plt.savefig(out_path, dpi=200)
-
+    fig1 = _plot_mae(mae_df)
     plt.show()
+    plt.close(fig1)
+
+    fig2 = _plot_signed(signed_df)
+    plt.show()
+    plt.close(fig2)
 
 
 if __name__ == "__main__":
