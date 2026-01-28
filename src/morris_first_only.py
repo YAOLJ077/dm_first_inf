@@ -11,7 +11,6 @@ import os
 import sys
 import json
 import copy
-import argparse
 from typing import List, Dict, Tuple
 
 import numpy as np
@@ -64,8 +63,8 @@ PARAM_RANGES = {
     "sporulation__Tmin": (8, 15),
     "sporulation__Topt": (18, 24),
     "sporulation__Tmax": (25, 35),
-    # "dispersal__rain_min": (6.0, 12.0),
-    "dispersal__wind_min": (3.0, 15.0),
+    "dispersal__rain_min": (6.0, 12.0),
+    "dispersal__wind_min": (4.0, 12.0),
     "deposition__rain_min": (4.0, 12.0),
     "zoospore_alive__rain": (3.0, 6.0),
     "zoospore_alive__vpd": (1.5, 3.5),
@@ -200,21 +199,7 @@ def evaluate(
 # ======================================================
 # MAIN
 # ======================================================
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Morris sensitivity analysis for FIRST infection model"
-    )
-    parser.add_argument(
-        "--n_traj",
-        type=int,
-        default=None,
-        help="Override N_TRAJ list with a single value (e.g., 256 or 512)."
-    )
-    return parser.parse_args()
-
-
 def main():
-    args = parse_args()
     actual_df = load_actual()
 
     param_names = list(PARAM_RANGES.keys())
@@ -228,13 +213,11 @@ def main():
 
     summary_rows = []
 
-    n_traj_list = [args.n_traj] if args.n_traj is not None else N_TRAJ_LIST
-
-    for n_traj in n_traj_list:
+    for n_traj in N_TRAJ_LIST:
         for seed in SEEDS:
             np.random.seed(seed)
             print(
-                f"\n=== Morris (wind) N_TRAJ={n_traj}, "
+                f"\n=== Morris N_TRAJ={n_traj}, "
                 f"NUM_LEVELS={NUM_LEVELS}, SEED={seed} ==="
             )
 
@@ -268,7 +251,7 @@ def main():
 
                 out = os.path.join(
                     RESULT_DIR,
-                    f"morris_first_inf_wind_only_{label}_N{n_traj}_seed{seed}.xlsx"
+                    f"morris_first_inf_ONLY_{label}_N{n_traj}_seed{seed}.xlsx"
                 )
                 df.to_excel(out, index=False)
                 print(f"Saved: {out}")
@@ -288,7 +271,7 @@ def main():
         summary_df = pd.DataFrame(summary_rows)
         summary_out = os.path.join(
             RESULT_DIR,
-            "morris_first_inf_wind_summary.csv"
+            "morris_first_inf_summary.csv"
         )
         summary_df.to_csv(summary_out, index=False)
         print(f"Saved: {summary_out}")
