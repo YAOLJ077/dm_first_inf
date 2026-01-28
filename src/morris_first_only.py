@@ -51,7 +51,7 @@ PENALTY_DAYS = 120.0
 # Morris settings
 N_TRAJ_LIST = [256, 512]
 NUM_LEVELS = 6
-SEEDS = [42, 123]
+SEEDS = [42, 123, 2024]
 OPT_TRAJ = None  # set int to optimize trajectories
 
 # ======================================================
