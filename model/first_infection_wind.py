@@ -147,6 +147,8 @@ class FirstInfection:
     def stage_deposition(self):
 
         dep = self.cfg["deposition"]
+        th = self.cfg["thresholds"]["min_spores"]
+        p = self._DETACHED_MORTALITY
         cohorts = self.cs.dispersal_cohorts.copy()
 
         dep_dt, dep_amt = [], []
@@ -166,10 +168,29 @@ class FirstInfection:
                 dep_dt.append(pd.NaT)
                 dep_amt.append(np.nan)
             else:
-                dep_dt.append(
-                    self.wh.iloc[idx + rain_idx[0]].datetime
-                )
-                dep_amt.append(c.airborne_amount)
+                dep_time = self.wh.iloc[idx + rain_idx[0]].datetime
+                dep_idx = idx + rain_idx[0]
+
+                D = c.airborne_amount
+                for i in range(idx, dep_idx):
+                    hr = self.wh.iloc[i]
+                    if 8 <= hr.datetime.hour <= 18:
+                        lam = max(
+                            0.0,
+                            p["b0"] - p["b1"] * self.VPD[i]
+                            + p["b2"] * self.VPD[i] ** 2
+                        ) / 24.0
+                        D *= math.exp(-lam)
+                        if D < th:
+                            D = np.nan
+                            break
+
+                if np.isnan(D):
+                    dep_dt.append(pd.NaT)
+                    dep_amt.append(np.nan)
+                else:
+                    dep_dt.append(dep_time)
+                    dep_amt.append(D)
 
         cohorts["deposition_datetime"] = dep_dt
         cohorts["deposited_amount"] = dep_amt
@@ -193,10 +214,10 @@ class FirstInfection:
 
             D = c.deposited_amount
 
-            # 孢子囊存活从 dispersal 开始
+            # Detached decay continues from deposition time
             start = np.searchsorted(
                 self.time_index,
-                np.datetime64(c.dispersal_datetime)
+                np.datetime64(c.deposition_datetime)
             )
 
             end_time = self.wh.datetime.iloc[-1]
