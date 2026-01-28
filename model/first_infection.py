@@ -7,14 +7,12 @@ class FirstInfection:
     """
     FIRST infection model
     (engine-optimized, biology-identical)
-    With optional observational soft gate
     """
 
-    def __init__(self, cs, config, obs_gate=None):
+    def __init__(self, cs, config):
 
         self.cs = cs
         self.cfg = config
-        self.obs_gate = obs_gate  # ===== soft gate (None = OFF) =====
 
         # ===== weather =====
         self.wh = cs.weather_hourly
@@ -65,7 +63,7 @@ class FirstInfection:
         }
 
     # ======================================================
-    # S1–S2. ATTACHED INVENTORY + DISPERSAL (WITH SOFT GATE)
+    # S1–S2. ATTACHED INVENTORY + DISPERSAL
     # ======================================================
     def stage_attached_and_dispersal(self):
 
@@ -127,17 +125,11 @@ class FirstInfection:
                 else:
                     continue
 
-                # ===== APPLY OBSERVATIONAL SOFT GATE =====
-                w = 1.0
-                if self.obs_gate is not None:
-                    w = self.obs_gate.support(hr.datetime)
-
                 cohorts.append({
                     "Num": cohort_num,
                     "dispersal_datetime": hr.datetime,
                     "dispersal_type": dtype,
-                    "airborne_amount": attached_pool * w,
-                    "obs_weight": w,
+                    "airborne_amount": attached_pool,
                 })
 
                 cohort_num += 1

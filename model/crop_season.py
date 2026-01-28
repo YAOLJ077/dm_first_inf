@@ -1,5 +1,5 @@
 import pandas as pd
-from model.first_infection_hazard import FirstInfectionHazard
+from model.first_infection_wind import FirstInfection
 
 
 class CropSeasonFirst:
@@ -12,7 +12,7 @@ class CropSeasonFirst:
         self.config = config
         self.year = csrb.get("year")
         self.place = csrb.get("Place")
-        self._delta_pre_bbch53 = 30  # days
+        self._delta_pre_bbch53 = 7  # days
 
         self.bbch_53_datetime = pd.to_datetime(
             csrb.get("HHCH_53"), errors="coerce"
@@ -54,13 +54,9 @@ class CropSeasonFirst:
         self.primary_chain_unique = None
 
     # ==================================================
-    def simulate(self, use_obs_gate=False, obs_gate=None):
+    def simulate(self):
 
-        model = FirstInfectionHazard(
-            self,
-            self.config,
-            obs_gate=obs_gate if use_obs_gate else None
-        )
+        model = FirstInfection(self, self.config)
 
         model.stage_attached_and_dispersal()
         model.stage_deposition()
