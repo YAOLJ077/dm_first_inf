@@ -45,7 +45,7 @@ from model.config import config
 # ======================================================
 # GLOBAL SETTINGS
 # ======================================================
-N_JOBS = min(128, os.cpu_count())
+N_JOBS = min(256, os.cpu_count())
 RANDOM_SEED = 42
 PENALTY_DAYS = 120.0
 
@@ -67,11 +67,11 @@ PARAM_RANGES = {
     "dispersal__rain_min": (6.0, 12.0),
     "dispersal__wind_min": (4.0, 12.0),
     "deposition__rain_min": (4.0, 12.0),
-    "zoospore_alive__rain": (3.0, 6.0),
-    "zoospore_alive__vpd": (1.5, 3.5),
-    "infection__infection_condition": (50, 200),
+    "zoospore_alive__rain": (3.0, 8.0),
+    "zoospore_alive__vpd": (1.5, 4.0),
+    "infection__infection_condition": (50, 150),
     "incubation__spl_end": (1.0, 1.5),
-    "thresholds__min_spores": (0.02, 0.06)
+    "thresholds__min_spores": (0.05, 0.25)
 }
 
 # ======================================================
