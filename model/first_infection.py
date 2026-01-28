@@ -158,7 +158,7 @@ class FirstInfection:
         for _, c in cohorts.iterrows():
 
             if c.dispersal_type == "rain":
-                dep_dt.append(c.dispersal_datetime)
+                dep_dt.append(c.dispersal_datetime + pd.Timedelta(hours=1))
                 dep_amt.append(c.airborne_amount)
             else:
                 idx = np.searchsorted(
