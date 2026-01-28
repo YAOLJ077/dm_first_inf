@@ -16,7 +16,7 @@ PARAM_ABBR = {
     "sporulation__Tmin": "STMI",
     "incubation__spl_end": "ISED",
     "zoospore_alive__rain": "ZARA",
-    "zoospore_alibe__rain": "ZARA",
+    "zoospore_alive__rain": "ZARA",
     "thresholds__min_spores": "TMSO",
 }
 

@@ -7,7 +7,7 @@ Per fold:
     select best by val_mae within train topK under the constraint
     val_mae > train_mae (or equal/closest if none).
 Outputs:
-  - Per-fold best params and metrics (mae/std/rmse + spore consistency).
+  - Per-fold best params and metrics (mae/std/rmse).
   - Summary across folds.
   - Global-best: evaluate each fold-best params on all samples.
 """
@@ -43,7 +43,6 @@ if PROJECT_ROOT not in sys.path:
 
 DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 ACTUAL_DATA_PATH = os.path.join(DATA_DIR, "actual_data.xlsx")
-SPORE_DATA_PATH = os.path.join(DATA_DIR, "Spore_overall.xlsx")
 RESULT_DIR = os.path.join(PROJECT_ROOT, "result", "calibration")
 os.makedirs(RESULT_DIR, exist_ok=True)
 
@@ -56,11 +55,9 @@ from model.config import config
 PENALTY_DAYS = 120.0
 RANDOM_SEED = 42
 FOLD_SEED = 42
-N_JOBS = 256
+N_JOBS = 128
 RB_CACHE_MAX = 64
 TOPK_PCT = 5.0
-SPORE_CORE_DAYS = 14
-SPORE_SMOOTH_ALPHA = 0.5
 
 # Base ranges (global)
 BASE_RANGES = {
@@ -72,11 +69,11 @@ BASE_RANGES = {
     "dispersal__rain_min": (6.0, 12.0),
     "dispersal__wind_min": (4.0, 12.0),
     "deposition__rain_min": (4.0, 12.0),
-    "zoospore_alive__rain": (3.0, 6.0),
-    "zoospore_alive__vpd": (1.5, 3.5),
-    "infection__infection_condition": (50, 200),
+    "zoospore_alive__rain": (3.0, 8.0),
+    "zoospore_alive__vpd": (1.5, 4.0),
+    "infection__infection_condition": (50, 150),
     "incubation__spl_end": (1.0, 1.5),
-    "thresholds__min_spores": (0.02, 0.06)
+    "thresholds__min_spores": (0.05, 0.25)
 }
 
 
@@ -164,114 +161,6 @@ def compute_error_stats(cfg: dict, rows: List[pd.Series]) -> Tuple[float, float,
     std = float(abs_err.std(ddof=0))
     rmse = float(np.sqrt(np.mean(np.square(abs_err))))
     return mae, std, rmse
-
-
-def _normalize_spore_columns(df: pd.DataFrame) -> pd.DataFrame:
-    cols = {c.lower(): c for c in df.columns}
-    required = {"plot", "year", "date", "spore"}
-    missing = required - set(cols.keys())
-    if missing:
-        raise ValueError(f"Spore data missing columns: {missing}")
-    out = df.rename(columns={
-        cols["plot"]: "plot",
-        cols["year"]: "year",
-        cols["date"]: "date",
-        cols["spore"]: "spore",
-    })
-    out["date"] = pd.to_datetime(out["date"])
-    out["spore"] = pd.to_numeric(out["spore"], errors="coerce").fillna(0.0)
-    return out[["plot", "year", "date", "spore"]]
-
-
-def load_spore_windows() -> Dict[Tuple[str, int], List[Tuple[pd.Timestamp, pd.Timestamp, bool]]]:
-    df = pd.read_excel(SPORE_DATA_PATH)
-    df = _normalize_spore_columns(df)
-    windows: Dict[Tuple[str, int], List[Tuple[pd.Timestamp, pd.Timestamp, bool]]] = {}
-    for (plot, year), g in df.groupby(["plot", "year"]):
-        g = g.sort_values("date")
-        prev = None
-        for _, row in g.iterrows():
-            cur = row["date"].normalize()
-            present = float(row["spore"]) > 0.0
-            if prev is not None:
-                windows.setdefault((str(plot), int(year)), []).append((prev, cur, present))
-            prev = cur
-    return windows
-
-
-def compute_spore_consistency(
-    cfg: dict,
-    rows: List[pd.Series],
-    spore_windows: Dict[Tuple[str, int], List[Tuple[pd.Timestamp, pd.Timestamp, bool]]],
-    core_days: int,
-    alpha: float
-) -> Tuple[float, float, float]:
-    scores = []
-    total_obs = 0
-    total_sim = 0
-    for row in rows:
-        key = (str(row.plot), int(row.first_infection_date.year))
-        obs_windows = spore_windows.get(key, [])
-        if not obs_windows:
-            scores.append(0.0)
-            continue
-        rb_key = f"{row.plot}_{row.variety}_{row.first_infection_date.year}"
-        rb_path = os.path.join(DATA_DIR, f"{rb_key}_grape_rb.json")
-        if not os.path.exists(rb_path):
-            scores.append(0.0)
-            continue
-        try:
-            rb = load_rb_cached(rb_path)
-            cs = CropSeasonFirst(csrb=rb, config=cfg)
-            cs.simulate()
-            if cs.primary_chain_unique is None or cs.primary_chain_unique.empty:
-                scores.append(0.0)
-                continue
-            oil_start = pd.to_datetime(cs.primary_chain_unique.iloc[0]["oil_spot_start"]).normalize()
-        except Exception:
-            scores.append(0.0)
-            continue
-
-        win_start = oil_start - pd.Timedelta(days=core_days)
-        win_end = oil_start
-
-        obs_present = [(s, e) for (s, e, present) in obs_windows if present and not (e < win_start or s > win_end)]
-        total_obs += len(obs_present)
-
-        sim_windows = []
-        if cs.deposition is not None and not cs.deposition.empty:
-            for _, c in cs.deposition.iterrows():
-                if c.get("dispersal_type") != "wind":
-                    continue
-                if pd.isna(c.get("deposition_datetime")) or pd.isna(c.get("dispersal_datetime")):
-                    continue
-                s = pd.to_datetime(c["dispersal_datetime"]).normalize()
-                e = pd.to_datetime(c["deposition_datetime"]).normalize()
-                if e < win_start or s > win_end:
-                    continue
-                sim_windows.append((s, e))
-
-        total_sim += len(sim_windows)
-        if len(sim_windows) == 0:
-            scores.append(0.0)
-            continue
-        matched_sim = 0
-        for (s1, e1) in sim_windows:
-            hit = False
-            for (s2, e2) in obs_present:
-                if e1 < s2 or s1 > e2:
-                    continue
-                hit = True
-                break
-            if hit:
-                matched_sim += 1
-
-        precision = (matched_sim + alpha) / (len(sim_windows) + 2 * alpha)
-        scores.append(float(precision))
-    mean_score = float(np.mean(scores)) if scores else 0.0
-    mean_obs = float(total_obs) / max(1, len(rows))
-    mean_sim = float(total_sim) / max(1, len(rows))
-    return mean_score, mean_obs, mean_sim
 
 
 def build_folds(n: int, k: int, seed: int) -> List[List[int]]:
@@ -469,7 +358,6 @@ def run_baseline_kfold(
     rows: List[pd.Series],
     k: int,
     stage1_ranges: Dict[str, Tuple[float, float]],
-    spore_windows: Dict[Tuple[str, int], List[Tuple[pd.Timestamp, pd.Timestamp, bool]]],
     workers: List[ray.actor.ActorHandle],
     rows_ref,
     n_jobs: int,
@@ -478,13 +366,17 @@ def run_baseline_kfold(
     n_startup_stage1: int,
     progress_interval: float,
     seed: int,
+    fold_ids: List[int],
+    fold_seed: int,
     seed_tag: str = ""
 ) -> Tuple[List[Dict[str, float]], pd.DataFrame, Dict[str, float]]:
-    folds = build_folds(len(rows), k, FOLD_SEED)
+    folds = build_folds(len(rows), k, fold_seed)
     fold_best_rows = []
     fold_params = []
 
     for fold_id, val_idx in enumerate(folds, start=1):
+        if fold_ids and fold_id not in fold_ids:
+            continue
         train_idx = [i for i in range(len(rows)) if i not in val_idx]
         train_rows = [rows[i] for i in train_idx]
         val_rows = [rows[i] for i in val_idx]
@@ -534,7 +426,9 @@ def run_baseline_kfold(
             last_ts = _progress_print(completed, n_trials_stage1, len(pending), max_conc, prefix, last_ts, progress_interval)
 
         df_trials = pd.DataFrame(trial_rows).sort_values("train_mae")
-        trials_out = os.path.join(RESULT_DIR, f"baseline_kfold_fold_{fold_id}_trials.csv")
+        fold_dir = os.path.join(RESULT_DIR, f"baseline_fold_{fold_id}")
+        os.makedirs(fold_dir, exist_ok=True)
+        trials_out = os.path.join(fold_dir, "baseline_kfold_trials.csv")
         df_trials.to_csv(trials_out, index=False)
         best_row = select_topk_val_best_constrained(df_trials, TOPK_PCT)
         best_params = {
@@ -547,13 +441,6 @@ def run_baseline_kfold(
         cfg = apply_params(config, best_params)
         train_mae, train_std, train_rmse = compute_error_stats(cfg, train_rows)
         val_mae, val_std, val_rmse = compute_error_stats(cfg, val_rows)
-        train_spore, train_obs_cnt, train_sim_cnt = compute_spore_consistency(
-            cfg, train_rows, spore_windows, SPORE_CORE_DAYS, SPORE_SMOOTH_ALPHA
-        )
-        val_spore, val_obs_cnt, val_sim_cnt = compute_spore_consistency(
-            cfg, val_rows, spore_windows, SPORE_CORE_DAYS, SPORE_SMOOTH_ALPHA
-        )
-
         fold_best_rows.append({
             "fold": fold_id,
             "train_mae": float(train_mae),
@@ -564,15 +451,9 @@ def run_baseline_kfold(
             "val_var": float(val_std ** 2),
             "train_rmse": float(train_rmse),
             "val_rmse": float(val_rmse),
-            "train_spore_consistency": float(train_spore),
-            "val_spore_consistency": float(val_spore),
-            "train_spore_obs_count": float(train_obs_cnt),
-            "val_spore_obs_count": float(val_obs_cnt),
-            "train_spore_sim_count": float(train_sim_cnt),
-            "val_spore_sim_count": float(val_sim_cnt),
         })
 
-        best_out = os.path.join(RESULT_DIR, f"baseline_kfold_best_params_fold{fold_id}.json")
+        best_out = os.path.join(fold_dir, "baseline_kfold_best_params.json")
         with open(best_out, "w") as f:
             json.dump({
                 "fold": fold_id,
@@ -584,12 +465,6 @@ def run_baseline_kfold(
                 "val_var": float(val_std ** 2),
                 "train_rmse": float(train_rmse),
                 "val_rmse": float(val_rmse),
-                "train_spore_consistency": float(train_spore),
-                "val_spore_consistency": float(val_spore),
-                "train_spore_obs_count": float(train_obs_cnt),
-                "val_spore_obs_count": float(val_obs_cnt),
-                "train_spore_sim_count": float(train_sim_cnt),
-                "val_spore_sim_count": float(val_sim_cnt),
                 "params": best_params,
             }, f, indent=2)
 
@@ -605,21 +480,7 @@ def run_baseline_kfold(
         "val_mae_var": float(summary["val_mae"].var(ddof=0)),
         "train_rmse": float(np.sqrt(np.mean(np.square(summary["train_mae"])))),
         "val_rmse": float(np.sqrt(np.mean(np.square(summary["val_mae"])))),
-        "train_spore_consistency_mean": float(summary["train_spore_consistency"].mean()),
-        "train_spore_consistency_std": float(summary["train_spore_consistency"].std(ddof=0)),
-        "val_spore_consistency_mean": float(summary["val_spore_consistency"].mean()),
-        "val_spore_consistency_std": float(summary["val_spore_consistency"].std(ddof=0)),
-        "train_spore_obs_count_mean": float(summary["train_spore_obs_count"].mean()),
-        "train_spore_obs_count_std": float(summary["train_spore_obs_count"].std(ddof=0)),
-        "val_spore_obs_count_mean": float(summary["val_spore_obs_count"].mean()),
-        "val_spore_obs_count_std": float(summary["val_spore_obs_count"].std(ddof=0)),
-        "train_spore_sim_count_mean": float(summary["train_spore_sim_count"].mean()),
-        "train_spore_sim_count_std": float(summary["train_spore_sim_count"].std(ddof=0)),
-        "val_spore_sim_count_mean": float(summary["val_spore_sim_count"].mean()),
-        "val_spore_sim_count_std": float(summary["val_spore_sim_count"].std(ddof=0)),
         "n_folds": int(len(summary)),
-        "spore_core_days": int(SPORE_CORE_DAYS),
-        "spore_smooth_alpha": float(SPORE_SMOOTH_ALPHA),
     }
     summary_json = os.path.join(RESULT_DIR, "baseline_kfold_summary.json")
     with open(summary_json, "w") as f:
@@ -673,11 +534,14 @@ def main() -> None:
     parser.add_argument("--n-jobs", type=int, default=N_JOBS)
     parser.add_argument("--seed", type=int, default=RANDOM_SEED)
     parser.add_argument("--seed-list", type=str, default="42,123,2024")
+    parser.add_argument("--fold", type=int, default=None)
+    parser.add_argument("--folds", type=str, default="")
+    parser.add_argument("--fold-seed", type=int, default=FOLD_SEED)
     parser.add_argument("--n-trials-base", type=int, default=20000)
     parser.add_argument("--n-startup-base", type=int, default=8000)
     parser.add_argument("--skip-baseline", action="store_true")
     parser.add_argument("--progress-interval", type=float, default=5.0)
-    parser.add_argument("--restart-every", type=int, default=100)
+    parser.add_argument("--restart-every", type=int, default=200)
     args = parser.parse_args()
 
     seed_list = []
@@ -686,11 +550,16 @@ def main() -> None:
     if not seed_list:
         seed_list = [args.seed]
 
+    fold_ids: List[int] = []
+    if args.fold is not None:
+        fold_ids = [int(args.fold)]
+    elif args.folds.strip():
+        fold_ids = [int(x) for x in args.folds.split(",") if x.strip()]
+
     ray.init(num_cpus=args.n_jobs, include_dashboard=False, logging_level="ERROR")
 
     rows = list(load_actual().itertuples(index=False))
     stage1_ranges = build_param_ranges()
-    spore_windows = load_spore_windows()
     rows_ref = ray.put(rows)
     workers = _make_workers(args.n_jobs, rows_ref)
 
@@ -719,7 +588,6 @@ def main() -> None:
                 rows=rows,
                 k=args.kfold,
                 stage1_ranges=stage1_ranges,
-                spore_windows=spore_windows,
                 workers=workers,
                 rows_ref=rows_ref,
                 n_jobs=args.n_jobs,
@@ -728,6 +596,8 @@ def main() -> None:
                 n_startup_stage1=args.n_startup_base,
                 progress_interval=args.progress_interval,
                 seed=seed,
+                fold_ids=fold_ids,
+                fold_seed=args.fold_seed,
                 seed_tag=f"[Seed {seed}] ",
             )
 
@@ -746,7 +616,9 @@ def main() -> None:
 
     if len(seed_list) > 1 and seed_summaries:
         df = pd.DataFrame(seed_summaries)
-        seed_csv = os.path.join(base_result_dir, "baseline_kfold_summary_seeds.csv")
+        seed_summary_dir = os.path.join(base_result_dir, "seed_summary")
+        os.makedirs(seed_summary_dir, exist_ok=True)
+        seed_csv = os.path.join(seed_summary_dir, "baseline_kfold_summary_seeds.csv")
         df.to_csv(seed_csv, index=False)
         agg = {}
         for col in df.columns:
@@ -756,12 +628,12 @@ def main() -> None:
                 agg[f"{col}_mean"] = float(df[col].mean())
                 agg[f"{col}_std"] = float(df[col].std(ddof=0))
         agg["n_seeds"] = int(len(seed_summaries))
-        summary_path = os.path.join(base_result_dir, "baseline_kfold_summary_seeds.json")
+        summary_path = os.path.join(seed_summary_dir, "baseline_kfold_summary_seeds.json")
         with open(summary_path, "w") as f:
             json.dump(agg, f, indent=2)
         if seed_globals:
             df_g = pd.DataFrame(seed_globals)
-            globals_csv = os.path.join(base_result_dir, "baseline_kfold_best_global_seeds.csv")
+            globals_csv = os.path.join(seed_summary_dir, "baseline_kfold_best_global_seeds.csv")
             df_g.to_csv(globals_csv, index=False)
             if "global_mae" in df_g.columns:
                 agg_g = {
@@ -769,7 +641,7 @@ def main() -> None:
                     "global_mae_std": float(df_g["global_mae"].std(ddof=0)),
                     "n_seeds": int(len(seed_globals)),
                 }
-                gpath = os.path.join(base_result_dir, "baseline_kfold_best_global_seeds.json")
+                gpath = os.path.join(seed_summary_dir, "baseline_kfold_best_global_seeds.json")
                 with open(gpath, "w") as f:
                     json.dump(agg_g, f, indent=2)
 
