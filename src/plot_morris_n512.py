@@ -36,7 +36,14 @@ def _apply_abbr(df: pd.DataFrame) -> pd.DataFrame:
 def _plot_mae(df: pd.DataFrame):
     df = _apply_abbr(df).sort_values("mu_star", ascending=False)
     fig, ax = plt.subplots(figsize=(7.2, 4.2))
-    ax.barh(df["abbr"], df["mu_star"], color="#4C78A8")
+    ax.barh(
+        df["abbr"],
+        df["mu_star"],
+        xerr=df.get("mu_star_std"),
+        color="#4C78A8",
+        ecolor="#333333",
+        capsize=3
+    )
     ax.invert_yaxis()
     ax.grid(axis="x", color="#DDDDDD", linewidth=0.6)
     ax.set_xlabel("mu_star (mean)")
@@ -51,7 +58,14 @@ def _plot_signed(df: pd.DataFrame):
     df = _apply_abbr(df).sort_values("mu", ascending=False)
     fig, ax = plt.subplots(figsize=(7.2, 4.2))
     colors = ["#E45756" if v < 0 else "#72B7B2" for v in df["mu"]]
-    ax.barh(df["abbr"], df["mu"], color=colors)
+    ax.barh(
+        df["abbr"],
+        df["mu"],
+        xerr=df.get("mu_std"),
+        color=colors,
+        ecolor="#333333",
+        capsize=3
+    )
     ax.invert_yaxis()
     ax.axvline(0, color="#333333", linewidth=0.8)
     ax.grid(axis="x", color="#DDDDDD", linewidth=0.6)

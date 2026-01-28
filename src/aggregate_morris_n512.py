@@ -21,10 +21,16 @@ def _aggregate(label: str, result_dir: str) -> pd.DataFrame:
     dfs = [_load_one(p) for p in files]
     all_df = pd.concat(dfs, ignore_index=True)
 
+    grouped = all_df.groupby("Parameter", as_index=False)[["mu", "mu_star", "sigma"]]
+    mean_df = grouped.mean()
+    std_df = grouped.std().rename(columns={
+        "mu": "mu_std",
+        "mu_star": "mu_star_std",
+        "sigma": "sigma_std",
+    })
+
     agg = (
-        all_df
-        .groupby("Parameter", as_index=False)[["mu", "mu_star", "sigma"]]
-        .mean()
+        mean_df.merge(std_df, on="Parameter", how="left")
         .sort_values("mu_star", ascending=False)
         .reset_index(drop=True)
     )
