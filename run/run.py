@@ -46,7 +46,11 @@ def run_simulation(rbf: str):
             return base
         if base is None or base.empty:
             return other.copy()
-        cols = [c for c in other.columns if c != "Num"]
+        # avoid duplicate columns on merge
+        existing = set(base.columns)
+        cols = [c for c in other.columns if c != "Num" and c not in existing]
+        if not cols:
+            return base
         return base.merge(other[["Num"] + cols], on="Num", how="left")
 
     summary_df = _merge_on_num(summary_df, crop_season.deposition)
