@@ -268,7 +268,7 @@ def main():
 
                 out = os.path.join(
                     RESULT_DIR,
-                    f"morris_first_inf_wind_ONLY_{label}_N{n_traj}_seed{seed}.xlsx"
+                    f"morris_first_inf_wind_only_{label}_N{n_traj}_seed{seed}.xlsx"
                 )
                 df.to_excel(out, index=False)
                 print(f"Saved: {out}")
