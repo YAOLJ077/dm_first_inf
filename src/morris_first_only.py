@@ -11,6 +11,7 @@ import os
 import sys
 import json
 import copy
+import argparse
 from typing import List, Dict, Tuple
 
 import numpy as np
@@ -199,7 +200,27 @@ def evaluate(
 # ======================================================
 # MAIN
 # ======================================================
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Morris sensitivity analysis for FIRST infection model"
+    )
+    parser.add_argument(
+        "--n_traj",
+        type=int,
+        default=None,
+        help="Override N_TRAJ list with a single value (e.g., 256 or 512)."
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Override SEEDS list with a single value (e.g., 2024)."
+    )
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
     actual_df = load_actual()
 
     param_names = list(PARAM_RANGES.keys())
@@ -213,8 +234,11 @@ def main():
 
     summary_rows = []
 
-    for n_traj in N_TRAJ_LIST:
-        for seed in SEEDS:
+    n_traj_list = [args.n_traj] if args.n_traj is not None else N_TRAJ_LIST
+    seed_list = [args.seed] if args.seed is not None else SEEDS
+
+    for n_traj in n_traj_list:
+        for seed in seed_list:
             np.random.seed(seed)
             print(
                 f"\n=== Morris N_TRAJ={n_traj}, "
