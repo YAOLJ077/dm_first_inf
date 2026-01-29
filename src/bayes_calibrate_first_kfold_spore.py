@@ -403,13 +403,13 @@ def _make_workers(n_jobs: int, rows_ref, spore_day_map_ref) -> List[ray.actor.Ac
     return [ModelWorker.remote(rows_ref, spore_day_map_ref) for _ in range(n_jobs)]
 
 
-def _replace_worker(workers: List[ray.actor.ActorHandle], old_worker, rows_ref):
+def _replace_worker(workers: List[ray.actor.ActorHandle], old_worker, rows_ref, spore_day_map_ref):
     try:
         idx = workers.index(old_worker)
     except ValueError:
         idx = None
     ray.kill(old_worker, no_restart=True)
-    new_worker = ModelWorker.remote(rows_ref)
+    new_worker = ModelWorker.remote(rows_ref, spore_day_map_ref)
     if idx is not None:
         workers[idx] = new_worker
     else:
@@ -483,7 +483,7 @@ def run_baseline_kfold(
                 })
                 completed += 1
                 if next_restart is not None and completed >= next_restart:
-                    worker = _replace_worker(workers, worker, rows_ref)
+                    worker = _replace_worker(workers, worker, rows_ref, spore_day_map_ref)
                     next_restart += restart_every
                 available.append(worker)
             last_ts = _progress_print(completed, n_trials_stage1, len(pending), max_conc, prefix, last_ts, progress_interval)
