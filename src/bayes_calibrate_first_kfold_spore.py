@@ -150,6 +150,9 @@ def build_spore_day_map(actual_df: pd.DataFrame) -> Dict[Tuple[str, int], pd.Ser
 
         daily_index = pd.date_range(start=start, end=end, freq="D")
         series = pd.Series(index=daily_index, dtype=float)
+        obs = obs[(obs["date"] >= start) & (obs["date"] <= end)]
+        if obs.empty:
+            continue
         series.loc[obs["date"].dt.normalize()] = obs["spore"].values
         series = series.interpolate(method="time", limit_direction="both")
         series = _normalize_spore_series(series)
