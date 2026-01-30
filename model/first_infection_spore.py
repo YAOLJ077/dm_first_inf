@@ -151,8 +151,13 @@ class FirstInfectionSpore:
         dep = self.cfg["deposition"]
         th = self.cfg["thresholds"]["min_spores"]
         p = self._DETACHED_MORTALITY
-        spore_alpha = (
-            self.cfg.get("spore", {}).get("alpha", 0.0)
+        spore_alpha_dep = (
+            self.cfg.get("spore", {}).get("alpha_dep", 0.0)
+            if isinstance(self.cfg, dict)
+            else 0.0
+        )
+        spore_alpha_decay = (
+            self.cfg.get("spore", {}).get("alpha_decay", 0.0)
             if isinstance(self.cfg, dict)
             else 0.0
         )
@@ -186,11 +191,16 @@ class FirstInfectionSpore:
                     for i in range(idx, dep_idx):
                         hr = self.wh.iloc[i]
                         if 8 <= hr.datetime.hour <= 18:
+                            s_day = self._spore_day_value(hr.datetime)
+                            denom = 1.0 + spore_alpha_decay * s_day
+                            if denom <= 0.0:
+                                denom = 0.1
                             lam = max(
                                 0.0,
                                 p["b0"] - p["b1"] * self.VPD[i]
                                 + p["b2"] * self.VPD[i] ** 2
                             ) / 24.0
+                            lam = lam / denom
                             D *= math.exp(-lam)
                             if D < th:
                                 D = np.nan
@@ -204,7 +214,7 @@ class FirstInfectionSpore:
                             c.dispersal_datetime,
                             dep_time
                         )
-                        D = D * (1.0 + spore_alpha * s_window)
+                        D = D * (1.0 + spore_alpha_dep * s_window)
                         if D > c.airborne_amount:
                             D = c.airborne_amount
                         if D < th:
@@ -220,6 +230,12 @@ class FirstInfectionSpore:
         self.cs.deposition = cohorts.dropna(
             subset=["deposition_datetime"]
         ).reset_index(drop=True)
+
+    def _spore_day_value(self, dt) -> float:
+        spore_day = getattr(self.cs, "spore_day", None)
+        if spore_day is None or spore_day.empty:
+            return 0.0
+        return float(spore_day.get(pd.to_datetime(dt).normalize(), 0.0))
 
     # ======================================================
     # Spore pressure window (daily index)
