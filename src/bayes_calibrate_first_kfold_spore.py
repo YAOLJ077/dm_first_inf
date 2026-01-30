@@ -73,9 +73,9 @@ BASE_RANGES = {
     "zoospore_alive__vpd": (1.5, 4.0),
     "infection__infection_condition": (50, 150),
     "incubation__spl_end": (1.0, 1.5),
-    "thresholds__min_spores": (0.05, 0.25),
-    "spore__alpha_dep": (-3.0, 2.0),
-    "spore__alpha_decay": (-3.0, 2.0)
+    "thresholds__min_spores": (0.05, 0.30),
+    "spore__alpha_air": (-2.5, 0.8),
+    "spore__alpha_dep": (-2.0, 1.5)
 }
 
 
@@ -117,7 +117,8 @@ def _normalize_spore_series(spore_vals: pd.Series) -> pd.Series:
     if p95 <= 0:
         return spore_vals.fillna(0.0).astype(float) * 0.0
     norm = (np.log1p(spore_vals.astype(float)) / np.log1p(p95)).clip(lower=0.0, upper=1.0)
-    return norm
+    baseline = float(norm.median())
+    return (norm - baseline)
 
 
 def build_spore_day_map(actual_df: pd.DataFrame) -> Dict[Tuple[str, int], pd.Series]:
@@ -516,6 +517,8 @@ def run_baseline_kfold(
             "val_var": float(val_std ** 2),
             "train_rmse": float(train_rmse),
             "val_rmse": float(val_rmse),
+            "spore_alpha_air": float(best_params.get("spore__alpha_air", 0.0)),
+            "spore_alpha_dep": float(best_params.get("spore__alpha_dep", 0.0)),
         })
 
         best_out = os.path.join(fold_dir, "baseline_kfold_best_params.json")
@@ -547,6 +550,12 @@ def run_baseline_kfold(
         "val_rmse": float(np.sqrt(np.mean(np.square(summary["val_mae"])))),
         "n_folds": int(len(summary)),
     }
+    if "spore_alpha_air" in summary.columns:
+        summary_stats["spore_alpha_air_mean"] = float(summary["spore_alpha_air"].mean())
+        summary_stats["spore_alpha_air_std"] = float(summary["spore_alpha_air"].std(ddof=0))
+    if "spore_alpha_dep" in summary.columns:
+        summary_stats["spore_alpha_dep_mean"] = float(summary["spore_alpha_dep"].mean())
+        summary_stats["spore_alpha_dep_std"] = float(summary["spore_alpha_dep"].std(ddof=0))
     summary_json = os.path.join(RESULT_DIR, "baseline_kfold_summary.json")
     with open(summary_json, "w") as f:
         json.dump(summary_stats, f, indent=2)
@@ -602,8 +611,8 @@ def main() -> None:
     parser.add_argument("--fold", type=int, default=None)
     parser.add_argument("--folds", type=str, default="")
     parser.add_argument("--fold-seed", type=int, default=FOLD_SEED)
-    parser.add_argument("--n-trials-base", type=int, default=20000)
-    parser.add_argument("--n-startup-base", type=int, default=8000)
+    parser.add_argument("--n-trials-base", type=int, default=25000)
+    parser.add_argument("--n-startup-base", type=int, default=10000)
     parser.add_argument("--skip-baseline", action="store_true")
     parser.add_argument("--progress-interval", type=float, default=5.0)
     parser.add_argument("--restart-every", type=int, default=200)

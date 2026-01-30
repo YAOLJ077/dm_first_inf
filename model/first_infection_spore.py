@@ -125,11 +125,16 @@ class FirstInfectionSpore:
                 else:
                     continue
 
+                s_day = self._spore_day_value(hr.datetime)
+                airborne_amount = attached_pool * (1.0 + spore_alpha_air * s_day)
+                if airborne_amount < th:
+                    continue
+
                 cohorts.append({
                     "Num": cohort_num,
                     "dispersal_datetime": hr.datetime,
                     "dispersal_type": dtype,
-                    "airborne_amount": attached_pool,
+                    "airborne_amount": airborne_amount,
                 })
 
                 cohort_num += 1
@@ -156,8 +161,8 @@ class FirstInfectionSpore:
             if isinstance(self.cfg, dict)
             else 0.0
         )
-        spore_alpha_decay = (
-            self.cfg.get("spore", {}).get("alpha_decay", 0.0)
+        spore_alpha_air = (
+            self.cfg.get("spore", {}).get("alpha_air", 0.0)
             if isinstance(self.cfg, dict)
             else 0.0
         )
@@ -191,16 +196,11 @@ class FirstInfectionSpore:
                     for i in range(idx, dep_idx):
                         hr = self.wh.iloc[i]
                         if 8 <= hr.datetime.hour <= 18:
-                            s_day = self._spore_day_value(hr.datetime)
-                            denom = 1.0 + spore_alpha_decay * s_day
-                            if denom <= 0.0:
-                                denom = 0.1
                             lam = max(
                                 0.0,
                                 p["b0"] - p["b1"] * self.VPD[i]
                                 + p["b2"] * self.VPD[i] ** 2
                             ) / 24.0
-                            lam = lam / denom
                             D *= math.exp(-lam)
                             if D < th:
                                 D = np.nan
