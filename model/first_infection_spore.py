@@ -57,7 +57,7 @@ class FirstInfectionSpore:
         self.wet = wh["precip_acc_period_adjusted"].values > 0
 
     def _build_daily_index(self):
-        dates = self.wh["date"].values
+        dates = self.wh["date"].values.astype("datetime64[ns]")
         self.day_to_idxs = {
             d: np.where(dates == d)[0] for d in np.unique(dates)
         }
@@ -95,7 +95,7 @@ class FirstInfectionSpore:
         inventory = []
 
         for _, day in wd.iterrows():
-            date = np.datetime64(day.datetime)
+            date = np.datetime64(day.datetime, "ns")
 
             if day.MP >= sp["MP_min"] and sp["Tmin"] < day.TMP < sp["Tmax"]:
                 fT = ((day.TMP - sp["Tmin"]) / (sp["Topt"] - sp["Tmin"])) * \
