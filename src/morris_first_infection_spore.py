@@ -72,8 +72,8 @@ PARAM_RANGES = {
     "infection__infection_condition": (50, 150),
     "incubation__spl_end": (1.0, 1.5),
     "thresholds__min_spores": (0.05, 0.25),
-    "spore__alpha_air": (-1.5, 0.6),
-    "spore__alpha_dep": (-1.0, 1.0),
+    "spore__alpha_air": (-2.0, 0.6),
+    "spore__alpha_dep": (-1.5, 1.0),
 }
 
 # ======================================================
@@ -105,7 +105,7 @@ def _normalize_spore_series(spore_vals: pd.Series) -> pd.Series:
     if p95 <= 0:
         return spore_vals.fillna(0.0).astype(float) * 0.0
     norm = (np.log1p(spore_vals.astype(float)) / np.log1p(p95)).clip(lower=0.0, upper=1.0)
-    baseline = float(norm.median())
+    baseline = norm.rolling(window=7, min_periods=1, center=True).median()
     return (norm - baseline)
 
 
