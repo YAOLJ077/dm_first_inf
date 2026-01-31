@@ -55,7 +55,7 @@ class CropSeasonFirstSpore:
         self.primary_chain_unique = None
 
     # ==================================================
-    def simulate(self):
+    def simulate(self, debug=False):
 
         model = FirstInfectionSpore(self, self.config)
 
@@ -66,6 +66,13 @@ class CropSeasonFirstSpore:
 
         self.apply_bbch_53_gate()
         self.collapse_equivalent_cohorts()
+
+        if debug:
+            print(
+                f"[DEBUG] dispersal={len(self.dispersal_cohorts) if self.dispersal_cohorts is not None else 0} "
+                f"deposition={len(self.deposition) if self.deposition is not None else 0} "
+                f"primary={len(self.primary_chain_unique) if self.primary_chain_unique is not None else 0}"
+            )
 
     # ==================================================
     def apply_bbch_53_gate(self):
