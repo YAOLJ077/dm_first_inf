@@ -72,6 +72,11 @@ class FirstInfectionSpore:
         disp = cfg["dispersal"]
         th = cfg["thresholds"]["min_spores"]
         k = 0.2
+        spore_alpha_air = (
+            self.cfg.get("spore", {}).get("alpha_air", 0.0)
+            if isinstance(self.cfg, dict)
+            else 0.0
+        )
 
         attached_pool = 0.0
         cohorts = []
