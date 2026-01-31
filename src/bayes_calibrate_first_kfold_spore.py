@@ -74,8 +74,8 @@ BASE_RANGES = {
     "infection__infection_condition": (50, 150),
     "incubation__spl_end": (1.0, 1.5),
     "thresholds__min_spores": (0.05, 0.30),
-    "spore__alpha_air": (-1.5, 0.6),
-    "spore__alpha_dep": (-1.5, 1.0)
+    "spore__alpha_air": (-0.8, 0.6),
+    "spore__alpha_dep": (-1.5, 1.5)
 }
 
 
@@ -88,7 +88,13 @@ def expand_range_1p5(lo: float, hi: float) -> Tuple[float, float]:
 
 
 def build_param_ranges() -> Dict[str, Tuple[float, float]]:
-    return {k: expand_range_1p5(v[0], v[1]) for k, v in BASE_RANGES.items()}
+    ranges = {}
+    for k, (lo, hi) in BASE_RANGES.items():
+        if k.startswith("spore__"):
+            ranges[k] = (lo, hi)
+        else:
+            ranges[k] = expand_range_1p5(lo, hi)
+    return ranges
 
 
 def load_actual() -> pd.DataFrame:

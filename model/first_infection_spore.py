@@ -127,8 +127,6 @@ class FirstInfectionSpore:
 
                 s_day = self._spore_day_value(hr.datetime)
                 airborne_amount = attached_pool * (1.0 + spore_alpha_air * s_day)
-                if airborne_amount < th:
-                    continue
 
                 cohorts.append({
                     "Num": cohort_num,
