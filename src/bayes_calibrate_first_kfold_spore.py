@@ -74,8 +74,8 @@ BASE_RANGES = {
     "infection__infection_condition": (50, 150),
     "incubation__spl_end": (1.0, 1.5),
     "thresholds__min_spores": (0.05, 0.30),
-    "spore__alpha_air": (-2.5, 0.8),
-    "spore__alpha_dep": (-2.0, 1.5)
+    "spore__alpha_air": (-1.5, 0.6),
+    "spore__alpha_dep": (-1.0, 1.0)
 }
 
 
