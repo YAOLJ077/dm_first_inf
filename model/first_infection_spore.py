@@ -95,7 +95,7 @@ class FirstInfectionSpore:
         inventory = []
 
         for _, day in wd.iterrows():
-            date = day.datetime
+            date = np.datetime64(day.datetime)
 
             if day.MP >= sp["MP_min"] and sp["Tmin"] < day.TMP < sp["Tmax"]:
                 fT = ((day.TMP - sp["Tmin"]) / (sp["Topt"] - sp["Tmin"])) * \
