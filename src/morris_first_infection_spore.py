@@ -105,8 +105,24 @@ def _normalize_spore_series(spore_vals: pd.Series) -> pd.Series:
     if p95 <= 0:
         return spore_vals.fillna(0.0).astype(float) * 0.0
     norm = (np.log1p(spore_vals.astype(float)) / np.log1p(p95)).clip(lower=0.0, upper=1.0)
-    baseline = norm.rolling(window=7, min_periods=1, center=True).median()
-    return (norm - baseline)
+    # Weak detrend: short window + low quantile baseline to avoid over-subtraction
+    obs = spore_vals[spore_vals.notna()]
+    if len(obs.index) >= 2:
+        gaps = obs.index.to_series().diff().dt.days.dropna()
+        median_gap = float(gaps.median()) if not gaps.empty else 3.0
+    else:
+        median_gap = 3.0
+    window = int(max(3, min(9, round(median_gap * 2))))
+    rolling_norm = norm.rolling(window=window, min_periods=1, center=True).mean()
+    if rolling_norm.dropna().size:
+        target_pos = 0.4
+        candidates = np.linspace(0.45, 0.75, 31)
+        pos_fracs = [(rolling_norm > q).mean() for q in candidates]
+        q_idx = int(np.argmin([abs(p - target_pos) for p in pos_fracs]))
+        global_baseline = float(candidates[q_idx])
+    else:
+        global_baseline = 0.6
+    return rolling_norm - global_baseline
 
 
 def build_spore_day_map(actual_df: pd.DataFrame) -> Dict[Tuple[str, int], pd.Series]:
