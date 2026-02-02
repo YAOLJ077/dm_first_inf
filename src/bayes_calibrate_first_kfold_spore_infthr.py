@@ -74,8 +74,8 @@ BASE_RANGES = {
     "infection__infection_condition": (50, 150),
     "incubation__spl_end": (1.0, 1.5),
     "thresholds__min_spores": (0.05, 0.30),
-    "spore__alpha_pos": (0.2, 1.2),
-    "spore__alpha_neg": (0.0, 0.6)
+    "spore__alpha_pos": (0.3, 1.8),
+    "spore__alpha_neg": (0.0, 1.2)
 }
 
 
@@ -633,11 +633,11 @@ def main() -> None:
     parser.add_argument("--fold", type=int, default=None)
     parser.add_argument("--folds", type=str, default="")
     parser.add_argument("--fold-seed", type=int, default=FOLD_SEED)
-    parser.add_argument("--n-trials-base", type=int, default=2500)
-    parser.add_argument("--n-startup-base", type=int, default=1000)
+    parser.add_argument("--n-trials-base", type=int, default=30000)
+    parser.add_argument("--n-startup-base", type=int, default=12000)
     parser.add_argument("--skip-baseline", action="store_true")
     parser.add_argument("--progress-interval", type=float, default=5.0)
-    parser.add_argument("--restart-every", type=int, default=200)
+    parser.add_argument("--restart-every", type=int, default=500)
     args = parser.parse_args()
 
     seed_list = []
