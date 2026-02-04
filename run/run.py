@@ -5,7 +5,7 @@ import pandas as pd
 SRC_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, f"{SRC_DIR}/..")
 
-from model.crop_season import CropSeasonFirst
+from model.crop_season_spore import CropSeasonFirstSpore
 from model.config import config
 
 
@@ -20,7 +20,7 @@ def run_simulation(rbf: str):
     # ===============================
     # 2. run simulation
     # ===============================
-    crop_season = CropSeasonFirst(
+    crop_season = CropSeasonFirstSpore(
         csrb=rb,
         config=config
     )

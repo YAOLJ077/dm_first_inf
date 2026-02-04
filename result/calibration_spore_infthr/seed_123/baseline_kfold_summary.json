@@ -1,0 +1,15 @@
+{
+  "train_mae_mean": 4.833333333333333,
+  "train_mae_std": 1.0069204977995476,
+  "train_mae_var": 1.0138888888888888,
+  "val_mae_mean": 8.0,
+  "val_mae_std": 3.24037034920393,
+  "val_mae_var": 10.5,
+  "train_rmse": 4.937104414532874,
+  "val_rmse": 8.631338250816034,
+  "n_folds": 3,
+  "spore_alpha_pos_mean": 1.4641616460827607,
+  "spore_alpha_pos_std": 0.36019754641584134,
+  "spore_alpha_neg_mean": 0.3106746102828856,
+  "spore_alpha_neg_std": 0.20170516341323058
+}

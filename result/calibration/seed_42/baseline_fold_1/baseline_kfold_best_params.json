@@ -1,0 +1,26 @@
+{
+  "fold": 1,
+  "train_mae": 3.75,
+  "val_mae": 15.0,
+  "train_std": 2.277608394786075,
+  "val_std": 3.0,
+  "train_var": 5.1875,
+  "val_var": 9.0,
+  "train_rmse": 4.387482193696061,
+  "val_rmse": 15.297058540778355,
+  "params": {
+    "mp_tmp__rh_wet_night": 87.6891831551876,
+    "sporulation__MP_min": 4.3298363547715875,
+    "sporulation__Tmin": 9.638709883220315,
+    "sporulation__Topt": 21.57333429830033,
+    "sporulation__Tmax": 29.864769924810638,
+    "dispersal__rain_min": 12.239783030019128,
+    "dispersal__wind_min": 13.448546759730574,
+    "deposition__rain_min": 11.349456408271843,
+    "zoospore_alive__rain": 2.9709995586501234,
+    "zoospore_alive__vpd": 2.2839601864749675,
+    "infection__infection_condition": 43.26073589581216,
+    "incubation__spl_end": 1.2071589358335293,
+    "thresholds__min_spores": 0.0020940716556790114
+  }
+}

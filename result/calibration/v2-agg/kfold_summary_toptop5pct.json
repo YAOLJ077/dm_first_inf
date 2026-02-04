@@ -1,7 +1,0 @@
-{
-  "train_mae_mean": 6.5,
-  "train_mae_std": 2.462214450449026,
-  "val_mae_mean": 8.0,
-  "val_mae_std": 3.968626966596886,
-  "n_folds": 3
-}
