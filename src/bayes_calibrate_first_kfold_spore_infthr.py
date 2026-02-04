@@ -43,7 +43,7 @@ if PROJECT_ROOT not in sys.path:
 
 DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 ACTUAL_DATA_PATH = os.path.join(DATA_DIR, "actual_data.xlsx")
-RESULT_DIR = os.path.join(PROJECT_ROOT, "result", "calibration_spore_infthr")
+RESULT_DIR = os.path.join(PROJECT_ROOT, "result", "calibration_spore_infthr_v2")
 os.makedirs(RESULT_DIR, exist_ok=True)
 
 from model.crop_season_spore_infthr import CropSeasonFirstSporeInfThr
@@ -74,8 +74,8 @@ BASE_RANGES = {
     "infection__infection_condition": (50, 150),
     "incubation__spl_end": (1.0, 1.5),
     "thresholds__min_spores": (0.05, 0.30),
-    "spore__alpha_pos": (0.3, 1.8),
-    "spore__alpha_neg": (0.0, 1.2)
+    "spore__alpha_pos": (0.3, 2.5),
+    "spore__alpha_neg": (0.0, 1.4)
 }
 
 
