@@ -5,8 +5,24 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
+import ast
+import re
+from typing import Optional
 
-from bayes_calibrate_first_kfold_spore_infthr import BASE_RANGES
+
+def _load_base_ranges() -> Dict[str, Tuple[float, float]]:
+    src_dir = Path(__file__).resolve().parent
+    target = src_dir / "bayes_calibrate_first_kfold_spore_infthr.py"
+    if not target.exists():
+        raise FileNotFoundError(f"Missing: {target}")
+    text = target.read_text(encoding="utf-8")
+    tree = ast.parse(text)
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            for t in node.targets:
+                if isinstance(t, ast.Name) and t.id == "BASE_RANGES":
+                    return ast.literal_eval(node.value)
+    raise ValueError("Could not parse BASE_RANGES from bayes_calibrate_first_kfold_spore_infthr.py")
 
 
 def _load_fold_best_params(seed_dir: Path) -> List[Dict]:
@@ -111,7 +127,7 @@ def _window_compare(stats: Dict[str, pd.DataFrame]) -> pd.DataFrame:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--result-dir", type=str, default="result/calibration_spore_infthr")
+    parser.add_argument("--result-dir", type=str, default="result/calibration_spore_infthr_v2")
     parser.add_argument(
         "--compare-dir",
         type=str,
@@ -125,6 +141,7 @@ def main() -> None:
     if args.compare_dir.strip():
         res_dirs["w7"] = Path(args.compare_dir)
 
+    base_ranges = _load_base_ranges()
     all_stats = {}
     for label, rdir in res_dirs.items():
         if not rdir.exists():
@@ -135,7 +152,7 @@ def main() -> None:
             print(f"[WARN] No results found in: {rdir}")
             continue
 
-        bounds = _boundary_analysis(params_df, BASE_RANGES)
+        bounds = _boundary_analysis(params_df, base_ranges)
         if not bounds.empty:
             bounds["suggestion"] = bounds.apply(_suggest_range, axis=1)
             out_path = Path(args.out)
