@@ -8,6 +8,16 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
+
+from model.crop_season import CropSeasonFirst
+from model.crop_season_spore_infthr import CropSeasonFirstSporeInfThr
+from model.config import config as base_config
+from bayes_calibrate_first_kfold_spore_infthr import (
+    apply_params,
+    build_spore_day_map,
+    load_actual,
+)
 
 
 def _load_fold_best_rows(root: Path, model_name: str) -> pd.DataFrame:
@@ -62,6 +72,50 @@ def _load_selected(sum_dir: Path) -> tuple[int, int, int]:
     return selected_seed, b_fold, s_fold
 
 
+def _calc_error(actual_date, event_df: pd.DataFrame) -> float:
+    if event_df is None or event_df.empty:
+        return np.nan
+    first = event_df.iloc[0]
+    doy_actual = pd.to_datetime(actual_date).dayofyear
+    doy_start = pd.to_datetime(first["oil_spot_start"]).dayofyear
+    doy_end = pd.to_datetime(first["oil_spot_end"]).dayofyear
+    if doy_end < doy_actual:
+        return float(doy_end - doy_actual)
+    if doy_start > doy_actual:
+        return float(doy_start - doy_actual)
+    return 0.0
+
+
+def _global_mae_for_params(params: dict, rows, spore_day_map: dict | None, use_spore: bool) -> float:
+    errors = []
+    data_dir = Path(__file__).resolve().parents[1] / "data"
+    penalty = 120.0
+    cfg = apply_params(base_config, params)
+    for row in rows:
+        rb_path = data_dir / f"{row.plot}_{row.variety}_{row.first_infection_date.year}_grape_rb.json"
+        if not rb_path.exists():
+            continue
+        try:
+            with open(rb_path, "r") as f:
+                rb = json.load(f)
+            if use_spore:
+                spore_day = spore_day_map.get((str(row.plot), int(row.first_infection_date.year)))
+                cs = CropSeasonFirstSporeInfThr(csrb=rb, config=cfg, spore_day=spore_day)
+            else:
+                cs = CropSeasonFirst(csrb=rb, config=cfg)
+            cs.simulate()
+            err = _calc_error(row.first_infection_date, cs.primary_chain_unique)
+        except Exception:
+            err = np.nan
+        if np.isfinite(err):
+            errors.append(float(err))
+        else:
+            errors.append(penalty)
+    if not errors:
+        return penalty
+    return float(np.abs(np.array(errors, dtype=float)).mean())
+
+
 def main() -> None:
     src_dir = Path(__file__).resolve().parent
     project_root = src_dir.parent
@@ -87,6 +141,42 @@ def main() -> None:
     if merged.empty:
         raise ValueError("No overlapping seed/fold pairs between baseline and spore.")
 
+    # Compute global_mae for all 9 fold-best combinations (both models)
+    actual_df = load_actual()
+    rows = list(actual_df.itertuples(index=False))
+    spore_day_map = build_spore_day_map(actual_df)
+
+    b_params_map = {}
+    s_params_map = {}
+    for seed_dir in sorted(baseline_dir.glob("seed_*")):
+        if not seed_dir.is_dir():
+            continue
+        seed = int(seed_dir.name.split("_", 1)[1])
+        for fold_dir in sorted(seed_dir.glob("baseline_fold_*")):
+            fold = int(fold_dir.name.split("_")[-1])
+            p = fold_dir / "baseline_kfold_best_params.json"
+            if p.exists():
+                with open(p, "r") as f:
+                    b_params_map[(seed, fold)] = json.load(f).get("params", {})
+    for seed_dir in sorted(spore_dir.glob("seed_*")):
+        if not seed_dir.is_dir():
+            continue
+        seed = int(seed_dir.name.split("_", 1)[1])
+        for fold_dir in sorted(seed_dir.glob("baseline_fold_*")):
+            fold = int(fold_dir.name.split("_")[-1])
+            p = fold_dir / "baseline_kfold_best_params.json"
+            if p.exists():
+                with open(p, "r") as f:
+                    s_params_map[(seed, fold)] = json.load(f).get("params", {})
+
+    g_b, g_s = [], []
+    for _, r0 in merged.iterrows():
+        k = (int(r0["seed"]), int(r0["fold"]))
+        g_b.append(_global_mae_for_params(b_params_map.get(k, {}), rows, None, use_spore=False))
+        g_s.append(_global_mae_for_params(s_params_map.get(k, {}), rows, spore_day_map, use_spore=True))
+    merged["global_mae_baseline"] = g_b
+    merged["global_mae_spore"] = g_s
+
     seeds = sorted(merged["seed"].unique().tolist())
     folds = [1, 2, 3]
 
@@ -98,8 +188,10 @@ def main() -> None:
         max(
             merged["train_mae_baseline"].max(),
             merged["val_mae_baseline"].max(),
+            merged["global_mae_baseline"].max(),
             merged["train_mae_spore"].max(),
             merged["val_mae_spore"].max(),
+            merged["global_mae_spore"].max(),
         )
     )
     y_max *= 1.35
@@ -113,17 +205,17 @@ def main() -> None:
                 continue
             row = sub.iloc[0]
 
-            x = [0.0, 1.0]  # 0=train, 1=val
-            width = 0.34
-            b_vals = [row["train_mae_baseline"], row["val_mae_baseline"]]
-            s_vals = [row["train_mae_spore"], row["val_mae_spore"]]
+            x = [0.0, 1.0, 2.0]  # 0=train, 1=val, 2=global
+            width = 0.28
+            b_vals = [row["train_mae_baseline"], row["val_mae_baseline"], row["global_mae_baseline"]]
+            s_vals = [row["train_mae_spore"], row["val_mae_spore"], row["global_mae_spore"]]
             b_err = [row["train_std_baseline"], row["val_std_baseline"]]
             s_err = [row["train_std_spore"], row["val_std_spore"]]
 
             ax.bar(
                 [i - width / 2 for i in x],
                 b_vals,
-                yerr=b_err,
+                yerr=[b_err[0], b_err[1], 0.0],
                 width=width,
                 color="#4C78A8",
                 edgecolor="black",
@@ -136,7 +228,7 @@ def main() -> None:
             ax.bar(
                 [i + width / 2 for i in x],
                 s_vals,
-                yerr=s_err,
+                yerr=[s_err[0], s_err[1], 0.0],
                 width=width,
                 color="#F28E2B",
                 edgecolor="black",
@@ -148,7 +240,7 @@ def main() -> None:
             )
 
             ax.set_xticks(x)
-            ax.set_xticklabels(["Train", "Val"])
+            ax.set_xticklabels(["Train", "Val", "Global"])
             ax.set_ylim(0, y_max)
             ax.tick_params(axis="both", direction="in")
             ax.grid(axis="y", linestyle="--", color="#DDDDDD", linewidth=0.6)
@@ -190,4 +282,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
