@@ -56,44 +56,44 @@ PENALTY_DAYS = 120.0
 RANDOM_SEED = 42
 FOLD_SEED = 42
 N_JOBS = 128
-RB_CACHE_MAX = 64
+RB_CACHE_MAX = 256
 TOPK_PCT = 5.0
 
 # Base ranges (global)
-# BASE_RANGES = {
-#     "mp_tmp__rh_wet_night": (85, 95),
-#     "sporulation__MP_min": (3, 6),
-#     "sporulation__Tmin": (8, 15),
-#     "sporulation__Topt": (18, 24),
-#     "sporulation__Tmax": (25, 35),
-#     "dispersal__rain_min": (6.0, 12.0),
-#     "dispersal__wind_min": (4.0, 12.0),
-#     "deposition__rain_min": (4.0, 12.0),
-#     "zoospore_alive__rain": (3.0, 8.0),
-#     "zoospore_alive__vpd": (1.5, 4.0),
-#     "infection__infection_condition": (50, 150),
-#     "incubation__spl_end": (1.0, 1.5),
-#     "thresholds__min_spores": (0.05, 0.30),
-#     "spore__alpha_pos": (0.3, 2.5),
-#     "spore__alpha_neg": (0.0, 1.4)
-# }
 BASE_RANGES = {
     "mp_tmp__rh_wet_night": (85, 95),
     "sporulation__MP_min": (3, 6),
     "sporulation__Tmin": (8, 15),
     "sporulation__Topt": (18, 24),
     "sporulation__Tmax": (25, 35),
-    "dispersal__rain_min": (4.0, 10.0),
-    "dispersal__wind_min": (2.0, 10.0),
-    "deposition__rain_min": (4.0, 10.0),
-    "zoospore_alive__rain": (2.0, 8.0),
+    "dispersal__rain_min": (6.0, 12.0),
+    "dispersal__wind_min": (4.0, 12.0),
+    "deposition__rain_min": (4.0, 12.0),
+    "zoospore_alive__rain": (3.0, 8.0),
     "zoospore_alive__vpd": (1.5, 4.0),
-    "infection__infection_condition": (50, 180),
+    "infection__infection_condition": (50, 150),
     "incubation__spl_end": (1.0, 1.5),
-    "thresholds__min_spores": (0.01, 0.30),
-    "spore__alpha_pos": (0.3, 3.0),
-    "spore__alpha_neg": (0.0, 1.5)
+    "thresholds__min_spores": (0.05, 0.30),
+    "spore__alpha_pos": (0.3, 2.5),
+    "spore__alpha_neg": (0.0, 1.4)
 }
+# BASE_RANGES = {
+#     "mp_tmp__rh_wet_night": (85, 95),
+#     "sporulation__MP_min": (3, 6),
+#     "sporulation__Tmin": (8, 15),
+#     "sporulation__Topt": (18, 24),
+#     "sporulation__Tmax": (25, 35),
+#     "dispersal__rain_min": (4.0, 10.0),
+#     "dispersal__wind_min": (2.0, 10.0),
+#     "deposition__rain_min": (4.0, 10.0),
+#     "zoospore_alive__rain": (2.0, 8.0),
+#     "zoospore_alive__vpd": (1.5, 4.0),
+#     "infection__infection_condition": (50, 150),
+#     "incubation__spl_end": (1.0, 1.5),
+#     "thresholds__min_spores": (0.01, 0.30),
+#     "spore__alpha_pos": (0.3, 3.0),
+#     "spore__alpha_neg": (0.0, 1.5)
+# }
 
 
 
@@ -211,6 +211,20 @@ def load_rb_cached(path: str) -> dict:
         with open(path, "r") as f:
             _RB_CACHE[path] = json.load(f)
     return _RB_CACHE[path]
+
+
+def load_all_rb(rows: List[pd.Series]) -> Dict[str, dict]:
+    cache: Dict[str, dict] = {}
+    for row in rows:
+        key = f"{row.plot}_{row.variety}_{row.first_infection_date.year}"
+        rb_path = os.path.join(DATA_DIR, f"{key}_grape_rb.json")
+        if not os.path.exists(rb_path):
+            continue
+        if rb_path in cache:
+            continue
+        with open(rb_path, "r") as f:
+            cache[rb_path] = json.load(f)
+    return cache
 
 
 def _load_rb_cached(path: str, cache: Dict[str, dict]) -> dict:
@@ -377,9 +391,9 @@ def select_topk_val_best_constrained(df: pd.DataFrame, pct: float) -> pd.Series:
     return best
 
 
-@ray.remote(num_cpus=1)
+@ray.remote(num_cpus=2)
 class ModelWorker:
-    def __init__(self, rows_ref, spore_day_map):
+    def __init__(self, rows_ref, spore_day_map, rb_cache_ref):
         if isinstance(rows_ref, ray.ObjectRef):
             self.rows = ray.get(rows_ref)
         else:
@@ -388,10 +402,16 @@ class ModelWorker:
             self.spore_day_map = ray.get(spore_day_map)
         else:
             self.spore_day_map = spore_day_map
+        if isinstance(rb_cache_ref, ray.ObjectRef):
+            self.rb_preload = ray.get(rb_cache_ref)
+        else:
+            self.rb_preload = rb_cache_ref
         self.rb_cache: "OrderedDict[str, dict]" = OrderedDict()
         self.rb_cache_max = RB_CACHE_MAX
 
     def _load_rb_cached_lru(self, path: str) -> dict:
+        if self.rb_preload and path in self.rb_preload:
+            return self.rb_preload[path]
         if path in self.rb_cache:
             self.rb_cache.move_to_end(path)
             return self.rb_cache[path]
@@ -403,7 +423,7 @@ class ModelWorker:
             self.rb_cache.popitem(last=False)
         return data
 
-    def _compute_error_stats_idx(self, cfg: dict, idxs: List[int]) -> Tuple[float, float, float]:
+    def _compute_errors_for_idxs(self, cfg: dict, idxs: List[int]) -> List[float]:
         errors = []
         for i in idxs:
             row = self.rows[i]
@@ -423,6 +443,9 @@ class ModelWorker:
                 errors.append(float(err))
             else:
                 errors.append(float(PENALTY_DAYS))
+        return errors
+
+    def _stats_from_errors(self, errors: List[float]) -> Tuple[float, float, float]:
         if not errors:
             return PENALTY_DAYS, 0.0, PENALTY_DAYS
         abs_err = np.abs(np.array(errors, dtype=float))
@@ -435,22 +458,27 @@ class ModelWorker:
         self, params: Dict[str, float], train_idx: List[int], val_idx: List[int]
     ) -> Tuple[float, float, float, float, float, float]:
         cfg = apply_params(config, params)
-        train_mae, train_std, train_rmse = self._compute_error_stats_idx(cfg, train_idx)
-        val_mae, val_std, val_rmse = self._compute_error_stats_idx(cfg, val_idx)
+        all_idx = list(dict.fromkeys(train_idx + val_idx))
+        errors_all = self._compute_errors_for_idxs(cfg, all_idx)
+        err_map = {idx: errors_all[i] for i, idx in enumerate(all_idx)}
+        train_errors = [err_map[i] for i in train_idx if i in err_map]
+        val_errors = [err_map[i] for i in val_idx if i in err_map]
+        train_mae, train_std, train_rmse = self._stats_from_errors(train_errors)
+        val_mae, val_std, val_rmse = self._stats_from_errors(val_errors)
         return train_mae, val_mae, train_std, val_std, train_rmse, val_rmse
 
 
-def _make_workers(n_jobs: int, rows_ref, spore_day_map_ref) -> List[ray.actor.ActorHandle]:
-    return [ModelWorker.remote(rows_ref, spore_day_map_ref) for _ in range(n_jobs)]
+def _make_workers(n_jobs: int, rows_ref, spore_day_map_ref, rb_cache_ref) -> List[ray.actor.ActorHandle]:
+    return [ModelWorker.remote(rows_ref, spore_day_map_ref, rb_cache_ref) for _ in range(n_jobs)]
 
 
-def _replace_worker(workers: List[ray.actor.ActorHandle], old_worker, rows_ref, spore_day_map_ref):
+def _replace_worker(workers: List[ray.actor.ActorHandle], old_worker, rows_ref, spore_day_map_ref, rb_cache_ref):
     try:
         idx = workers.index(old_worker)
     except ValueError:
         idx = None
     ray.kill(old_worker, no_restart=True)
-    new_worker = ModelWorker.remote(rows_ref, spore_day_map_ref)
+    new_worker = ModelWorker.remote(rows_ref, spore_day_map_ref, rb_cache_ref)
     if idx is not None:
         workers[idx] = new_worker
     else:
@@ -465,6 +493,7 @@ def run_baseline_kfold(
     workers: List[ray.actor.ActorHandle],
     rows_ref,
     spore_day_map_ref,
+    rb_cache_ref,
     n_jobs: int,
     restart_every: int,
     n_trials_stage1: int,
@@ -473,7 +502,8 @@ def run_baseline_kfold(
     seed: int,
     fold_ids: List[int],
     fold_seed: int,
-    seed_tag: str = ""
+    seed_tag: str = "",
+    trial_timing: bool = False,
 ) -> Tuple[List[Dict[str, float]], pd.DataFrame, Dict[str, float]]:
     folds = build_folds(len(rows), k, fold_seed)
     fold_best_rows = []
@@ -492,6 +522,7 @@ def run_baseline_kfold(
         last_ts = 0.0
         pending = {}
         completed = 0
+        timing_samples_ms: List[float] = []
         max_conc = max(1, n_jobs)
         available = list(workers)
         next_restart = restart_every if restart_every > 0 else None
@@ -505,14 +536,16 @@ def run_baseline_kfold(
                 params = define_search_space(trial, stage1_ranges)
                 worker = available.pop(0)
                 fut = worker.eval_mae.remote(params, train_idx, val_idx)
-                pending[fut] = (trial, params, worker)
+                pending[fut] = (trial, params, worker, time.perf_counter())
             if not pending:
                 time.sleep(0.01)
                 continue
             done_ids, _ = ray.wait(list(pending.keys()), num_returns=1)
             for fut in done_ids:
-                trial, params, worker = pending.pop(fut)
+                trial, params, worker, t0 = pending.pop(fut)
                 train_mae, val_mae, train_std, val_std, train_rmse, val_rmse = ray.get(fut)
+                if trial_timing:
+                    timing_samples_ms.append((time.perf_counter() - t0) * 1000.0)
                 study.tell(trial, train_mae)
                 trial_rows.append({
                     "train_mae": float(train_mae),
@@ -525,10 +558,17 @@ def run_baseline_kfold(
                 })
                 completed += 1
                 if next_restart is not None and completed >= next_restart:
-                    worker = _replace_worker(workers, worker, rows_ref, spore_day_map_ref)
+                    worker = _replace_worker(workers, worker, rows_ref, spore_day_map_ref, rb_cache_ref)
                     next_restart += restart_every
                 available.append(worker)
             last_ts = _progress_print(completed, n_trials_stage1, len(pending), max_conc, prefix, last_ts, progress_interval)
+            if trial_timing and completed % 200 == 0 and timing_samples_ms:
+                avg_ms = float(np.mean(timing_samples_ms))
+                p95_ms = float(np.percentile(timing_samples_ms, 95))
+                print(
+                    f"{prefix} TrialTime avg={avg_ms:.1f}ms p95={p95_ms:.1f}ms (n={len(timing_samples_ms)})",
+                    flush=True
+                )
 
         df_trials = pd.DataFrame(trial_rows).sort_values("train_mae")
         fold_dir = os.path.join(RESULT_DIR, f"baseline_fold_{fold_id}")
@@ -651,10 +691,11 @@ def main() -> None:
     parser.add_argument("--folds", type=str, default="")
     parser.add_argument("--fold-seed", type=int, default=FOLD_SEED)
     parser.add_argument("--n-trials-base", type=int, default=30000)
-    parser.add_argument("--n-startup-base", type=int, default=12000)
+    parser.add_argument("--n-startup-base", type=int, default=10000)
     parser.add_argument("--skip-baseline", action="store_true")
     parser.add_argument("--progress-interval", type=float, default=5.0)
-    parser.add_argument("--restart-every", type=int, default=500)
+    parser.add_argument("--restart-every", type=int, default=0)
+    parser.add_argument("--trial-timing", action="store_true")
     args = parser.parse_args()
 
     seed_list = []
@@ -677,9 +718,12 @@ def main() -> None:
     global SPORE_DAY_MAP
     SPORE_DAY_MAP = spore_day_map
     stage1_ranges = build_param_ranges()
+    rb_cache = load_all_rb(rows)
+    _RB_CACHE.update(rb_cache)
     rows_ref = ray.put(rows)
+    rb_cache_ref = ray.put(rb_cache)
     spore_day_map_ref = ray.put(spore_day_map)
-    workers = _make_workers(args.n_jobs, rows_ref, spore_day_map_ref)
+    workers = _make_workers(args.n_jobs, rows_ref, spore_day_map_ref, rb_cache_ref)
 
     base_result_dir = RESULT_DIR
     seed_summaries = []
@@ -709,6 +753,7 @@ def main() -> None:
                 workers=workers,
                 rows_ref=rows_ref,
                 spore_day_map_ref=spore_day_map_ref,
+                rb_cache_ref=rb_cache_ref,
                 n_jobs=args.n_jobs,
                 restart_every=args.restart_every,
                 n_trials_stage1=args.n_trials_base,
@@ -718,6 +763,7 @@ def main() -> None:
                 fold_ids=fold_ids,
                 fold_seed=args.fold_seed,
                 seed_tag=f"[Seed {seed}] ",
+                trial_timing=args.trial_timing,
             )
 
         summary_path = os.path.join(RESULT_DIR, "baseline_kfold_summary.json")

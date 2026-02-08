@@ -14,6 +14,9 @@ class CropSeasonFirstSporeInfThr:
         self.place = csrb.get("Place")
         self._delta_pre_bbch53 = 7  # days
         self.spore_day = spore_day
+        self.spore_day_roll = None
+        if self.spore_day is not None and not self.spore_day.empty:
+            self.spore_day_roll = self.spore_day.rolling(window=3, min_periods=1).mean()
 
         self.bbch_53_datetime = pd.to_datetime(
             csrb.get("HHCH_53"), errors="coerce"

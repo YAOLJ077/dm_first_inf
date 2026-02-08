@@ -241,14 +241,17 @@ class FirstInfectionSpore:
         return float(spore_day.get(pd.to_datetime(dt).normalize(), 0.0))
 
     def _spore_rolling_value(self, dt, window_days: int = 3) -> float:
-        spore_day = getattr(self.cs, "spore_day", None)
-        if spore_day is None or spore_day.empty:
-            return 0.0
-        end = pd.to_datetime(dt).normalize()
-        start = end - pd.Timedelta(days=window_days - 1)
-        idx = pd.date_range(start=start, end=end, freq="D")
-        vals = [float(spore_day.get(d, 0.0)) for d in idx]
-        return float(np.mean(vals)) if vals else 0.0
+        spore_roll = getattr(self.cs, "spore_day_roll", None)
+        if spore_roll is None or spore_roll.empty:
+            spore_day = getattr(self.cs, "spore_day", None)
+            if spore_day is None or spore_day.empty:
+                return 0.0
+            end = pd.to_datetime(dt).normalize()
+            start = end - pd.Timedelta(days=window_days - 1)
+            idx = pd.date_range(start=start, end=end, freq="D")
+            vals = [float(spore_day.get(d, 0.0)) for d in idx]
+            return float(np.mean(vals)) if vals else 0.0
+        return float(spore_roll.get(pd.to_datetime(dt).normalize(), 0.0))
 
     # ======================================================
     # Spore pressure window (daily index)
