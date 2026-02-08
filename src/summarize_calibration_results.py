@@ -108,6 +108,22 @@ def _write_json(path: str, obj: Dict) -> None:
         json.dump(obj, f, indent=2)
 
 
+def _model_seed_mae_summary(
+    baseline_seed_summary: pd.DataFrame, spore_seed_summary: pd.DataFrame
+) -> pd.DataFrame:
+    rows = []
+    for model_name, df in [("baseline", baseline_seed_summary), ("spore", spore_seed_summary)]:
+        if df.empty:
+            continue
+        row = {"model_type": model_name, "n_seeds": int(len(df))}
+        for c in ["train_mae_mean", "val_mae_mean"]:
+            if c in df.columns and pd.api.types.is_numeric_dtype(df[c]):
+                row[f"{c}_across_seeds_mean"] = float(df[c].mean())
+                row[f"{c}_across_seeds_std"] = float(df[c].std(ddof=0))
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
 def _compare_baseline_spore(b_df: pd.DataFrame, s_df: pd.DataFrame) -> pd.DataFrame:
     if b_df.empty or s_df.empty:
         return pd.DataFrame()
@@ -153,6 +169,17 @@ def main() -> None:
         baseline_best.to_csv(os.path.join(args.out_dir, "baseline_seed_best_global.csv"), index=False)
     if not spore_best.empty:
         spore_best.to_csv(os.path.join(args.out_dir, "spore_seed_best_global.csv"), index=False)
+
+    model_mae_summary = _model_seed_mae_summary(baseline_seed_summary, spore_seed_summary)
+    if not model_mae_summary.empty:
+        model_mae_summary.to_csv(
+            os.path.join(args.out_dir, "model_seed_mae_summary.csv"),
+            index=False,
+        )
+        _write_json(
+            os.path.join(args.out_dir, "model_seed_mae_summary.json"),
+            model_mae_summary.to_dict(orient="records"),
+        )
 
     compare = _compare_baseline_spore(baseline_seed_summary, spore_seed_summary)
     if not compare.empty:
