@@ -202,11 +202,11 @@ def _loocv(rows: List, tbase_grid: np.ndarray, theta_grid: np.ndarray, n_jobs: i
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Calibrate BBCH53 GDD inversion module.")
-    parser.add_argument("--tbase-min", type=float, default=6.0)
-    parser.add_argument("--tbase-max", type=float, default=14.0)
+    parser.add_argument("--tbase-min", type=float, default=5.0)
+    parser.add_argument("--tbase-max", type=float, default=15.0)
     parser.add_argument("--tbase-step", type=float, default=0.25)
-    parser.add_argument("--theta-min", type=float, default=120.0)
-    parser.add_argument("--theta-max", type=float, default=900.0)
+    parser.add_argument("--theta-min", type=float, default=80.0)
+    parser.add_argument("--theta-max", type=float, default=1100.0)
     parser.add_argument("--theta-step", type=float, default=10.0)
     parser.add_argument("--tbase-main", type=float, default=10.0, help="Main setting for publication scenario.")
     parser.add_argument(
