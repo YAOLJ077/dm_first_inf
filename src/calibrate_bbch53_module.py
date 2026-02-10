@@ -72,11 +72,20 @@ def _build_cache(rows: List) -> List[Dict]:
     return cache
 
 
-def _backcalc_theta_at_obs(cache: List[Dict], t_base: float) -> pd.DataFrame:
+def _start_dt_for_year(year: int, month: int, day: int) -> pd.Timestamp:
+    try:
+        return pd.Timestamp(year=int(year), month=int(month), day=int(day))
+    except ValueError:
+        first = pd.Timestamp(year=int(year), month=int(month), day=1)
+        return first + pd.offsets.MonthEnd(0)
+
+
+def _backcalc_theta_at_obs(cache: List[Dict], t_base: float, start_month: int, start_day: int) -> pd.DataFrame:
     rows = []
     for s in cache:
         obs = pd.to_datetime(s["obs_bbch53"]).normalize()
-        ag = compute_agdd_hourly(s["hourly"], t_base=t_base)
+        start_dt = _start_dt_for_year(s["year"], start_month, start_day)
+        ag = compute_agdd_hourly(s["hourly"], t_base=t_base, start_datetime=start_dt)
         ag = ag[ag["datetime"] <= (obs + pd.Timedelta(hours=23, minutes=59, seconds=59))]
         theta_obs = float(ag["agdd"].iloc[-1]) if not ag.empty else np.nan
         rows.append(
@@ -91,11 +100,24 @@ def _backcalc_theta_at_obs(cache: List[Dict], t_base: float) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _eval_params(cache: List[Dict], t_base: float, theta: float, penalty_days: float = 120.0) -> Tuple[float, float, List[Dict]]:
+def _eval_params(
+    cache: List[Dict],
+    t_base: float,
+    theta: float,
+    start_month: int,
+    start_day: int,
+    penalty_days: float = 120.0,
+) -> Tuple[float, float, List[Dict]]:
     errs = []
     detail = []
     for s in cache:
-        pred = estimate_bbch53_date(s["hourly"], theta_agdd=theta, t_base=t_base)
+        start_dt = _start_dt_for_year(s["year"], start_month, start_day)
+        pred = estimate_bbch53_date(
+            s["hourly"],
+            theta_agdd=theta,
+            t_base=t_base,
+            start_datetime=start_dt,
+        )
         obs = s["obs_bbch53"]
         if pd.isna(pred):
             err = float(penalty_days)
@@ -120,10 +142,16 @@ def _eval_params(cache: List[Dict], t_base: float, theta: float, penalty_days: f
 
 if ray is not None:
     @ray.remote
-    def _eval_combo_remote(cache_ref, t_base: float, theta: float) -> Dict:
+    def _eval_combo_remote(cache_ref, t_base: float, theta: float, start_month: int, start_day: int) -> Dict:
         # Ray may pass either the resolved value or an ObjectRef depending on call path.
         cache = ray.get(cache_ref) if isinstance(cache_ref, ray.ObjectRef) else cache_ref
-        mae, rmse, _ = _eval_params(cache, float(t_base), float(theta))
+        mae, rmse, _ = _eval_params(
+            cache,
+            float(t_base),
+            float(theta),
+            int(start_month),
+            int(start_day),
+        )
         return {
             "t_base": float(t_base),
             "theta_agdd": float(theta),
@@ -137,12 +165,14 @@ def _grid_search(
     tbase_grid: np.ndarray,
     theta_grid: np.ndarray,
     n_jobs: int,
+    start_month: int,
+    start_day: int,
 ) -> Tuple[Dict, pd.DataFrame]:
     combos = [(float(tb), float(th)) for tb in tbase_grid for th in theta_grid]
     if ray is None or n_jobs <= 1:
         out = []
         for tb, th in tqdm(combos, desc="BBCH grid", total=len(combos)):
-            mae, rmse, _ = _eval_params(cache, tb, th)
+            mae, rmse, _ = _eval_params(cache, tb, th, start_month, start_day)
             out.append({"t_base": tb, "theta_agdd": th, "mae_days": mae, "rmse_days": rmse})
         trials = pd.DataFrame(out).sort_values(["mae_days", "rmse_days"]).reset_index(drop=True)
         return trials.iloc[0].to_dict(), trials
@@ -157,7 +187,7 @@ def _grid_search(
     while done < total:
         while cursor < total and len(pending) < max(1, n_jobs):
             tb, th = combos[cursor]
-            fut = _eval_combo_remote.remote(cache_ref, tb, th)
+            fut = _eval_combo_remote.remote(cache_ref, tb, th, start_month, start_day)
             pending[fut] = True
             cursor += 1
         ready, _ = ray.wait(list(pending.keys()), num_returns=1)
@@ -171,15 +201,35 @@ def _grid_search(
     return trials.iloc[0].to_dict(), trials
 
 
-def _loocv(rows: List, tbase_grid: np.ndarray, theta_grid: np.ndarray, n_jobs: int) -> pd.DataFrame:
+def _loocv(
+    rows: List,
+    tbase_grid: np.ndarray,
+    theta_grid: np.ndarray,
+    n_jobs: int,
+    start_month: int,
+    start_day: int,
+) -> pd.DataFrame:
     out = []
     for i in tqdm(range(len(rows)), desc="BBCH LOOCV"):
         train = [rows[j] for j in range(len(rows)) if j != i]
         test = rows[i]
         train_cache = _build_cache(train)
-        best, _ = _grid_search(train_cache, tbase_grid, theta_grid, n_jobs=n_jobs)
+        best, _ = _grid_search(
+            train_cache,
+            tbase_grid,
+            theta_grid,
+            n_jobs=n_jobs,
+            start_month=start_month,
+            start_day=start_day,
+        )
         test_cache = _build_cache([test])
-        mae, rmse, detail = _eval_params(test_cache, best["t_base"], best["theta_agdd"])
+        mae, rmse, detail = _eval_params(
+            test_cache,
+            best["t_base"],
+            best["theta_agdd"],
+            start_month=start_month,
+            start_day=start_day,
+        )
         d = detail[0]
         out.append(
             {
@@ -216,6 +266,8 @@ def main() -> None:
         help="Quantiles for main-setting threshold scenarios.",
     )
     parser.add_argument("--n-jobs", type=int, default=64)
+    parser.add_argument("--start-month", type=int, default=2, help="Weak fixed start month for AGDD accumulation.")
+    parser.add_argument("--start-day", type=int, default=1, help="Weak fixed start day for AGDD accumulation.")
     args = parser.parse_args()
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -230,21 +282,52 @@ def main() -> None:
     if ray_used:
         ray.init(num_cpus=max(1, args.n_jobs), include_dashboard=False, logging_level="ERROR")
 
-    best, trials = _grid_search(cache, tbase_grid, theta_grid, n_jobs=args.n_jobs)
-    final_mae, final_rmse, final_detail = _eval_params(cache, best["t_base"], best["theta_agdd"])
-    loocv = _loocv(rows, tbase_grid, theta_grid, n_jobs=args.n_jobs)
+    best, trials = _grid_search(
+        cache,
+        tbase_grid,
+        theta_grid,
+        n_jobs=args.n_jobs,
+        start_month=args.start_month,
+        start_day=args.start_day,
+    )
+    final_mae, final_rmse, final_detail = _eval_params(
+        cache,
+        best["t_base"],
+        best["theta_agdd"],
+        start_month=args.start_month,
+        start_day=args.start_day,
+    )
+    loocv = _loocv(
+        rows,
+        tbase_grid,
+        theta_grid,
+        n_jobs=args.n_jobs,
+        start_month=args.start_month,
+        start_day=args.start_day,
+    )
 
     if ray_used:
         ray.shutdown()
 
     q_values = [float(x) for x in args.theta_quantiles.split(",") if x.strip()]
-    theta_obs_df = _backcalc_theta_at_obs(cache, t_base=args.tbase_main).dropna(subset=["theta_obs"])
+    theta_obs_df = _backcalc_theta_at_obs(
+        cache,
+        t_base=args.tbase_main,
+        start_month=args.start_month,
+        start_day=args.start_day,
+    ).dropna(subset=["theta_obs"])
     theta_obs_df.to_csv(OUT_DIR / "bbch53_theta_obs_tbase_main.csv", index=False)
 
     scenario_rows = []
     for q in q_values:
         theta_q = float(theta_obs_df["theta_obs"].quantile(q))
-        mae_q, rmse_q, _ = _eval_params(cache, t_base=args.tbase_main, theta=theta_q)
+        mae_q, rmse_q, _ = _eval_params(
+            cache,
+            t_base=args.tbase_main,
+            theta=theta_q,
+            start_month=args.start_month,
+            start_day=args.start_day,
+        )
         scenario_rows.append(
             {
                 "t_base_main": float(args.tbase_main),
@@ -271,6 +354,8 @@ def main() -> None:
         "t_base_main_setting": float(args.tbase_main),
         "main_theta_quantiles": q_values,
         "main_theta_scenarios_file": "bbch53_main_setting_scenarios.csv",
+        "start_month": int(args.start_month),
+        "start_day": int(args.start_day),
         "n_site_year": int(len(rows)),
     }
     with open(OUT_DIR / "bbch53_best.json", "w", encoding="utf-8") as f:
