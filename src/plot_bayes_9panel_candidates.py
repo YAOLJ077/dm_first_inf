@@ -4,11 +4,24 @@
 from __future__ import annotations
 
 import json
+import os    
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+
+
+SRC_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(SRC_DIR, ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
+ACTUAL_DATA_PATH = os.path.join(DATA_DIR, "actual_data.xlsx")
+RESULT_DIR = os.path.join(PROJECT_ROOT, "result", "calibration_spore_infthr_v2")
+os.makedirs(RESULT_DIR, exist_ok=True)
 
 from model.crop_season import CropSeasonFirst
 from model.crop_season_spore_infthr import CropSeasonFirstSporeInfThr
