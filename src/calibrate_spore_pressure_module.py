@@ -3,11 +3,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import sys
 from pathlib import Path
 from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
+try:
+    from tqdm.auto import tqdm
+except Exception:  # pragma: no cover
+    def tqdm(x, **kwargs):  # type: ignore
+        return x
 try:
     import ray
 except Exception:  # pragma: no cover
@@ -17,11 +24,26 @@ try:
 except Exception:  # pragma: no cover
     optuna = None
 
-from bbch53_module import load_hourly_weather_from_json
-from spore_pressure_module import build_daily_features, latent_to_pressure, simulate_latent_spore_state
+os.environ.setdefault("RAY_DISABLE_METRICS", "1")
+os.environ.setdefault("RAY_DISABLE_USAGE_STATS", "1")
+os.environ.setdefault("RAY_METRICS_EXPORT_PORT", "0")
+os.environ.setdefault("RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO", "0")
+
+SRC_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SRC_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+try:
+    from src.bbch53_module import load_hourly_weather_from_json
+    from src.spore_pressure_module import build_daily_features, latent_to_pressure, simulate_latent_spore_state
+except Exception:  # pragma: no cover
+    from bbch53_module import load_hourly_weather_from_json
+    from spore_pressure_module import build_daily_features, latent_to_pressure, simulate_latent_spore_state
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = PROJECT_ROOT / "data"
 OUT_DIR = PROJECT_ROOT / "result" / "historical_inputs" / "spore_pressure_calibration"
 
@@ -153,7 +175,7 @@ def _parallel_random_search(
         trial_rows = []
         best_loss = float("inf")
         best_params = None
-        for _ in range(int(n_trials)):
+        for _ in tqdm(range(int(n_trials)), desc="Spore random search"):
             p = _sample_params_rng(rng)
             loss, _ = _evaluate_params(site_year_cache, p)
             trial_rows.append({"value": float(loss), **p})
@@ -172,6 +194,7 @@ def _parallel_random_search(
     done = 0
     best_loss = float("inf")
     best_params = None
+    pbar = tqdm(total=int(n_trials), desc="Spore random search")
 
     while done < n_trials:
         while submitted < n_trials and available:
@@ -190,6 +213,8 @@ def _parallel_random_search(
                 best_params = p
             available.append(w)
             done += 1
+            pbar.update(1)
+    pbar.close()
     return best_params, best_loss, trial_rows
 
 
@@ -211,7 +236,7 @@ def _parallel_optuna_search(
             trial_rows.append({"value": float(loss), **p})
             return float(loss)
 
-        study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
+        study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
         return _suggest_params(study.best_trial), float(study.best_value), trial_rows
 
     sampler = optuna.samplers.TPESampler(seed=seed, multivariate=True, n_startup_trials=n_startup)
@@ -223,6 +248,7 @@ def _parallel_optuna_search(
     trial_rows = []
     submitted = 0
     completed = 0
+    pbar = tqdm(total=int(n_trials), desc="Spore TPE search")
 
     while completed < n_trials:
         while submitted < n_trials and available:
@@ -240,6 +266,8 @@ def _parallel_optuna_search(
             trial_rows.append({"value": loss, **p})
             available.append(w)
             completed += 1
+            pbar.update(1)
+    pbar.close()
 
     best_params = _suggest_params(study.best_trial)
     return best_params, float(study.best_value), trial_rows
@@ -247,7 +275,7 @@ def _parallel_optuna_search(
 
 def _loocv(rows: List, spore_df: pd.DataFrame, n_trials: int, seed: int) -> pd.DataFrame:
     out = []
-    for i in range(len(rows)):
+    for i in tqdm(range(len(rows)), desc="Spore LOOCV"):
         test = rows[i]
         train_rows = [rows[j] for j in range(len(rows)) if j != i]
         train_cache = {}

@@ -3,21 +3,42 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import sys
 from pathlib import Path
 from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
+try:
+    from tqdm.auto import tqdm
+except Exception:  # pragma: no cover
+    def tqdm(x, **kwargs):  # type: ignore
+        return x
 
 try:
     import ray
 except Exception:  # pragma: no cover
     ray = None
 
-from bbch53_module import compute_agdd_hourly, estimate_bbch53_date, load_hourly_weather_from_json
+os.environ.setdefault("RAY_DISABLE_METRICS", "1")
+os.environ.setdefault("RAY_DISABLE_USAGE_STATS", "1")
+os.environ.setdefault("RAY_METRICS_EXPORT_PORT", "0")
+os.environ.setdefault("RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO", "0")
+
+SRC_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SRC_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+try:
+    from src.bbch53_module import compute_agdd_hourly, estimate_bbch53_date, load_hourly_weather_from_json
+except Exception:  # pragma: no cover
+    from bbch53_module import compute_agdd_hourly, estimate_bbch53_date, load_hourly_weather_from_json
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = PROJECT_ROOT / "data"
 OUT_DIR = PROJECT_ROOT / "result" / "historical_inputs" / "bbch53_calibration"
 
@@ -119,7 +140,7 @@ def _grid_search(
     combos = [(float(tb), float(th)) for tb in tbase_grid for th in theta_grid]
     if ray is None or n_jobs <= 1:
         out = []
-        for tb, th in combos:
+        for tb, th in tqdm(combos, desc="BBCH grid", total=len(combos)):
             mae, rmse, _ = _eval_params(cache, tb, th)
             out.append({"t_base": tb, "theta_agdd": th, "mae_days": mae, "rmse_days": rmse})
         trials = pd.DataFrame(out).sort_values(["mae_days", "rmse_days"]).reset_index(drop=True)
@@ -131,6 +152,7 @@ def _grid_search(
     done = 0
     total = len(combos)
     cursor = 0
+    pbar = tqdm(total=total, desc="BBCH grid")
     while done < total:
         while cursor < total and len(pending) < max(1, n_jobs):
             tb, th = combos[cursor]
@@ -142,13 +164,15 @@ def _grid_search(
             rows_out.append(ray.get(r))
             pending.pop(r, None)
             done += 1
+            pbar.update(1)
+    pbar.close()
     trials = pd.DataFrame(rows_out).sort_values(["mae_days", "rmse_days"]).reset_index(drop=True)
     return trials.iloc[0].to_dict(), trials
 
 
 def _loocv(rows: List, tbase_grid: np.ndarray, theta_grid: np.ndarray, n_jobs: int) -> pd.DataFrame:
     out = []
-    for i in range(len(rows)):
+    for i in tqdm(range(len(rows)), desc="BBCH LOOCV"):
         train = [rows[j] for j in range(len(rows)) if j != i]
         test = rows[i]
         train_cache = _build_cache(train)
@@ -261,4 +285,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
