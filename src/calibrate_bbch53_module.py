@@ -121,7 +121,8 @@ def _eval_params(cache: List[Dict], t_base: float, theta: float, penalty_days: f
 if ray is not None:
     @ray.remote
     def _eval_combo_remote(cache_ref, t_base: float, theta: float) -> Dict:
-        cache = ray.get(cache_ref)
+        # Ray may pass either the resolved value or an ObjectRef depending on call path.
+        cache = ray.get(cache_ref) if isinstance(cache_ref, ray.ObjectRef) else cache_ref
         mae, rmse, _ = _eval_params(cache, float(t_base), float(theta))
         return {
             "t_base": float(t_base),
