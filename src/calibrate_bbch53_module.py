@@ -268,6 +268,11 @@ def main() -> None:
     parser.add_argument("--n-jobs", type=int, default=64)
     parser.add_argument("--start-month", type=int, default=2, help="Weak fixed start month for AGDD accumulation.")
     parser.add_argument("--start-day", type=int, default=1, help="Weak fixed start day for AGDD accumulation.")
+    parser.add_argument(
+        "--search-tbase",
+        action="store_true",
+        help="If set, optimize both t_base and theta; otherwise fix t_base=tbase_main and optimize theta only.",
+    )
     args = parser.parse_args()
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -275,7 +280,8 @@ def main() -> None:
     actual = _load_actual()
     rows = list(actual.itertuples(index=False))
     cache = _build_cache(rows)
-    tbase_grid = np.arange(args.tbase_min, args.tbase_max + 1e-12, args.tbase_step)
+    tbase_grid_full = np.arange(args.tbase_min, args.tbase_max + 1e-12, args.tbase_step)
+    tbase_grid = tbase_grid_full if args.search_tbase else np.array([float(args.tbase_main)])
     theta_grid = np.arange(args.theta_min, args.theta_max + 1e-12, args.theta_step)
 
     ray_used = ray is not None and args.n_jobs > 1
@@ -356,6 +362,10 @@ def main() -> None:
         "main_theta_scenarios_file": "bbch53_main_setting_scenarios.csv",
         "start_month": int(args.start_month),
         "start_day": int(args.start_day),
+        "calibration_mode": "search_tbase_theta" if args.search_tbase else "fixed_tbase_theta_only",
+        "t_base_search_enabled": bool(args.search_tbase),
+        "t_base_grid_size": int(len(tbase_grid)),
+        "theta_grid_size": int(len(theta_grid)),
         "n_site_year": int(len(rows)),
     }
     with open(OUT_DIR / "bbch53_best.json", "w", encoding="utf-8") as f:
