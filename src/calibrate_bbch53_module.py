@@ -556,7 +556,7 @@ def main() -> None:
     parser.add_argument("--backend", type=str, default="ray", choices=["ray", "serial"])
     parser.add_argument("--loocv-topk-stage1", type=int, default=200, help="Top-K cached stage1 candidates for LOOCV re-eval.")
     parser.add_argument("--loocv-topk-stage2", type=int, default=200, help="Top-K cached stage2(delta) candidates for LOOCV re-eval.")
-    parser.add_argument("--loocv-mode", type=str, default="topk", choices=["topk", "full"])
+    parser.add_argument("--loocv-mode", type=str, default="full", choices=["topk", "full"])
     args = parser.parse_args()
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
