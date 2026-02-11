@@ -302,6 +302,19 @@ def _topk(df: pd.DataFrame, k: int) -> pd.DataFrame:
     return df.head(min(k, len(df))).copy()
 
 
+def _normalize_deltas_for_train(
+    train_samples: List[Sample],
+    delta_wk: float,
+    delta_jf: float,
+    delta_mpt: float,
+) -> Tuple[float, float, float]:
+    present = {str(s.variety_code) for s in train_samples}
+    dw = float(delta_wk) if "WK" in present else 0.0
+    dj = float(delta_jf) if "JF" in present else 0.0
+    dm = float(delta_mpt) if "MPT" in present else 0.0
+    return dw, dj, dm
+
+
 def _select_best_from_candidates(
     train_samples: List[Sample],
     candidates: pd.DataFrame,
@@ -310,6 +323,12 @@ def _select_best_from_candidates(
 ) -> Dict:
     scored = []
     for r in candidates.itertuples(index=False):
+        dw, dj, dm = _normalize_deltas_for_train(
+            train_samples=train_samples,
+            delta_wk=float(r.delta_wk),
+            delta_jf=float(r.delta_jf),
+            delta_mpt=float(r.delta_mpt),
+        )
         mae, rmse, _ = _eval_params(
             samples=train_samples,
             t_base=float(r.t_base),
@@ -318,18 +337,18 @@ def _select_best_from_candidates(
             use_rgdd_gate=use_rgdd_gate,
             rgdd_min=float(r.rgdd_min),
             rgdd_window=int(rgdd_window),
-            delta_wk=float(r.delta_wk),
-            delta_jf=float(r.delta_jf),
-            delta_mpt=float(r.delta_mpt),
+            delta_wk=float(dw),
+            delta_jf=float(dj),
+            delta_mpt=float(dm),
         )
         d = {
             "t_base": float(r.t_base),
             "theta_agdd": float(r.theta_agdd),
             "start_doy": int(r.start_doy),
             "rgdd_min": float(r.rgdd_min),
-            "delta_wk": float(r.delta_wk),
-            "delta_jf": float(r.delta_jf),
-            "delta_mpt": float(r.delta_mpt),
+            "delta_wk": float(dw),
+            "delta_jf": float(dj),
+            "delta_mpt": float(dm),
             "mae_days": float(mae),
             "rmse_days": float(rmse),
         }
@@ -409,6 +428,97 @@ def _loocv_topk_cache(
     return pd.DataFrame(rows)
 
 
+def _loocv_full_grid(
+    samples: List[Sample],
+    tbase_grid: np.ndarray,
+    theta_grid: np.ndarray,
+    start_doy_grid: np.ndarray,
+    rgdd_grid: np.ndarray,
+    delta_grid: np.ndarray,
+    n_jobs: int,
+    use_rgdd_gate: bool,
+    rgdd_window: int,
+    backend: str,
+) -> pd.DataFrame:
+    rows = []
+    for i in tqdm(range(len(samples)), desc="LOOCV(full-grid)"):
+        train = [samples[j] for j in range(len(samples)) if j != i]
+        test = [samples[i]]
+
+        trials_stage1_fold = _run_grid(
+            samples=train,
+            tbase_grid=tbase_grid,
+            theta_grid=theta_grid,
+            start_doy_grid=start_doy_grid,
+            rgdd_grid=rgdd_grid,
+            delta_grid=np.array([0.0]),
+            n_jobs=int(n_jobs),
+            use_rgdd_gate=use_rgdd_gate,
+            rgdd_window=rgdd_window,
+            backend=backend,
+            desc=f"LOOCV fold {i + 1}/{len(samples)} stage1",
+        )
+        best_stage1_fold = trials_stage1_fold.iloc[0].to_dict()
+
+        trials_stage2_fold = _run_grid(
+            samples=train,
+            tbase_grid=np.array([float(best_stage1_fold["t_base"])]),
+            theta_grid=np.array([float(best_stage1_fold["theta_agdd"])]),
+            start_doy_grid=np.array([int(best_stage1_fold["start_doy"])]),
+            rgdd_grid=np.array([float(best_stage1_fold["rgdd_min"])]),
+            delta_grid=delta_grid,
+            n_jobs=int(n_jobs),
+            use_rgdd_gate=use_rgdd_gate,
+            rgdd_window=rgdd_window,
+            backend=backend,
+            desc=f"LOOCV fold {i + 1}/{len(samples)} stage2",
+        )
+        best_stage2_fold = trials_stage2_fold.iloc[0].to_dict()
+        dw, dj, dm = _normalize_deltas_for_train(
+            train_samples=train,
+            delta_wk=float(best_stage2_fold["delta_wk"]),
+            delta_jf=float(best_stage2_fold["delta_jf"]),
+            delta_mpt=float(best_stage2_fold["delta_mpt"]),
+        )
+
+        mae, rmse, detail = _eval_params(
+            samples=test,
+            t_base=float(best_stage1_fold["t_base"]),
+            theta=float(best_stage1_fold["theta_agdd"]),
+            start_doy=int(best_stage1_fold["start_doy"]),
+            use_rgdd_gate=use_rgdd_gate,
+            rgdd_min=float(best_stage1_fold["rgdd_min"]),
+            rgdd_window=rgdd_window,
+            delta_wk=float(dw),
+            delta_jf=float(dj),
+            delta_mpt=float(dm),
+        )
+
+        d = detail[0]
+        rows.append(
+            {
+                "plot": d["plot"],
+                "year": d["year"],
+                "obs_bbch53": d["obs_bbch53"],
+                "pred_bbch53": d["pred_bbch53"],
+                "error_days": d["error_days"],
+                "abs_error_days": d["abs_error_days"],
+                "fit_t_base": float(best_stage1_fold["t_base"]),
+                "fit_theta_agdd": float(best_stage1_fold["theta_agdd"]),
+                "fit_start_doy": int(best_stage1_fold["start_doy"]),
+                "fit_rgdd_min": float(best_stage1_fold["rgdd_min"]),
+                "fit_delta_wk": float(dw),
+                "fit_delta_jf": float(dj),
+                "fit_delta_mpt": float(dm),
+                "fit_train_mae_days": float(best_stage2_fold["mae_days"]),
+                "fit_train_rmse_days": float(best_stage2_fold["rmse_days"]),
+                "test_mae_days": float(mae),
+                "test_rmse_days": float(rmse),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def _backcalc_theta_at_obs(samples: List[Sample], t_base: float, start_doy: int) -> pd.DataFrame:
     rows = []
     for s in samples:
@@ -446,6 +556,7 @@ def main() -> None:
     parser.add_argument("--backend", type=str, default="ray", choices=["ray", "serial"])
     parser.add_argument("--loocv-topk-stage1", type=int, default=200, help="Top-K cached stage1 candidates for LOOCV re-eval.")
     parser.add_argument("--loocv-topk-stage2", type=int, default=200, help="Top-K cached stage2(delta) candidates for LOOCV re-eval.")
+    parser.add_argument("--loocv-mode", type=str, default="topk", choices=["topk", "full"])
     args = parser.parse_args()
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -462,7 +573,7 @@ def main() -> None:
     stage2_total = len(delta_grid) ** 3
     print(
         f"[BBCH] Stage1 grid={stage1_total:,} | Stage2 grid={stage2_total:,} | "
-        f"LOOCV topk stage1={args.loocv_topk_stage1}, stage2={args.loocv_topk_stage2} | "
+        f"LOOCV mode={args.loocv_mode} | topk stage1={args.loocv_topk_stage1}, stage2={args.loocv_topk_stage2} | "
         f"n_jobs={args.n_jobs} | backend={args.backend}",
         flush=True,
     )
@@ -513,21 +624,35 @@ def main() -> None:
         delta_mpt=float(best_stage2["delta_mpt"]),
     )
 
-    # LOOCV using cached top-k candidates
-    stage1_candidates = _topk(trials_stage1, int(args.loocv_topk_stage1))[
-        ["t_base", "theta_agdd", "start_doy", "rgdd_min", "delta_wk", "delta_jf", "delta_mpt"]
-    ]
-    stage1_candidates[["delta_wk", "delta_jf", "delta_mpt"]] = 0.0
-    stage2_candidates = _topk(trials_stage2, int(args.loocv_topk_stage2))[
-        ["delta_wk", "delta_jf", "delta_mpt"]
-    ]
-    loocv = _loocv_topk_cache(
-        samples=samples,
-        stage1_candidates=stage1_candidates,
-        stage2_delta_candidates=stage2_candidates,
-        use_rgdd_gate=args.use_rgdd_gate,
-        rgdd_window=args.rgdd_window,
-    )
+    if args.loocv_mode == "full":
+        loocv = _loocv_full_grid(
+            samples=samples,
+            tbase_grid=tbase_grid,
+            theta_grid=theta_grid,
+            start_doy_grid=start_doy_grid,
+            rgdd_grid=rgdd_grid,
+            delta_grid=delta_grid,
+            n_jobs=int(args.n_jobs),
+            use_rgdd_gate=args.use_rgdd_gate,
+            rgdd_window=args.rgdd_window,
+            backend=args.backend,
+        )
+    else:
+        # LOOCV using cached top-k candidates
+        stage1_candidates = _topk(trials_stage1, int(args.loocv_topk_stage1))[
+            ["t_base", "theta_agdd", "start_doy", "rgdd_min", "delta_wk", "delta_jf", "delta_mpt"]
+        ]
+        stage1_candidates[["delta_wk", "delta_jf", "delta_mpt"]] = 0.0
+        stage2_candidates = _topk(trials_stage2, int(args.loocv_topk_stage2))[
+            ["delta_wk", "delta_jf", "delta_mpt"]
+        ]
+        loocv = _loocv_topk_cache(
+            samples=samples,
+            stage1_candidates=stage1_candidates,
+            stage2_delta_candidates=stage2_candidates,
+            use_rgdd_gate=args.use_rgdd_gate,
+            rgdd_window=args.rgdd_window,
+        )
 
     q_values = [float(x) for x in args.theta_quantiles.split(",") if x.strip()]
     theta_obs_df = _backcalc_theta_at_obs(samples, t_base=args.tbase_main, start_doy=int(best_stage1["start_doy"]))
@@ -604,6 +729,7 @@ def main() -> None:
         "stage2_total_grid": int(stage2_total),
         "loocv_topk_stage1": int(args.loocv_topk_stage1),
         "loocv_topk_stage2": int(args.loocv_topk_stage2),
+        "loocv_mode": str(args.loocv_mode),
         "variety_codes": ["WK", "JF", "MPT"],
         "n_site_year": int(len(samples)),
     }
