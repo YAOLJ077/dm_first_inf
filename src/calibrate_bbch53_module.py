@@ -548,7 +548,7 @@ def _pick_candidate_train_topk_then_val(
 
 def _select_variety_params_fold(
     train_samples: List[Sample],
-    test_sample: Sample,
+    test_samples: List[Sample],
     variety_code: str,
     t_base: float,
     theta_agdd: float,
@@ -600,7 +600,8 @@ def _select_variety_params_fold(
         cand_rows.append({"delta": float(d), "shift": int(s), "train_mae_days": float(mae), "train_rmse_days": float(rmse)})
     cdf = pd.DataFrame(cand_rows).sort_values(["train_mae_days", "train_rmse_days"]).reset_index(drop=True)
 
-    if str(test_sample.variety_code) != str(variety_code):
+    test_v = [s for s in test_samples if str(s.variety_code) == str(variety_code)]
+    if not test_v:
         b = cdf.iloc[0].to_dict()
         b["topk_pool_size"] = 0
         return b
@@ -616,7 +617,7 @@ def _select_variety_params_fold(
         sj = int(r.shift) if variety_code == "JF" else 0
         sm = int(r.shift) if variety_code == "MPT" else 0
         vmae, vrmse, det = _eval_params(
-            samples=[test_sample],
+            samples=test_v,
             t_base=float(t_base),
             theta=float(theta_agdd),
             start_doy=int(start_doy),
@@ -638,7 +639,7 @@ def _select_variety_params_fold(
                 "train_rmse_days": float(r.train_rmse_days),
                 "val_mae_days": float(vmae),
                 "val_rmse_days": float(vrmse),
-                "val_abs_error_days": float(det[0]["abs_error_days"]),
+                "val_abs_error_days": float(np.mean([float(x["abs_error_days"]) for x in det])),
             }
         )
     vdf = pd.DataFrame(vals)
@@ -692,7 +693,21 @@ def _fit_variety_prior_from_all_samples(
     return {"delta": float(best["delta"]), "shift": int(best["shift"]), "mae_days": float(best["mae_days"]), "rmse_days": float(best["rmse_days"])}
 
 
-def _loocv_full_grid(
+def _build_variety_stratified_folds(samples: List[Sample], n_folds: int) -> List[List[int]]:
+    n_folds = max(2, int(n_folds))
+    folds: List[List[int]] = [[] for _ in range(n_folds)]
+    by_var: Dict[str, List[int]] = {}
+    for i, s in enumerate(samples):
+        by_var.setdefault(str(s.variety_code), []).append(i)
+    for k in by_var:
+        by_var[k] = sorted(by_var[k], key=lambda idx: (samples[idx].year, samples[idx].plot))
+    for _, ids in sorted(by_var.items()):
+        for j, idx in enumerate(ids):
+            folds[j % n_folds].append(idx)
+    return [sorted(f) for f in folds]
+
+
+def _kfold_full_grid(
     samples: List[Sample],
     tbase_grid: np.ndarray,
     theta_grid: np.ndarray,
@@ -712,11 +727,14 @@ def _loocv_full_grid(
     prior_start_shift_wk: int,
     prior_start_shift_jf: int,
     prior_start_shift_mpt: int,
+    n_folds: int,
 ) -> pd.DataFrame:
+    folds = _build_variety_stratified_folds(samples=samples, n_folds=n_folds)
     rows = []
-    for i in tqdm(range(len(samples)), desc="LOOCV(full-grid)"):
-        train = [samples[j] for j in range(len(samples)) if j != i]
-        test = [samples[i]]
+    for i in tqdm(range(len(folds)), desc=f"{int(n_folds)}-fold CV"):
+        test_idx = set(folds[i])
+        train = [samples[j] for j in range(len(samples)) if j not in test_idx]
+        test = [samples[j] for j in sorted(test_idx)]
 
         trials_stage1_fold = _run_grid(
             samples=train,
@@ -730,14 +748,14 @@ def _loocv_full_grid(
             use_rgdd_gate=use_rgdd_gate,
             rgdd_window=rgdd_window,
             backend=backend,
-            desc=f"LOOCV fold {i + 1}/{len(samples)} stage1",
+            desc=f"CV fold {i + 1}/{len(folds)} stage1",
         )
         best_stage1_fold = trials_stage1_fold.iloc[0].to_dict()
 
         # Stage2: per-variety independent calibration of (delta, start_shift)
         wk = _select_variety_params_fold(
             train_samples=train,
-            test_sample=test[0],
+            test_samples=test,
             variety_code="WK",
             t_base=float(best_stage1_fold["t_base"]),
             theta_agdd=float(best_stage1_fold["theta_agdd"]),
@@ -751,11 +769,11 @@ def _loocv_full_grid(
             unseen_variety_strategy=unseen_variety_strategy,
             prior_delta=float(prior_delta_wk),
             prior_shift=int(prior_start_shift_wk),
-            desc=f"LOOCV fold {i + 1}/{len(samples)} stage2-WK",
+            desc=f"CV fold {i + 1}/{len(folds)} stage2-WK",
         )
         jf = _select_variety_params_fold(
             train_samples=train,
-            test_sample=test[0],
+            test_samples=test,
             variety_code="JF",
             t_base=float(best_stage1_fold["t_base"]),
             theta_agdd=float(best_stage1_fold["theta_agdd"]),
@@ -769,11 +787,11 @@ def _loocv_full_grid(
             unseen_variety_strategy=unseen_variety_strategy,
             prior_delta=float(prior_delta_jf),
             prior_shift=int(prior_start_shift_jf),
-            desc=f"LOOCV fold {i + 1}/{len(samples)} stage2-JF",
+            desc=f"CV fold {i + 1}/{len(folds)} stage2-JF",
         )
         mpt = _select_variety_params_fold(
             train_samples=train,
-            test_sample=test[0],
+            test_samples=test,
             variety_code="MPT",
             t_base=float(best_stage1_fold["t_base"]),
             theta_agdd=float(best_stage1_fold["theta_agdd"]),
@@ -787,7 +805,7 @@ def _loocv_full_grid(
             unseen_variety_strategy=unseen_variety_strategy,
             prior_delta=float(prior_delta_mpt),
             prior_shift=int(prior_start_shift_mpt),
-            desc=f"LOOCV fold {i + 1}/{len(samples)} stage2-MPT",
+            desc=f"CV fold {i + 1}/{len(folds)} stage2-MPT",
         )
         best_fold = {
             "t_base": float(best_stage1_fold["t_base"]),
@@ -820,32 +838,33 @@ def _loocv_full_grid(
             start_shift_mpt=int(best_fold["start_shift_mpt"]),
         )
 
-        d = detail[0]
-        rows.append(
-            {
-                "plot": d["plot"],
-                "year": d["year"],
-                "obs_bbch53": d["obs_bbch53"],
-                "pred_bbch53": d["pred_bbch53"],
-                "error_days": d["error_days"],
-                "abs_error_days": d["abs_error_days"],
-                "fit_t_base": float(best_fold["t_base"]),
-                "fit_theta_agdd": float(best_fold["theta_agdd"]),
-                "fit_start_doy": int(best_fold["start_doy"]),
-                "fit_rgdd_min": float(best_fold["rgdd_min"]),
-                "fit_delta_wk": float(best_fold["delta_wk"]),
-                "fit_delta_jf": float(best_fold["delta_jf"]),
-                "fit_delta_mpt": float(best_fold["delta_mpt"]),
-                "fit_start_shift_wk": int(best_fold["start_shift_wk"]),
-                "fit_start_shift_jf": int(best_fold["start_shift_jf"]),
-                "fit_start_shift_mpt": int(best_fold["start_shift_mpt"]),
-                "fit_train_mae_days": float(best_fold["train_mae_days"]),
-                "fit_train_rmse_days": float(best_fold["train_rmse_days"]),
-                "fit_topk_pool_size": int(best_fold["topk_pool_size"]),
-                "test_mae_days": float(mae),
-                "test_rmse_days": float(rmse),
-            }
-        )
+        for d in detail:
+            rows.append(
+                {
+                    "plot": d["plot"],
+                    "year": d["year"],
+                    "obs_bbch53": d["obs_bbch53"],
+                    "pred_bbch53": d["pred_bbch53"],
+                    "error_days": d["error_days"],
+                    "abs_error_days": d["abs_error_days"],
+                    "fit_t_base": float(best_fold["t_base"]),
+                    "fit_theta_agdd": float(best_fold["theta_agdd"]),
+                    "fit_start_doy": int(best_fold["start_doy"]),
+                    "fit_rgdd_min": float(best_fold["rgdd_min"]),
+                    "fit_delta_wk": float(best_fold["delta_wk"]),
+                    "fit_delta_jf": float(best_fold["delta_jf"]),
+                    "fit_delta_mpt": float(best_fold["delta_mpt"]),
+                    "fit_start_shift_wk": int(best_fold["start_shift_wk"]),
+                    "fit_start_shift_jf": int(best_fold["start_shift_jf"]),
+                    "fit_start_shift_mpt": int(best_fold["start_shift_mpt"]),
+                    "fit_train_mae_days": float(best_fold["train_mae_days"]),
+                    "fit_train_rmse_days": float(best_fold["train_rmse_days"]),
+                    "fit_topk_pool_size": int(best_fold["topk_pool_size"]),
+                    "test_mae_days": float(mae),
+                    "test_rmse_days": float(rmse),
+                    "cv_fold": int(i + 1),
+                }
+            )
     return pd.DataFrame(rows)
 
 
@@ -860,7 +879,7 @@ def _backcalc_theta_at_obs(samples: List[Sample], t_base: float, start_doy: int)
     return pd.DataFrame(rows)
 
 
-def _select_final_params_from_loocv_rows(loocv_df: pd.DataFrame) -> Dict:
+def _select_final_params_from_cv_rows(samples: List[Sample], cv_df: pd.DataFrame, n_folds: int, use_rgdd_gate: bool, rgdd_window: int) -> Dict:
     key_cols = [
         "fit_t_base",
         "fit_theta_agdd",
@@ -873,15 +892,47 @@ def _select_final_params_from_loocv_rows(loocv_df: pd.DataFrame) -> Dict:
         "fit_start_shift_jf",
         "fit_start_shift_mpt",
     ]
-    g = (
-        loocv_df.groupby(key_cols, as_index=False)
-        .agg(
-            loocv_mae_days=("abs_error_days", "mean"),
-            loocv_rmse_days=("abs_error_days", lambda x: float(np.sqrt(np.mean(np.asarray(x, dtype=float) ** 2)))),
+    uniq = cv_df[key_cols].drop_duplicates().reset_index(drop=True)
+    folds = _build_variety_stratified_folds(samples=samples, n_folds=n_folds)
+    rows = []
+    for r in uniq.itertuples(index=False):
+        abs_err_all: List[float] = []
+        for f in folds:
+            val_samples = [samples[j] for j in f]
+            _, _, det = _eval_params(
+                samples=val_samples,
+                t_base=float(r.fit_t_base),
+                theta=float(r.fit_theta_agdd),
+                start_doy=int(r.fit_start_doy),
+                use_rgdd_gate=use_rgdd_gate,
+                rgdd_min=float(r.fit_rgdd_min),
+                rgdd_window=int(rgdd_window),
+                delta_wk=float(r.fit_delta_wk),
+                delta_jf=float(r.fit_delta_jf),
+                delta_mpt=float(r.fit_delta_mpt),
+                start_shift_wk=int(r.fit_start_shift_wk),
+                start_shift_jf=int(r.fit_start_shift_jf),
+                start_shift_mpt=int(r.fit_start_shift_mpt),
+            )
+            abs_err_all.extend([float(x["abs_error_days"]) for x in det])
+        arr = np.asarray(abs_err_all, dtype=float)
+        rows.append(
+            {
+                "fit_t_base": float(r.fit_t_base),
+                "fit_theta_agdd": float(r.fit_theta_agdd),
+                "fit_start_doy": int(r.fit_start_doy),
+                "fit_rgdd_min": float(r.fit_rgdd_min),
+                "fit_delta_wk": float(r.fit_delta_wk),
+                "fit_delta_jf": float(r.fit_delta_jf),
+                "fit_delta_mpt": float(r.fit_delta_mpt),
+                "fit_start_shift_wk": int(r.fit_start_shift_wk),
+                "fit_start_shift_jf": int(r.fit_start_shift_jf),
+                "fit_start_shift_mpt": int(r.fit_start_shift_mpt),
+                "cv_mae_days": float(arr.mean()),
+                "cv_rmse_days": float(np.sqrt(np.mean(arr**2))),
+            }
         )
-        .sort_values(["loocv_mae_days", "loocv_rmse_days"])
-        .reset_index(drop=True)
-    )
+    g = pd.DataFrame(rows).sort_values(["cv_mae_days", "cv_rmse_days"]).reset_index(drop=True)
     b = g.iloc[0]
     return {
         "t_base": float(b["fit_t_base"]),
@@ -894,8 +945,8 @@ def _select_final_params_from_loocv_rows(loocv_df: pd.DataFrame) -> Dict:
         "start_shift_wk": int(b["fit_start_shift_wk"]),
         "start_shift_jf": int(b["fit_start_shift_jf"]),
         "start_shift_mpt": int(b["fit_start_shift_mpt"]),
-        "selected_by_loocv_mae_days": float(b["loocv_mae_days"]),
-        "selected_by_loocv_rmse_days": float(b["loocv_rmse_days"]),
+        "selected_by_cv_mae_days": float(b["cv_mae_days"]),
+        "selected_by_cv_rmse_days": float(b["cv_rmse_days"]),
     }
 
 
@@ -928,6 +979,7 @@ def main() -> None:
     parser.add_argument("--backend", type=str, default="ray", choices=["ray", "serial"])
     parser.add_argument("--loocv-topk-frac", type=float, default=0.10, help="Top fraction by train MAE before val selection.")
     parser.add_argument("--loocv-unseen-variety-strategy", type=str, default="global", choices=["zero", "global"])
+    parser.add_argument("--cv-folds", type=int, default=3)
     args = parser.parse_args()
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -944,8 +996,8 @@ def main() -> None:
     stage1_total = len(tbase_grid) * len(theta_grid) * len(start_doy_grid) * len(rgdd_grid)
     stage2_total = 3 * len(delta_grid) * len(shift_grid)
     print(
-        f"[BBCH] LOOCV-first | Stage1 grid={stage1_total:,} | Stage2(delta+start-shift) grid={stage2_total:,} | "
-        f"LOOCV topk_frac={args.loocv_topk_frac:.3f}, unseen_variety={args.loocv_unseen_variety_strategy} | "
+        f"[BBCH] {int(args.cv_folds)}-fold CV-first | Stage1 grid={stage1_total:,} | Stage2(delta+start-shift) grid={stage2_total:,} | "
+        f"CV topk_frac={args.loocv_topk_frac:.3f}, unseen_variety={args.loocv_unseen_variety_strategy} | "
         f"n_jobs={args.n_jobs} | backend={args.backend}",
         flush=True,
     )
@@ -1002,7 +1054,7 @@ def main() -> None:
         rgdd_window=args.rgdd_window,
     )
 
-    loocv = _loocv_full_grid(
+    cv_df = _kfold_full_grid(
         samples=samples,
         tbase_grid=tbase_grid,
         theta_grid=theta_grid,
@@ -1022,8 +1074,15 @@ def main() -> None:
         prior_start_shift_wk=int(prior_wk["shift"]),
         prior_start_shift_jf=int(prior_jf["shift"]),
         prior_start_shift_mpt=int(prior_mpt["shift"]),
+        n_folds=int(args.cv_folds),
     )
-    best_final = _select_final_params_from_loocv_rows(loocv_df=loocv)
+    best_final = _select_final_params_from_cv_rows(
+        samples=samples,
+        cv_df=cv_df,
+        n_folds=int(args.cv_folds),
+        use_rgdd_gate=args.use_rgdd_gate,
+        rgdd_window=args.rgdd_window,
+    )
     fit_mae, fit_rmse, fit_detail = _eval_params(
         samples=samples,
         t_base=float(best_final["t_base"]),
@@ -1083,7 +1142,8 @@ def main() -> None:
     ).to_csv(OUT_DIR / "bbch53_trials.csv", index=False)
 
     pd.DataFrame(fit_detail).to_csv(OUT_DIR / "bbch53_fit_detail.csv", index=False)
-    loocv.to_csv(OUT_DIR / "bbch53_loocv.csv", index=False)
+    cv_df.to_csv(OUT_DIR / "bbch53_cv.csv", index=False)
+    cv_df.to_csv(OUT_DIR / "bbch53_loocv.csv", index=False)
     theta_obs_df.to_csv(OUT_DIR / "bbch53_theta_obs_tbase_main.csv", index=False)
     scenario_df.to_csv(OUT_DIR / "bbch53_main_setting_scenarios.csv", index=False)
 
@@ -1093,8 +1153,8 @@ def main() -> None:
         "best_start_doy": int(best_final["start_doy"]),
         "fit_mae_days": float(fit_mae),
         "fit_rmse_days": float(fit_rmse),
-        "loocv_mae_days": float(loocv["abs_error_days"].mean()),
-        "loocv_rmse_days": float(np.sqrt(np.mean(loocv["abs_error_days"].values ** 2))),
+        "cv_mae_days": float(cv_df["abs_error_days"].mean()),
+        "cv_rmse_days": float(np.sqrt(np.mean(cv_df["abs_error_days"].values ** 2))),
         "t_base_main_setting": float(args.tbase_main),
         "main_theta_quantiles": q_values,
         "main_theta_scenarios_file": "bbch53_main_setting_scenarios.csv",
@@ -1105,8 +1165,8 @@ def main() -> None:
         "best_start_shift_wk": int(best_final["start_shift_wk"]),
         "best_start_shift_jf": int(best_final["start_shift_jf"]),
         "best_start_shift_mpt": int(best_final["start_shift_mpt"]),
-        "selected_by_loocv_mae_days": float(best_final["selected_by_loocv_mae_days"]),
-        "selected_by_loocv_rmse_days": float(best_final["selected_by_loocv_rmse_days"]),
+        "selected_by_cv_mae_days": float(best_final["selected_by_cv_mae_days"]),
+        "selected_by_cv_rmse_days": float(best_final["selected_by_cv_rmse_days"]),
         "use_rgdd_gate": bool(args.use_rgdd_gate),
         "use_variety_delta": True,
         "use_variety_start_shift": True,
@@ -1127,6 +1187,7 @@ def main() -> None:
         "start_shift_grid_size": int(len(shift_grid)),
         "stage1_total_grid": int(stage1_total),
         "stage2_total_grid": int(stage2_total),
+        "cv_folds": int(args.cv_folds),
         "loocv_topk_frac": float(args.loocv_topk_frac),
         "loocv_unseen_variety_strategy": str(args.loocv_unseen_variety_strategy),
         "prior_stage1_t_base": float(prior_stage1["t_base"]),
@@ -1138,7 +1199,7 @@ def main() -> None:
         "prior_start_shift_wk": int(prior_wk["shift"]),
         "prior_start_shift_jf": int(prior_jf["shift"]),
         "prior_start_shift_mpt": int(prior_mpt["shift"]),
-        "loocv_mode": "full_train_topk_then_val_then_finalize",
+        "loocv_mode": "kfold_train_topk_then_val_then_finalize",
         "variety_codes": ["WK", "JF", "MPT"],
         "n_site_year": int(len(samples)),
     }
@@ -1147,6 +1208,7 @@ def main() -> None:
     print(f"Saved: {OUT_DIR / 'bbch53_best.json'}")
     print(f"Saved: {OUT_DIR / 'bbch53_trials.csv'}")
     print(f"Saved: {OUT_DIR / 'bbch53_fit_detail.csv'}")
+    print(f"Saved: {OUT_DIR / 'bbch53_cv.csv'}")
     print(f"Saved: {OUT_DIR / 'bbch53_loocv.csv'}")
     print(f"Saved: {OUT_DIR / 'bbch53_theta_obs_tbase_main.csv'}")
     print(f"Saved: {OUT_DIR / 'bbch53_main_setting_scenarios.csv'}")
