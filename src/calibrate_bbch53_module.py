@@ -546,6 +546,109 @@ def _pick_candidate_train_topk_then_val(
     return best
 
 
+def _select_variety_params_fold(
+    train_samples: List[Sample],
+    test_sample: Sample,
+    variety_code: str,
+    t_base: float,
+    theta_agdd: float,
+    start_doy: int,
+    rgdd_min: float,
+    delta_grid: np.ndarray,
+    shift_grid: np.ndarray,
+    loocv_topk_frac: float,
+    use_rgdd_gate: bool,
+    rgdd_window: int,
+    unseen_variety_strategy: str,
+    prior_delta: float,
+    prior_shift: int,
+    desc: Optional[str] = None,
+) -> Dict:
+    train_v = [s for s in train_samples if str(s.variety_code) == str(variety_code)]
+    if not train_v:
+        if str(unseen_variety_strategy).lower() == "global":
+            return {"delta": float(prior_delta), "shift": int(prior_shift), "topk_pool_size": 0, "train_mae_days": np.nan, "train_rmse_days": np.nan}
+        return {"delta": 0.0, "shift": 0, "topk_pool_size": 0, "train_mae_days": np.nan, "train_rmse_days": np.nan}
+
+    cand_rows = []
+    sgrid = shift_grid.astype(int)
+    it = product(delta_grid, sgrid)
+    if desc:
+        it = tqdm(it, total=int(len(delta_grid) * len(sgrid)), desc=desc)
+    for d, s in it:
+        dw = float(d) if variety_code == "WK" else 0.0
+        dj = float(d) if variety_code == "JF" else 0.0
+        dm = float(d) if variety_code == "MPT" else 0.0
+        sw = int(s) if variety_code == "WK" else 0
+        sj = int(s) if variety_code == "JF" else 0
+        sm = int(s) if variety_code == "MPT" else 0
+        mae, rmse, _ = _eval_params(
+            samples=train_v,
+            t_base=float(t_base),
+            theta=float(theta_agdd),
+            start_doy=int(start_doy),
+            use_rgdd_gate=use_rgdd_gate,
+            rgdd_min=float(rgdd_min),
+            rgdd_window=int(rgdd_window),
+            delta_wk=float(dw),
+            delta_jf=float(dj),
+            delta_mpt=float(dm),
+            start_shift_wk=int(sw),
+            start_shift_jf=int(sj),
+            start_shift_mpt=int(sm),
+        )
+        cand_rows.append({"delta": float(d), "shift": int(s), "train_mae_days": float(mae), "train_rmse_days": float(rmse)})
+    cdf = pd.DataFrame(cand_rows).sort_values(["train_mae_days", "train_rmse_days"]).reset_index(drop=True)
+
+    if str(test_sample.variety_code) != str(variety_code):
+        b = cdf.iloc[0].to_dict()
+        b["topk_pool_size"] = 0
+        return b
+
+    k = max(1, int(np.ceil(len(cdf) * float(loocv_topk_frac))))
+    top = cdf.head(k).copy()
+    vals = []
+    for r in top.itertuples(index=False):
+        dw = float(r.delta) if variety_code == "WK" else 0.0
+        dj = float(r.delta) if variety_code == "JF" else 0.0
+        dm = float(r.delta) if variety_code == "MPT" else 0.0
+        sw = int(r.shift) if variety_code == "WK" else 0
+        sj = int(r.shift) if variety_code == "JF" else 0
+        sm = int(r.shift) if variety_code == "MPT" else 0
+        vmae, vrmse, det = _eval_params(
+            samples=[test_sample],
+            t_base=float(t_base),
+            theta=float(theta_agdd),
+            start_doy=int(start_doy),
+            use_rgdd_gate=use_rgdd_gate,
+            rgdd_min=float(rgdd_min),
+            rgdd_window=int(rgdd_window),
+            delta_wk=float(dw),
+            delta_jf=float(dj),
+            delta_mpt=float(dm),
+            start_shift_wk=int(sw),
+            start_shift_jf=int(sj),
+            start_shift_mpt=int(sm),
+        )
+        vals.append(
+            {
+                "delta": float(r.delta),
+                "shift": int(r.shift),
+                "train_mae_days": float(r.train_mae_days),
+                "train_rmse_days": float(r.train_rmse_days),
+                "val_mae_days": float(vmae),
+                "val_rmse_days": float(vrmse),
+                "val_abs_error_days": float(det[0]["abs_error_days"]),
+            }
+        )
+    vdf = pd.DataFrame(vals)
+    valid = vdf[vdf["val_abs_error_days"] >= vdf["train_mae_days"]]
+    choose = valid if not valid.empty else vdf
+    b = choose.sort_values(["val_abs_error_days", "train_mae_days", "train_rmse_days"]).iloc[0].to_dict()
+    b["topk_pool_size"] = int(k)
+    return b
+
+
 def _loocv_full_grid(
     samples: List[Sample],
     tbase_grid: np.ndarray,
@@ -588,37 +691,76 @@ def _loocv_full_grid(
         )
         best_stage1_fold = trials_stage1_fold.iloc[0].to_dict()
 
-        trials_stage2_fold = _run_grid(
-            samples=train,
-            tbase_grid=np.array([float(best_stage1_fold["t_base"])]),
-            theta_grid=np.array([float(best_stage1_fold["theta_agdd"])]),
-            start_doy_grid=np.array([int(best_stage1_fold["start_doy"])]),
-            rgdd_grid=np.array([float(best_stage1_fold["rgdd_min"])]),
+        # Stage2: per-variety independent calibration of (delta, start_shift)
+        wk = _select_variety_params_fold(
+            train_samples=train,
+            test_sample=test[0],
+            variety_code="WK",
+            t_base=float(best_stage1_fold["t_base"]),
+            theta_agdd=float(best_stage1_fold["theta_agdd"]),
+            start_doy=int(best_stage1_fold["start_doy"]),
+            rgdd_min=float(best_stage1_fold["rgdd_min"]),
             delta_grid=delta_grid,
             shift_grid=shift_grid,
-            n_jobs=int(n_jobs),
-            use_rgdd_gate=use_rgdd_gate,
-            rgdd_window=rgdd_window,
-            backend=backend,
-            desc=f"LOOCV fold {i + 1}/{len(samples)} stage2",
-        )
-
-        best_fold = _pick_candidate_train_topk_then_val(
-            train_samples=train,
-            test_samples=test,
-            candidates=trials_stage2_fold,
             loocv_topk_frac=loocv_topk_frac,
             use_rgdd_gate=use_rgdd_gate,
             rgdd_window=rgdd_window,
             unseen_variety_strategy=unseen_variety_strategy,
-            prior_delta_wk=prior_delta_wk,
-            prior_delta_jf=prior_delta_jf,
-            prior_delta_mpt=prior_delta_mpt,
-            prior_start_shift_wk=prior_start_shift_wk,
-            prior_start_shift_jf=prior_start_shift_jf,
-            prior_start_shift_mpt=prior_start_shift_mpt,
-            desc=f"LOOCV fold {i + 1}/{len(samples)} stage2-val",
+            prior_delta=float(prior_delta_wk),
+            prior_shift=int(prior_start_shift_wk),
+            desc=f"LOOCV fold {i + 1}/{len(samples)} stage2-WK",
         )
+        jf = _select_variety_params_fold(
+            train_samples=train,
+            test_sample=test[0],
+            variety_code="JF",
+            t_base=float(best_stage1_fold["t_base"]),
+            theta_agdd=float(best_stage1_fold["theta_agdd"]),
+            start_doy=int(best_stage1_fold["start_doy"]),
+            rgdd_min=float(best_stage1_fold["rgdd_min"]),
+            delta_grid=delta_grid,
+            shift_grid=shift_grid,
+            loocv_topk_frac=loocv_topk_frac,
+            use_rgdd_gate=use_rgdd_gate,
+            rgdd_window=rgdd_window,
+            unseen_variety_strategy=unseen_variety_strategy,
+            prior_delta=float(prior_delta_jf),
+            prior_shift=int(prior_start_shift_jf),
+            desc=f"LOOCV fold {i + 1}/{len(samples)} stage2-JF",
+        )
+        mpt = _select_variety_params_fold(
+            train_samples=train,
+            test_sample=test[0],
+            variety_code="MPT",
+            t_base=float(best_stage1_fold["t_base"]),
+            theta_agdd=float(best_stage1_fold["theta_agdd"]),
+            start_doy=int(best_stage1_fold["start_doy"]),
+            rgdd_min=float(best_stage1_fold["rgdd_min"]),
+            delta_grid=delta_grid,
+            shift_grid=shift_grid,
+            loocv_topk_frac=loocv_topk_frac,
+            use_rgdd_gate=use_rgdd_gate,
+            rgdd_window=rgdd_window,
+            unseen_variety_strategy=unseen_variety_strategy,
+            prior_delta=float(prior_delta_mpt),
+            prior_shift=int(prior_start_shift_mpt),
+            desc=f"LOOCV fold {i + 1}/{len(samples)} stage2-MPT",
+        )
+        best_fold = {
+            "t_base": float(best_stage1_fold["t_base"]),
+            "theta_agdd": float(best_stage1_fold["theta_agdd"]),
+            "start_doy": int(best_stage1_fold["start_doy"]),
+            "rgdd_min": float(best_stage1_fold["rgdd_min"]),
+            "delta_wk": float(wk["delta"]),
+            "delta_jf": float(jf["delta"]),
+            "delta_mpt": float(mpt["delta"]),
+            "start_shift_wk": int(wk["shift"]),
+            "start_shift_jf": int(jf["shift"]),
+            "start_shift_mpt": int(mpt["shift"]),
+            "train_mae_days": float(np.nanmean([wk["train_mae_days"], jf["train_mae_days"], mpt["train_mae_days"]])),
+            "train_rmse_days": float(np.nanmean([wk["train_rmse_days"], jf["train_rmse_days"], mpt["train_rmse_days"]])),
+            "topk_pool_size": int(max(wk["topk_pool_size"], jf["topk_pool_size"], mpt["topk_pool_size"])),
+        }
         mae, rmse, detail = _eval_params(
             samples=test,
             t_base=float(best_fold["t_base"]),
@@ -768,7 +910,7 @@ def main() -> None:
     shift_grid = np.arange(args.start_shift_min, args.start_shift_max + 1, args.start_shift_step, dtype=int)
 
     stage1_total = len(tbase_grid) * len(theta_grid) * len(start_doy_grid) * len(rgdd_grid)
-    stage2_total = (len(delta_grid) ** 3) * (len(shift_grid) ** 3)
+    stage2_total = 3 * len(delta_grid) * len(shift_grid)
     print(
         f"[BBCH] LOOCV-first | Stage1 grid={stage1_total:,} | Stage2(delta+start-shift) grid={stage2_total:,} | "
         f"LOOCV topk_frac={args.loocv_topk_frac:.3f}, unseen_variety={args.loocv_unseen_variety_strategy} | "
