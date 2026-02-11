@@ -41,6 +41,7 @@ except Exception:  # pragma: no cover
 
 DATA_DIR = PROJECT_ROOT / "data"
 OUT_DIR = PROJECT_ROOT / "result" / "historical_inputs" / "bbch53_calibration"
+PLOT_TO_VAR_CODE = {"GL": "WK", "NN": "JF", "DA": "MPT"}
 
 
 def _load_actual() -> pd.DataFrame:
@@ -61,12 +62,14 @@ def _load_site_year_hourly(row) -> pd.DataFrame:
 def _build_cache(rows: List) -> List[Dict]:
     cache = []
     for r in rows:
+        plot = str(r.plot)
         cache.append(
             {
-                "plot": str(r.plot),
+                "plot": plot,
                 "year": int(r.year),
                 "obs_bbch53": pd.to_datetime(r.bbch_date).normalize(),
                 "hourly": _load_site_year_hourly(r),
+                "variety_code": PLOT_TO_VAR_CODE.get(plot, "UNK"),
             }
         )
     return cache
@@ -174,15 +177,26 @@ def _eval_params(
     use_rgdd_gate: bool,
     rgdd_min: float,
     rgdd_window: int,
+    use_variety_delta: bool,
+    delta_wk: float,
+    delta_jf: float,
+    delta_mpt: float,
     penalty_days: float = 120.0,
 ) -> Tuple[float, float, List[Dict]]:
     errs = []
     detail = []
     for s in cache:
+        if use_variety_delta:
+            dmap = {"WK": float(delta_wk), "JF": float(delta_jf), "MPT": float(delta_mpt)}
+            delta_var = dmap.get(str(s.get("variety_code", "UNK")), 0.0)
+            theta_eff = float(theta) * (1.0 + delta_var)
+        else:
+            delta_var = 0.0
+            theta_eff = float(theta)
         start_dt = _start_dt_for_year(s["year"], start_month, start_day)
         pred = _estimate_bbch53_date_with_gate(
             s["hourly"],
-            theta_agdd=theta,
+            theta_agdd=theta_eff,
             t_base=t_base,
             start_datetime=start_dt,
             use_rgdd_gate=use_rgdd_gate,
@@ -205,6 +219,9 @@ def _eval_params(
                 "abs_error_days": abs(err),
                 "rgdd_gate_used": bool(use_rgdd_gate),
                 "rgdd_min": float(rgdd_min) if use_rgdd_gate else np.nan,
+                "variety_code": str(s.get("variety_code", "UNK")),
+                "theta_eff": float(theta_eff),
+                "delta_variety": float(delta_var) if use_variety_delta else np.nan,
             }
         )
     abs_err = np.abs(np.asarray(errs, dtype=float))
@@ -220,10 +237,14 @@ if ray is not None:
         t_base: float,
         theta: float,
         rgdd_min: float,
+        delta_wk: float,
+        delta_jf: float,
+        delta_mpt: float,
         start_month: int,
         start_day: int,
         use_rgdd_gate: bool,
         rgdd_window: int,
+        use_variety_delta: bool,
     ) -> Dict:
         # Ray may pass either the resolved value or an ObjectRef depending on call path.
         cache = ray.get(cache_ref) if isinstance(cache_ref, ray.ObjectRef) else cache_ref
@@ -236,11 +257,18 @@ if ray is not None:
             bool(use_rgdd_gate),
             float(rgdd_min),
             int(rgdd_window),
+            bool(use_variety_delta),
+            float(delta_wk),
+            float(delta_jf),
+            float(delta_mpt),
         )
         return {
             "t_base": float(t_base),
             "theta_agdd": float(theta),
             "rgdd_min": float(rgdd_min),
+            "delta_wk": float(delta_wk),
+            "delta_jf": float(delta_jf),
+            "delta_mpt": float(delta_mpt),
             "mae_days": float(mae),
             "rmse_days": float(rmse),
         }
@@ -251,20 +279,39 @@ def _grid_search(
     tbase_grid: np.ndarray,
     theta_grid: np.ndarray,
     rgdd_grid: np.ndarray,
+    delta_wk_grid: np.ndarray,
+    delta_jf_grid: np.ndarray,
+    delta_mpt_grid: np.ndarray,
     n_jobs: int,
     start_month: int,
     start_day: int,
     use_rgdd_gate: bool,
     rgdd_window: int,
+    use_variety_delta: bool,
 ) -> Tuple[Dict, pd.DataFrame]:
-    combos = [(float(tb), float(th), float(rg)) for tb in tbase_grid for th in theta_grid for rg in rgdd_grid]
+    combos = [
+        (float(tb), float(th), float(rg), float(dw), float(dj), float(dm))
+        for tb in tbase_grid
+        for th in theta_grid
+        for rg in rgdd_grid
+        for dw in delta_wk_grid
+        for dj in delta_jf_grid
+        for dm in delta_mpt_grid
+    ]
     if ray is None or n_jobs <= 1:
         out = []
-        for tb, th, rg in tqdm(combos, desc="BBCH grid", total=len(combos)):
+        for tb, th, rg, dw, dj, dm in tqdm(combos, desc="BBCH grid", total=len(combos)):
             mae, rmse, _ = _eval_params(
-                cache, tb, th, start_month, start_day, use_rgdd_gate, rg, rgdd_window
+                cache, tb, th, start_month, start_day, use_rgdd_gate, rg, rgdd_window,
+                use_variety_delta, dw, dj, dm
             )
-            out.append({"t_base": tb, "theta_agdd": th, "rgdd_min": rg, "mae_days": mae, "rmse_days": rmse})
+            out.append(
+                {
+                    "t_base": tb, "theta_agdd": th, "rgdd_min": rg,
+                    "delta_wk": dw, "delta_jf": dj, "delta_mpt": dm,
+                    "mae_days": mae, "rmse_days": rmse,
+                }
+            )
         trials = pd.DataFrame(out).sort_values(["mae_days", "rmse_days"]).reset_index(drop=True)
         return trials.iloc[0].to_dict(), trials
 
@@ -277,9 +324,10 @@ def _grid_search(
     pbar = tqdm(total=total, desc="BBCH grid")
     while done < total:
         while cursor < total and len(pending) < max(1, n_jobs):
-            tb, th, rg = combos[cursor]
+            tb, th, rg, dw, dj, dm = combos[cursor]
             fut = _eval_combo_remote.remote(
-                cache_ref, tb, th, rg, start_month, start_day, use_rgdd_gate, rgdd_window
+                cache_ref, tb, th, rg, dw, dj, dm,
+                start_month, start_day, use_rgdd_gate, rgdd_window, use_variety_delta
             )
             pending[fut] = True
             cursor += 1
@@ -299,11 +347,15 @@ def _loocv(
     tbase_grid: np.ndarray,
     theta_grid: np.ndarray,
     rgdd_grid: np.ndarray,
+    delta_wk_grid: np.ndarray,
+    delta_jf_grid: np.ndarray,
+    delta_mpt_grid: np.ndarray,
     n_jobs: int,
     start_month: int,
     start_day: int,
     use_rgdd_gate: bool,
     rgdd_window: int,
+    use_variety_delta: bool,
 ) -> pd.DataFrame:
     out = []
     for i in tqdm(range(len(rows)), desc="BBCH LOOCV"):
@@ -315,11 +367,15 @@ def _loocv(
             tbase_grid,
             theta_grid,
             rgdd_grid,
+            delta_wk_grid,
+            delta_jf_grid,
+            delta_mpt_grid,
             n_jobs=n_jobs,
             start_month=start_month,
             start_day=start_day,
             use_rgdd_gate=use_rgdd_gate,
             rgdd_window=rgdd_window,
+            use_variety_delta=use_variety_delta,
         )
         test_cache = _build_cache([test])
         mae, rmse, detail = _eval_params(
@@ -331,6 +387,10 @@ def _loocv(
             use_rgdd_gate=use_rgdd_gate,
             rgdd_min=best["rgdd_min"],
             rgdd_window=rgdd_window,
+            use_variety_delta=use_variety_delta,
+            delta_wk=float(best.get("delta_wk", 0.0)),
+            delta_jf=float(best.get("delta_jf", 0.0)),
+            delta_mpt=float(best.get("delta_mpt", 0.0)),
         )
         d = detail[0]
         out.append(
@@ -344,6 +404,9 @@ def _loocv(
                 "fit_t_base": best["t_base"],
                 "fit_theta_agdd": best["theta_agdd"],
                 "fit_rgdd_min": best["rgdd_min"],
+                "fit_delta_wk": best.get("delta_wk", 0.0),
+                "fit_delta_jf": best.get("delta_jf", 0.0),
+                "fit_delta_mpt": best.get("delta_mpt", 0.0),
                 "fit_train_mae_days": best["mae_days"],
                 "fit_train_rmse_days": best["rmse_days"],
                 "test_mae_days": mae,
@@ -355,9 +418,9 @@ def _loocv(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Calibrate BBCH53 GDD inversion module.")
-    parser.add_argument("--tbase-min", type=float, default=5.0)
-    parser.add_argument("--tbase-max", type=float, default=15.0)
-    parser.add_argument("--tbase-step", type=float, default=0.25)
+    parser.add_argument("--tbase-min", type=float, default=8.0)
+    parser.add_argument("--tbase-max", type=float, default=12.0)
+    parser.add_argument("--tbase-step", type=float, default=1.0)
     parser.add_argument("--theta-min", type=float, default=80.0)
     parser.add_argument("--theta-max", type=float, default=1100.0)
     parser.add_argument("--theta-step", type=float, default=10.0)
@@ -386,9 +449,14 @@ def main() -> None:
         action="store_true",
         help="If set, optimize both t_base and theta; otherwise fix t_base=tbase_main and optimize theta only.",
     )
+    parser.add_argument("--delta-min", type=float, default=-0.5, help="Lower bound for variety delta.")
+    parser.add_argument("--delta-max", type=float, default=0.5, help="Upper bound for variety delta.")
+    parser.add_argument("--delta-step", type=float, default=0.1, help="Step for variety delta grid.")
     args = parser.parse_args()
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+    # Fixed mode: always use global theta + variety delta (WK/JF/MPT).
+    use_variety_delta = True
 
     actual = _load_actual()
     rows = list(actual.itertuples(index=False))
@@ -418,6 +486,13 @@ def main() -> None:
             rgdd_grid = np.arange(args.rgdd_min, args.rgdd_max + 1e-12, args.rgdd_step)
     else:
         rgdd_grid = np.array([0.0])
+    if use_variety_delta:
+        delta_grid = np.arange(args.delta_min, args.delta_max + 1e-12, args.delta_step)
+    else:
+        delta_grid = np.array([0.0])
+    delta_wk_grid = delta_grid
+    delta_jf_grid = delta_grid
+    delta_mpt_grid = delta_grid
 
     ray_used = ray is not None and args.n_jobs > 1
     if ray_used:
@@ -428,11 +503,15 @@ def main() -> None:
         tbase_grid,
         theta_grid,
         rgdd_grid,
+        delta_wk_grid,
+        delta_jf_grid,
+        delta_mpt_grid,
         n_jobs=args.n_jobs,
         start_month=args.start_month,
         start_day=args.start_day,
         use_rgdd_gate=args.use_rgdd_gate,
         rgdd_window=args.rgdd_window,
+        use_variety_delta=use_variety_delta,
     )
     final_mae, final_rmse, final_detail = _eval_params(
         cache,
@@ -443,17 +522,25 @@ def main() -> None:
         use_rgdd_gate=args.use_rgdd_gate,
         rgdd_min=float(best.get("rgdd_min", 0.0)),
         rgdd_window=args.rgdd_window,
+        use_variety_delta=use_variety_delta,
+        delta_wk=float(best.get("delta_wk", 0.0)),
+        delta_jf=float(best.get("delta_jf", 0.0)),
+        delta_mpt=float(best.get("delta_mpt", 0.0)),
     )
     loocv = _loocv(
         rows,
         tbase_grid,
         theta_grid,
         rgdd_grid,
+        delta_wk_grid,
+        delta_jf_grid,
+        delta_mpt_grid,
         n_jobs=args.n_jobs,
         start_month=args.start_month,
         start_day=args.start_day,
         use_rgdd_gate=args.use_rgdd_gate,
         rgdd_window=args.rgdd_window,
+        use_variety_delta=use_variety_delta,
     )
 
     if ray_used:
@@ -480,6 +567,10 @@ def main() -> None:
             use_rgdd_gate=args.use_rgdd_gate,
             rgdd_min=float(best.get("rgdd_min", 0.0)),
             rgdd_window=args.rgdd_window,
+            use_variety_delta=use_variety_delta,
+            delta_wk=float(best.get("delta_wk", 0.0)),
+            delta_jf=float(best.get("delta_jf", 0.0)),
+            delta_mpt=float(best.get("delta_mpt", 0.0)),
         )
         scenario_rows.append(
             {
@@ -508,15 +599,21 @@ def main() -> None:
         "main_theta_quantiles": q_values,
         "main_theta_scenarios_file": "bbch53_main_setting_scenarios.csv",
         "best_rgdd_min": float(best.get("rgdd_min", 0.0)) if args.use_rgdd_gate else None,
+        "best_delta_wk": float(best.get("delta_wk", 0.0)),
+        "best_delta_jf": float(best.get("delta_jf", 0.0)),
+        "best_delta_mpt": float(best.get("delta_mpt", 0.0)),
         "use_rgdd_gate": bool(args.use_rgdd_gate),
+        "use_variety_delta": True,
         "rgdd_window": int(args.rgdd_window),
         "start_month": int(args.start_month),
         "start_day": int(args.start_day),
-        "calibration_mode": "search_tbase_theta" if args.search_tbase else "fixed_tbase_theta_only",
+        "calibration_mode": ("search_tbase_theta_variety_delta" if args.search_tbase else "fixed_tbase_theta_variety_delta"),
         "t_base_search_enabled": bool(args.search_tbase),
         "t_base_grid_size": int(len(tbase_grid)),
         "theta_grid_size": int(len(theta_grid)),
         "rgdd_grid_size": int(len(rgdd_grid)),
+        "delta_grid_size": int(len(delta_grid)),
+        "variety_codes": ["WK", "JF", "MPT"],
         "n_site_year": int(len(rows)),
     }
     with open(OUT_DIR / "bbch53_best.json", "w", encoding="utf-8") as f:
