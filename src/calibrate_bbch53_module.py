@@ -413,10 +413,10 @@ def _loocv(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Calibrate BBCH53 GDD inversion module.")
-    parser.add_argument("--tbase-min", type=float, default=8.0)
+    parser.add_argument("--tbase-min", type=float, default=10.0)
     parser.add_argument("--tbase-max", type=float, default=12.0)
     parser.add_argument("--tbase-step", type=float, default=1.0)
-    parser.add_argument("--theta-min", type=float, default=80.0)
+    parser.add_argument("--theta-min", type=float, default=100.0)
     parser.add_argument("--theta-max", type=float, default=1100.0)
     parser.add_argument("--theta-step", type=float, default=10.0)
     parser.add_argument("--tbase-main", type=float, default=10.0, help="Main setting for publication scenario.")
@@ -426,9 +426,9 @@ def main() -> None:
         default="0.25,0.5,0.75",
         help="Quantiles for main-setting threshold scenarios.",
     )
-    parser.add_argument("--n-jobs", type=int, default=64)
+    parser.add_argument("--n-jobs", type=int, default=512)
     parser.add_argument("--start-doy-min", type=int, default=32, help="Minimum DOY for start search (default Feb-1).")
-    parser.add_argument("--start-doy-max", type=int, default=60, help="Maximum DOY for start search (default Mar-1).")
+    parser.add_argument("--start-doy-max", type=int, default=46, help="Maximum DOY for start search (default Feb-15).")
     parser.add_argument("--start-doy-step", type=int, default=1, help="Step size for start DOY grid.")
     parser.add_argument("--use-rgdd-gate", action="store_true", help="Enable condition-B gate: AGDD and RGDD-window.")
     parser.add_argument("--rgdd-window", type=int, default=7, help="Rolling window days for RGDD gate.")
