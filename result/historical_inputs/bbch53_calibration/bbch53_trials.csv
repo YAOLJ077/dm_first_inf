@@ -1,2 +1,2 @@
-t_base,theta_agdd,start_doy,rgdd_min,delta_wk,delta_jf,delta_mpt,mae_days,rmse_days
-9.0,300.0,53,0.0,0.0,0.1,0.1,9.166666666666666,16.036416889899897
+t_base,theta_agdd,start_doy,rgdd_min,delta_wk,delta_jf,delta_mpt,start_shift_wk,start_shift_jf,start_shift_mpt,mae_days,rmse_days
+9.0,350.0,53,0.0,-0.1,0.0,0.1,-1,-1,-1,7.833333333333333,13.184586961044072
