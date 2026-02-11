@@ -496,6 +496,10 @@ def main() -> None:
     parser.add_argument("--theta-quantiles", type=str, default="0.25,0.5,0.75")
     parser.add_argument("--n-jobs", type=int, default=128, help="Parallel workers; each worker evaluates one parameter combo per task.")
     args = parser.parse_args()
+    host_cpus = os.cpu_count() or 1
+    # On Windows, ProcessPoolExecutor enforces max_workers <= 61.
+    win_cap = 61 if os.name == "nt" else host_cpus
+    effective_jobs = max(1, min(int(args.n_jobs), int(host_cpus), int(win_cap)))
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     actual = _load_actual()
@@ -516,7 +520,8 @@ def main() -> None:
     stage2_total = len(delta_grid) ** 3
     print(
         f"[BBCH] Stage1 grid={stage1_total:,} | Stage2 grid={stage2_total:,} | "
-        f"LOOCV total≈{(stage1_total + stage2_total) * len(samples):,} | n_jobs={args.n_jobs}",
+        f"LOOCV total≈{(stage1_total + stage2_total) * len(samples):,} | "
+        f"n_jobs(requested)={args.n_jobs} | n_jobs(effective)={effective_jobs}",
         flush=True,
     )
 
@@ -529,7 +534,7 @@ def main() -> None:
         theta_grid=theta_grid,
         start_doy_grid=start_doy_grid,
         rgdd_grid=rgdd_grid,
-        n_jobs=int(args.n_jobs),
+        n_jobs=effective_jobs,
         use_rgdd_gate=args.use_rgdd_gate,
         rgdd_window=args.rgdd_window,
     )
@@ -541,7 +546,7 @@ def main() -> None:
         fixed_start_doy=int(best_stage1["start_doy"]),
         fixed_rgdd_min=float(best_stage1["rgdd_min"]),
         delta_grid=delta_grid,
-        n_jobs=int(args.n_jobs),
+        n_jobs=effective_jobs,
         use_rgdd_gate=args.use_rgdd_gate,
         rgdd_window=args.rgdd_window,
     )
@@ -567,7 +572,7 @@ def main() -> None:
         start_doy_grid=start_doy_grid,
         rgdd_grid=rgdd_grid,
         delta_grid=delta_grid,
-        n_jobs=int(args.n_jobs),
+        n_jobs=effective_jobs,
         use_rgdd_gate=args.use_rgdd_gate,
         rgdd_window=args.rgdd_window,
     )
