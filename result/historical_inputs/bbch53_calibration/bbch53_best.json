@@ -6,6 +6,8 @@
   "fit_rmse_days": 12.206555615733702,
   "cv_mae_days": 7.333333333333333,
   "cv_rmse_days": 11.818065267490557,
+  "loocv_mae_days": 7.333333333333333,
+  "loocv_rmse_days": 11.818065267490557,
   "t_base_main_setting": 10.0,
   "main_theta_quantiles": [
     0.25,
@@ -42,7 +44,7 @@
   "start_shift_grid_size": 3,
   "stage1_total_grid": 2,
   "stage2_total_grid": 27,
-  "cv_folds": 3,
+  "cv_folds": 6,
   "loocv_topk_frac": 0.34,
   "loocv_unseen_variety_strategy": "global",
   "prior_stage1_t_base": 9.0,
@@ -54,7 +56,7 @@
   "prior_start_shift_wk": -2,
   "prior_start_shift_jf": 0,
   "prior_start_shift_mpt": 0,
-  "loocv_mode": "kfold_train_topk_then_val_then_finalize",
+  "loocv_mode": "loocv_train_topk_then_val_then_finalize",
   "variety_codes": [
     "WK",
     "JF",
