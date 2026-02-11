@@ -136,7 +136,7 @@ def _rule_scores(
     p_ratios: List[float],
     tmean_thresholds: List[float],
     run_days_list: List[int],
-) -> (pd.DataFrame, pd.DataFrame):
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     rows_rule: List[Dict] = []
     rows_dates: List[Dict] = []
     for rgdd_window in sorted(set(int(x) for x in rgdd_windows if int(x) > 0)):
