@@ -427,8 +427,6 @@ def main() -> None:
         help="Quantiles for main-setting threshold scenarios.",
     )
     parser.add_argument("--n-jobs", type=int, default=64)
-    parser.add_argument("--start-month", type=int, default=2, help="(Legacy metadata only, not used in optimization).")
-    parser.add_argument("--start-day", type=int, default=1, help="(Legacy metadata only, not used in optimization).")
     parser.add_argument("--start-doy-min", type=int, default=32, help="Minimum DOY for start search (default Feb-1).")
     parser.add_argument("--start-doy-max", type=int, default=60, help="Maximum DOY for start search (default Mar-1).")
     parser.add_argument("--start-doy-step", type=int, default=1, help="Step size for start DOY grid.")
@@ -600,8 +598,9 @@ def main() -> None:
         "use_rgdd_gate": bool(args.use_rgdd_gate),
         "use_variety_delta": True,
         "rgdd_window": int(args.rgdd_window),
-        "fixed_start_month": int(args.start_month),
-        "fixed_start_day": int(args.start_day),
+        "start_doy_min": int(args.start_doy_min),
+        "start_doy_max": int(args.start_doy_max),
+        "start_doy_step": int(args.start_doy_step),
         "calibration_mode": (
             "search_tbase_startdoy_theta_variety_delta"
             if args.search_tbase
