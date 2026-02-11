@@ -563,6 +563,8 @@ def _select_variety_params_fold(
     unseen_variety_strategy: str,
     prior_delta: float,
     prior_shift: int,
+    penalty_delta_l1: float = 0.0,
+    penalty_shift_l1: float = 0.0,
     desc: Optional[str] = None,
 ) -> Dict:
     train_v = [s for s in train_samples if str(s.variety_code) == str(variety_code)]
@@ -598,8 +600,17 @@ def _select_variety_params_fold(
             start_shift_jf=int(sj),
             start_shift_mpt=int(sm),
         )
-        cand_rows.append({"delta": float(d), "shift": int(s), "train_mae_days": float(mae), "train_rmse_days": float(rmse)})
-    cdf = pd.DataFrame(cand_rows).sort_values(["train_mae_days", "train_rmse_days"]).reset_index(drop=True)
+        obj = float(mae) + float(penalty_delta_l1) * abs(float(d)) + float(penalty_shift_l1) * abs(float(s))
+        cand_rows.append(
+            {
+                "delta": float(d),
+                "shift": int(s),
+                "train_obj_days": float(obj),
+                "train_mae_days": float(mae),
+                "train_rmse_days": float(rmse),
+            }
+        )
+    cdf = pd.DataFrame(cand_rows).sort_values(["train_obj_days", "train_mae_days", "train_rmse_days"]).reset_index(drop=True)
 
     test_v = [s for s in test_samples if str(s.variety_code) == str(variety_code)]
     if not test_v:
@@ -638,6 +649,7 @@ def _select_variety_params_fold(
                 "shift": int(r.shift),
                 "train_mae_days": float(r.train_mae_days),
                 "train_rmse_days": float(r.train_rmse_days),
+                "train_obj_days": float(r.train_obj_days),
                 "val_mae_days": float(vmae),
                 "val_rmse_days": float(vrmse),
                 "val_abs_error_days": float(np.mean([float(x["abs_error_days"]) for x in det])),
@@ -646,7 +658,7 @@ def _select_variety_params_fold(
     vdf = pd.DataFrame(vals)
     valid = vdf[vdf["val_abs_error_days"] >= vdf["train_mae_days"]]
     choose = valid if not valid.empty else vdf
-    b = choose.sort_values(["val_abs_error_days", "train_mae_days", "train_rmse_days"]).iloc[0].to_dict()
+    b = choose.sort_values(["val_abs_error_days", "train_obj_days", "train_mae_days", "train_rmse_days"]).iloc[0].to_dict()
     b["topk_pool_size"] = int(k)
     return b
 
@@ -662,6 +674,8 @@ def _fit_variety_prior_from_all_samples(
     shift_grid: np.ndarray,
     use_rgdd_gate: bool,
     rgdd_window: int,
+    penalty_delta_l1: float = 0.0,
+    penalty_shift_l1: float = 0.0,
 ) -> Dict:
     subset = [s for s in samples if str(s.variety_code) == str(variety_code)]
     if not subset:
@@ -689,8 +703,9 @@ def _fit_variety_prior_from_all_samples(
             start_shift_jf=int(sj),
             start_shift_mpt=int(sm),
         )
-        rows.append({"delta": float(d), "shift": int(s), "mae_days": float(mae), "rmse_days": float(rmse)})
-    best = pd.DataFrame(rows).sort_values(["mae_days", "rmse_days"]).iloc[0].to_dict()
+        obj = float(mae) + float(penalty_delta_l1) * abs(float(d)) + float(penalty_shift_l1) * abs(float(s))
+        rows.append({"delta": float(d), "shift": int(s), "obj_days": float(obj), "mae_days": float(mae), "rmse_days": float(rmse)})
+    best = pd.DataFrame(rows).sort_values(["obj_days", "mae_days", "rmse_days"]).iloc[0].to_dict()
     return {"delta": float(best["delta"]), "shift": int(best["shift"]), "mae_days": float(best["mae_days"]), "rmse_days": float(best["rmse_days"])}
 
 
@@ -732,6 +747,8 @@ def _kfold_full_grid(
     prior_start_shift_wk: int,
     prior_start_shift_jf: int,
     prior_start_shift_mpt: int,
+    penalty_delta_l1: float,
+    penalty_shift_l1: float,
     n_folds: int,
 ) -> pd.DataFrame:
     folds = _build_variety_stratified_folds(samples=samples, n_folds=n_folds)
@@ -758,6 +775,50 @@ def _kfold_full_grid(
         )
         best_stage1_fold = trials_stage1_fold.iloc[0].to_dict()
 
+        # Dynamic priors under this fold's stage1 settings for varieties missing in train.
+        fold_prior_wk = _fit_variety_prior_from_all_samples(
+            samples=samples,
+            variety_code="WK",
+            t_base=float(best_stage1_fold["t_base"]),
+            theta_agdd=float(best_stage1_fold["theta_agdd"]),
+            start_doy=int(best_stage1_fold["start_doy"]),
+            rgdd_min=float(best_stage1_fold["rgdd_min"]),
+            delta_grid=delta_grid,
+            shift_grid=shift_grid,
+            use_rgdd_gate=use_rgdd_gate,
+            rgdd_window=rgdd_window,
+            penalty_delta_l1=penalty_delta_l1,
+            penalty_shift_l1=penalty_shift_l1,
+        )
+        fold_prior_jf = _fit_variety_prior_from_all_samples(
+            samples=samples,
+            variety_code="JF",
+            t_base=float(best_stage1_fold["t_base"]),
+            theta_agdd=float(best_stage1_fold["theta_agdd"]),
+            start_doy=int(best_stage1_fold["start_doy"]),
+            rgdd_min=float(best_stage1_fold["rgdd_min"]),
+            delta_grid=delta_grid,
+            shift_grid=shift_grid,
+            use_rgdd_gate=use_rgdd_gate,
+            rgdd_window=rgdd_window,
+            penalty_delta_l1=penalty_delta_l1,
+            penalty_shift_l1=penalty_shift_l1,
+        )
+        fold_prior_mpt = _fit_variety_prior_from_all_samples(
+            samples=samples,
+            variety_code="MPT",
+            t_base=float(best_stage1_fold["t_base"]),
+            theta_agdd=float(best_stage1_fold["theta_agdd"]),
+            start_doy=int(best_stage1_fold["start_doy"]),
+            rgdd_min=float(best_stage1_fold["rgdd_min"]),
+            delta_grid=delta_grid,
+            shift_grid=shift_grid,
+            use_rgdd_gate=use_rgdd_gate,
+            rgdd_window=rgdd_window,
+            penalty_delta_l1=penalty_delta_l1,
+            penalty_shift_l1=penalty_shift_l1,
+        )
+
         # Stage2: per-variety independent calibration of (delta, start_shift)
         wk = _select_variety_params_fold(
             train_samples=train,
@@ -773,8 +834,10 @@ def _kfold_full_grid(
             use_rgdd_gate=use_rgdd_gate,
             rgdd_window=rgdd_window,
             unseen_variety_strategy=unseen_variety_strategy,
-            prior_delta=float(prior_delta_wk),
-            prior_shift=int(prior_start_shift_wk),
+            prior_delta=float(fold_prior_wk["delta"]),
+            prior_shift=int(fold_prior_wk["shift"]),
+            penalty_delta_l1=penalty_delta_l1,
+            penalty_shift_l1=penalty_shift_l1,
             desc=f"CV fold {i + 1}/{len(folds)} stage2-WK",
         )
         jf = _select_variety_params_fold(
@@ -791,8 +854,10 @@ def _kfold_full_grid(
             use_rgdd_gate=use_rgdd_gate,
             rgdd_window=rgdd_window,
             unseen_variety_strategy=unseen_variety_strategy,
-            prior_delta=float(prior_delta_jf),
-            prior_shift=int(prior_start_shift_jf),
+            prior_delta=float(fold_prior_jf["delta"]),
+            prior_shift=int(fold_prior_jf["shift"]),
+            penalty_delta_l1=penalty_delta_l1,
+            penalty_shift_l1=penalty_shift_l1,
             desc=f"CV fold {i + 1}/{len(folds)} stage2-JF",
         )
         mpt = _select_variety_params_fold(
@@ -809,8 +874,10 @@ def _kfold_full_grid(
             use_rgdd_gate=use_rgdd_gate,
             rgdd_window=rgdd_window,
             unseen_variety_strategy=unseen_variety_strategy,
-            prior_delta=float(prior_delta_mpt),
-            prior_shift=int(prior_start_shift_mpt),
+            prior_delta=float(fold_prior_mpt["delta"]),
+            prior_shift=int(fold_prior_mpt["shift"]),
+            penalty_delta_l1=penalty_delta_l1,
+            penalty_shift_l1=penalty_shift_l1,
             desc=f"CV fold {i + 1}/{len(folds)} stage2-MPT",
         )
         best_fold = {
@@ -904,30 +971,17 @@ def _build_candidate_leaderboard_from_cv_rows(
         "fit_start_shift_jf",
         "fit_start_shift_mpt",
     ]
-    uniq = cv_df[key_cols].drop_duplicates().reset_index(drop=True)
-    folds = _build_variety_stratified_folds(samples=samples, n_folds=n_folds)
+    gate_df = (
+        cv_df.groupby(key_cols, dropna=False, as_index=False)
+        .agg(
+            gate_cv_mae_days=("abs_error_days", "mean"),
+            gate_cv_rmse_days=("abs_error_days", lambda x: float(np.sqrt(np.mean(np.asarray(x, dtype=float) ** 2)))),
+            n_selected_folds=("cv_fold", "nunique"),
+        )
+        .reset_index(drop=True)
+    )
     rows = []
-    for r in uniq.itertuples(index=False):
-        abs_err_all: List[float] = []
-        for f in folds:
-            val_samples = [samples[j] for j in f]
-            _, _, det = _eval_params(
-                samples=val_samples,
-                t_base=float(r.fit_t_base),
-                theta=float(r.fit_theta_agdd),
-                start_doy=int(r.fit_start_doy),
-                use_rgdd_gate=use_rgdd_gate,
-                rgdd_min=float(r.fit_rgdd_min),
-                rgdd_window=int(rgdd_window),
-                delta_wk=float(r.fit_delta_wk),
-                delta_jf=float(r.fit_delta_jf),
-                delta_mpt=float(r.fit_delta_mpt),
-                start_shift_wk=int(r.fit_start_shift_wk),
-                start_shift_jf=int(r.fit_start_shift_jf),
-                start_shift_mpt=int(r.fit_start_shift_mpt),
-            )
-            abs_err_all.extend([float(x["abs_error_days"]) for x in det])
-        arr = np.asarray(abs_err_all, dtype=float)
+    for r in gate_df.itertuples(index=False):
         fit_mae, fit_rmse, _ = _eval_params(
             samples=samples,
             t_base=float(r.fit_t_base),
@@ -955,8 +1009,9 @@ def _build_candidate_leaderboard_from_cv_rows(
                 "fit_start_shift_wk": int(r.fit_start_shift_wk),
                 "fit_start_shift_jf": int(r.fit_start_shift_jf),
                 "fit_start_shift_mpt": int(r.fit_start_shift_mpt),
-                "cv_mae_days": float(arr.mean()),
-                "cv_rmse_days": float(np.sqrt(np.mean(arr**2))),
+                "gate_cv_mae_days": float(r.gate_cv_mae_days),
+                "gate_cv_rmse_days": float(r.gate_cv_rmse_days),
+                "n_selected_folds": int(r.n_selected_folds),
                 "fit_mae_days": float(fit_mae),
                 "fit_rmse_days": float(fit_rmse),
             }
@@ -966,9 +1021,9 @@ def _build_candidate_leaderboard_from_cv_rows(
 
 def _pick_final_from_leaderboard(leaderboard: pd.DataFrame, selector: str) -> Dict:
     if str(selector).lower() == "fit":
-        b = leaderboard.sort_values(["fit_mae_days", "fit_rmse_days", "cv_mae_days", "cv_rmse_days"]).iloc[0]
+        b = leaderboard.sort_values(["fit_mae_days", "fit_rmse_days", "gate_cv_mae_days", "gate_cv_rmse_days"]).iloc[0]
     else:
-        b = leaderboard.sort_values(["cv_mae_days", "cv_rmse_days", "fit_mae_days", "fit_rmse_days"]).iloc[0]
+        b = leaderboard.sort_values(["gate_cv_mae_days", "gate_cv_rmse_days", "fit_mae_days", "fit_rmse_days"]).iloc[0]
     return {
         "t_base": float(b["fit_t_base"]),
         "theta_agdd": float(b["fit_theta_agdd"]),
@@ -980,10 +1035,11 @@ def _pick_final_from_leaderboard(leaderboard: pd.DataFrame, selector: str) -> Di
         "start_shift_wk": int(b["fit_start_shift_wk"]),
         "start_shift_jf": int(b["fit_start_shift_jf"]),
         "start_shift_mpt": int(b["fit_start_shift_mpt"]),
-        "selected_by_cv_mae_days": float(b["cv_mae_days"]),
-        "selected_by_cv_rmse_days": float(b["cv_rmse_days"]),
+        "selected_by_cv_mae_days": float(b["gate_cv_mae_days"]),
+        "selected_by_cv_rmse_days": float(b["gate_cv_rmse_days"]),
         "selected_by_fit_mae_days": float(b["fit_mae_days"]),
         "selected_by_fit_rmse_days": float(b["fit_rmse_days"]),
+        "selected_n_folds": int(b["n_selected_folds"]),
     }
 
 
@@ -1008,9 +1064,11 @@ def main() -> None:
     parser.add_argument("--delta-min", type=float, default=-0.75)
     parser.add_argument("--delta-max", type=float, default=0.75)
     parser.add_argument("--delta-step", type=float, default=0.1)
+    parser.add_argument("--penalty-delta-l1", type=float, default=0.25)
     parser.add_argument("--start-shift-min", type=int, default=-16)
     parser.add_argument("--start-shift-max", type=int, default=16)
     parser.add_argument("--start-shift-step", type=int, default=1)
+    parser.add_argument("--penalty-start-shift-l1", type=float, default=0.10)
     parser.add_argument("--theta-quantiles", type=str, default="0.25,0.5,0.75")
     parser.add_argument("--n-jobs", type=int, default=512)
     parser.add_argument("--backend", type=str, default="ray", choices=["ray", "serial"])
@@ -1067,6 +1125,8 @@ def main() -> None:
         shift_grid=shift_grid,
         use_rgdd_gate=args.use_rgdd_gate,
         rgdd_window=args.rgdd_window,
+        penalty_delta_l1=float(args.penalty_delta_l1),
+        penalty_shift_l1=float(args.penalty_start_shift_l1),
     )
     prior_jf = _fit_variety_prior_from_all_samples(
         samples=samples,
@@ -1079,6 +1139,8 @@ def main() -> None:
         shift_grid=shift_grid,
         use_rgdd_gate=args.use_rgdd_gate,
         rgdd_window=args.rgdd_window,
+        penalty_delta_l1=float(args.penalty_delta_l1),
+        penalty_shift_l1=float(args.penalty_start_shift_l1),
     )
     prior_mpt = _fit_variety_prior_from_all_samples(
         samples=samples,
@@ -1091,6 +1153,8 @@ def main() -> None:
         shift_grid=shift_grid,
         use_rgdd_gate=args.use_rgdd_gate,
         rgdd_window=args.rgdd_window,
+        penalty_delta_l1=float(args.penalty_delta_l1),
+        penalty_shift_l1=float(args.penalty_start_shift_l1),
     )
 
     cv_df = _kfold_full_grid(
@@ -1113,6 +1177,8 @@ def main() -> None:
         prior_start_shift_wk=int(prior_wk["shift"]),
         prior_start_shift_jf=int(prior_jf["shift"]),
         prior_start_shift_mpt=int(prior_mpt["shift"]),
+        penalty_delta_l1=float(args.penalty_delta_l1),
+        penalty_shift_l1=float(args.penalty_start_shift_l1),
         n_folds=int(n_folds),
     )
     leaderboard_df = _build_candidate_leaderboard_from_cv_rows(
@@ -1202,6 +1268,7 @@ def main() -> None:
                 "selected_by_cv_rmse_days": float(best_final["selected_by_cv_rmse_days"]),
                 "selected_by_fit_mae_days": float(best_final["selected_by_fit_mae_days"]),
                 "selected_by_fit_rmse_days": float(best_final["selected_by_fit_rmse_days"]),
+                "selected_n_folds": int(best_final["selected_n_folds"]),
             },
             {
                 "selector": "gate_cv",
@@ -1221,6 +1288,7 @@ def main() -> None:
                 "selected_by_cv_rmse_days": float(best_final_gate["selected_by_cv_rmse_days"]),
                 "selected_by_fit_mae_days": float(best_final_gate["selected_by_fit_mae_days"]),
                 "selected_by_fit_rmse_days": float(best_final_gate["selected_by_fit_rmse_days"]),
+                "selected_n_folds": int(best_final_gate["selected_n_folds"]),
             },
         ]
     ).to_csv(OUT_DIR / "bbch53_trials.csv", index=False)
@@ -1229,7 +1297,7 @@ def main() -> None:
     pd.DataFrame(gate_fit_detail).to_csv(OUT_DIR / "bbch53_fit_detail_gate.csv", index=False)
     cv_df.to_csv(OUT_DIR / "bbch53_cv.csv", index=False)
     cv_df.to_csv(OUT_DIR / "bbch53_loocv.csv", index=False)
-    leaderboard_df.sort_values(["fit_mae_days", "fit_rmse_days", "cv_mae_days", "cv_rmse_days"]).to_csv(
+    leaderboard_df.sort_values(["fit_mae_days", "fit_rmse_days", "gate_cv_mae_days", "gate_cv_rmse_days"]).to_csv(
         OUT_DIR / "bbch53_selection_compare.csv", index=False
     )
     theta_obs_df.to_csv(OUT_DIR / "bbch53_theta_obs_tbase_main.csv", index=False)
@@ -1259,6 +1327,7 @@ def main() -> None:
         "selected_by_cv_rmse_days": float(best_final["selected_by_cv_rmse_days"]),
         "selected_by_fit_mae_days": float(best_final["selected_by_fit_mae_days"]),
         "selected_by_fit_rmse_days": float(best_final["selected_by_fit_rmse_days"]),
+        "selected_n_folds": int(best_final["selected_n_folds"]),
         "gate_t_base": float(best_final_gate["t_base"]),
         "gate_theta_agdd": float(best_final_gate["theta_agdd"]),
         "gate_start_doy": int(best_final_gate["start_doy"]),
@@ -1275,6 +1344,9 @@ def main() -> None:
         "gate_selected_by_cv_rmse_days": float(best_final_gate["selected_by_cv_rmse_days"]),
         "gate_selected_by_fit_mae_days": float(best_final_gate["selected_by_fit_mae_days"]),
         "gate_selected_by_fit_rmse_days": float(best_final_gate["selected_by_fit_rmse_days"]),
+        "gate_selected_n_folds": int(best_final_gate["selected_n_folds"]),
+        "penalty_delta_l1": float(args.penalty_delta_l1),
+        "penalty_start_shift_l1": float(args.penalty_start_shift_l1),
         "use_rgdd_gate": bool(args.use_rgdd_gate),
         "use_variety_delta": True,
         "use_variety_start_shift": True,
