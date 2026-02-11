@@ -860,7 +860,7 @@ def _backcalc_theta_at_obs(samples: List[Sample], t_base: float, start_doy: int)
     return pd.DataFrame(rows)
 
 
-def _select_final_params_from_loocv_rows(samples: List[Sample], loocv_df: pd.DataFrame, use_rgdd_gate: bool, rgdd_window: int) -> Dict:
+def _select_final_params_from_loocv_rows(loocv_df: pd.DataFrame) -> Dict:
     key_cols = [
         "fit_t_base",
         "fit_theta_agdd",
@@ -873,45 +873,34 @@ def _select_final_params_from_loocv_rows(samples: List[Sample], loocv_df: pd.Dat
         "fit_start_shift_jf",
         "fit_start_shift_mpt",
     ]
-    uniq = loocv_df[key_cols].drop_duplicates().reset_index(drop=True)
-    rows = []
-    for r in uniq.itertuples(index=False):
-        mae, rmse, _ = _eval_params(
-            samples=samples,
-            t_base=float(r.fit_t_base),
-            theta=float(r.fit_theta_agdd),
-            start_doy=int(r.fit_start_doy),
-            use_rgdd_gate=use_rgdd_gate,
-            rgdd_min=float(r.fit_rgdd_min),
-            rgdd_window=int(rgdd_window),
-            delta_wk=float(r.fit_delta_wk),
-            delta_jf=float(r.fit_delta_jf),
-            delta_mpt=float(r.fit_delta_mpt),
-            start_shift_wk=int(r.fit_start_shift_wk),
-            start_shift_jf=int(r.fit_start_shift_jf),
-            start_shift_mpt=int(r.fit_start_shift_mpt),
+    g = (
+        loocv_df.groupby(key_cols, as_index=False)
+        .agg(
+            loocv_mae_days=("abs_error_days", "mean"),
+            loocv_rmse_days=("abs_error_days", lambda x: float(np.sqrt(np.mean(np.asarray(x, dtype=float) ** 2)))),
         )
-        rows.append(
-            {
-                "t_base": float(r.fit_t_base),
-                "theta_agdd": float(r.fit_theta_agdd),
-                "start_doy": int(r.fit_start_doy),
-                "rgdd_min": float(r.fit_rgdd_min),
-                "delta_wk": float(r.fit_delta_wk),
-                "delta_jf": float(r.fit_delta_jf),
-                "delta_mpt": float(r.fit_delta_mpt),
-                "start_shift_wk": int(r.fit_start_shift_wk),
-                "start_shift_jf": int(r.fit_start_shift_jf),
-                "start_shift_mpt": int(r.fit_start_shift_mpt),
-                "fit_mae_days": float(mae),
-                "fit_rmse_days": float(rmse),
-            }
-        )
-    return pd.DataFrame(rows).sort_values(["fit_mae_days", "fit_rmse_days"]).iloc[0].to_dict()
+        .sort_values(["loocv_mae_days", "loocv_rmse_days"])
+        .reset_index(drop=True)
+    )
+    b = g.iloc[0]
+    return {
+        "t_base": float(b["fit_t_base"]),
+        "theta_agdd": float(b["fit_theta_agdd"]),
+        "start_doy": int(b["fit_start_doy"]),
+        "rgdd_min": float(b["fit_rgdd_min"]),
+        "delta_wk": float(b["fit_delta_wk"]),
+        "delta_jf": float(b["fit_delta_jf"]),
+        "delta_mpt": float(b["fit_delta_mpt"]),
+        "start_shift_wk": int(b["fit_start_shift_wk"]),
+        "start_shift_jf": int(b["fit_start_shift_jf"]),
+        "start_shift_mpt": int(b["fit_start_shift_mpt"]),
+        "selected_by_loocv_mae_days": float(b["loocv_mae_days"]),
+        "selected_by_loocv_rmse_days": float(b["loocv_rmse_days"]),
+    }
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Three-stage BBCH53 calibration with LOOCV-aware model selection.")
+    parser = argparse.ArgumentParser(description="Two-stage BBCH53 calibration (global + per-variety) with LOOCV-aware model selection.")
     parser.add_argument("--tbase-min", type=float, default=8.0)
     parser.add_argument("--tbase-max", type=float, default=10.0)
     parser.add_argument("--tbase-step", type=float, default=1.0)
@@ -923,11 +912,11 @@ def main() -> None:
     parser.add_argument("--start-doy-min", type=int, default=32)
     parser.add_argument("--start-doy-max", type=int, default=60)
     parser.add_argument("--start-doy-step", type=int, default=1)
-    parser.add_argument("--use-rgdd-gate", action="store_true")
+    parser.add_argument("--use-rgdd-gate", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--rgdd-window", type=int, default=7)
     parser.add_argument("--rgdd-min", type=float, default=0.0)
-    parser.add_argument("--rgdd-max", type=float, default=80.0)
-    parser.add_argument("--rgdd-step", type=float, default=1.0)
+    parser.add_argument("--rgdd-max", type=float, default=120.0)
+    parser.add_argument("--rgdd-step", type=float, default=5.0)
     parser.add_argument("--delta-min", type=float, default=-0.75)
     parser.add_argument("--delta-max", type=float, default=0.75)
     parser.add_argument("--delta-step", type=float, default=0.1)
@@ -1034,12 +1023,7 @@ def main() -> None:
         prior_start_shift_jf=int(prior_jf["shift"]),
         prior_start_shift_mpt=int(prior_mpt["shift"]),
     )
-    best_final = _select_final_params_from_loocv_rows(
-        samples=samples,
-        loocv_df=loocv,
-        use_rgdd_gate=args.use_rgdd_gate,
-        rgdd_window=args.rgdd_window,
-    )
+    best_final = _select_final_params_from_loocv_rows(loocv_df=loocv)
     fit_mae, fit_rmse, fit_detail = _eval_params(
         samples=samples,
         t_base=float(best_final["t_base"]),
@@ -1121,6 +1105,8 @@ def main() -> None:
         "best_start_shift_wk": int(best_final["start_shift_wk"]),
         "best_start_shift_jf": int(best_final["start_shift_jf"]),
         "best_start_shift_mpt": int(best_final["start_shift_mpt"]),
+        "selected_by_loocv_mae_days": float(best_final["selected_by_loocv_mae_days"]),
+        "selected_by_loocv_rmse_days": float(best_final["selected_by_loocv_rmse_days"]),
         "use_rgdd_gate": bool(args.use_rgdd_gate),
         "use_variety_delta": True,
         "use_variety_start_shift": True,
