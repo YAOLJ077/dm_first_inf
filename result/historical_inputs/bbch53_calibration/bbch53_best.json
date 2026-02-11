@@ -1,0 +1,39 @@
+{
+  "best_t_base": 10.0,
+  "best_theta_agdd": 110.0,
+  "best_start_doy": 33,
+  "fit_mae_days": 40.166666666666664,
+  "fit_rmse_days": 41.84694333719808,
+  "loocv_mae_days": 40.166666666666664,
+  "loocv_rmse_days": 41.84694333719808,
+  "t_base_main_setting": 10.0,
+  "main_theta_quantiles": [
+    0.25,
+    0.5,
+    0.75
+  ],
+  "main_theta_scenarios_file": "bbch53_main_setting_scenarios.csv",
+  "best_rgdd_min": null,
+  "best_delta_wk": 0.0,
+  "best_delta_jf": 0.0,
+  "best_delta_mpt": 0.0,
+  "use_rgdd_gate": false,
+  "use_variety_delta": true,
+  "rgdd_window": 7,
+  "start_doy_min": 32,
+  "start_doy_max": 33,
+  "start_doy_step": 1,
+  "calibration_mode": "fixed_tbase_startdoy_theta_variety_delta",
+  "t_base_search_enabled": false,
+  "t_base_grid_size": 1,
+  "start_doy_grid_size": 2,
+  "theta_grid_size": 2,
+  "rgdd_grid_size": 1,
+  "delta_grid_size": 1,
+  "variety_codes": [
+    "WK",
+    "JF",
+    "MPT"
+  ],
+  "n_site_year": 6
+}

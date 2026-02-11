@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Dict, List, Tuple
 from itertools import product
@@ -80,6 +81,33 @@ def _start_dt_for_year_from_doy(year: int, doy: int) -> pd.Timestamp:
     y = int(year)
     d = int(doy)
     return pd.Timestamp(year=y, month=1, day=1) + pd.Timedelta(days=d - 1)
+
+
+def _format_seconds(sec: float) -> str:
+    s = max(0, int(round(sec)))
+    h = s // 3600
+    m = (s % 3600) // 60
+    ss = s % 60
+    if h > 0:
+        return f"{h:02d}:{m:02d}:{ss:02d}"
+    return f"{m:02d}:{ss:02d}"
+
+
+def _maybe_print_eta(prefix: str, done: int, total: int, t0: float, last_ts: float, interval: float = 15.0) -> float:
+    now = time.time()
+    if done <= 0:
+        return last_ts
+    if now - last_ts < interval and done < total:
+        return last_ts
+    elapsed = max(1e-9, now - t0)
+    rate = done / elapsed
+    remain = max(0, total - done)
+    eta = remain / max(1e-9, rate)
+    print(
+        f"[{prefix}] {done}/{total} | {rate:.2f} it/s | ETA {_format_seconds(eta)}",
+        flush=True,
+    )
+    return now
 
 
 def _backcalc_theta_at_obs(cache: List[Dict], t_base: float, start_doy: int) -> pd.DataFrame:
@@ -306,6 +334,9 @@ def _grid_search(
     )
     if ray is None or n_jobs <= 1:
         out = []
+        t0 = time.time()
+        last_eta_ts = t0
+        done = 0
         for tb, th, sd, rg, dw, dj, dm in tqdm(combo_iter, desc="BBCH grid", total=total):
             mae, rmse, _ = _eval_params(
                 cache, tb, th, sd, use_rgdd_gate, rg, rgdd_window,
@@ -318,6 +349,8 @@ def _grid_search(
                     "mae_days": mae, "rmse_days": rmse,
                 }
             )
+            done += 1
+            last_eta_ts = _maybe_print_eta("BBCH grid", done, total, t0, last_eta_ts)
         trials = pd.DataFrame(out).sort_values(["mae_days", "rmse_days"]).reset_index(drop=True)
         return trials.iloc[0].to_dict(), trials
 
@@ -326,6 +359,8 @@ def _grid_search(
     rows_out: List[Dict] = []
     done = 0
     pbar = tqdm(total=total, desc="BBCH grid")
+    t0 = time.time()
+    last_eta_ts = t0
     finished_iter = False
 
     def _next_combo():
@@ -357,6 +392,112 @@ def _grid_search(
             pending.pop(r, None)
             done += 1
             pbar.update(1)
+            last_eta_ts = _maybe_print_eta("BBCH grid", done, total, t0, last_eta_ts)
+    pbar.close()
+    trials = pd.DataFrame(rows_out).sort_values(["mae_days", "rmse_days"]).reset_index(drop=True)
+    return trials.iloc[0].to_dict(), trials
+
+
+def _grid_search_delta_only(
+    cache: List[Dict],
+    fixed_t_base: float,
+    fixed_theta: float,
+    fixed_start_doy: int,
+    fixed_rgdd_min: float,
+    delta_wk_grid: np.ndarray,
+    delta_jf_grid: np.ndarray,
+    delta_mpt_grid: np.ndarray,
+    n_jobs: int,
+    use_rgdd_gate: bool,
+    rgdd_window: int,
+) -> Tuple[Dict, pd.DataFrame]:
+    total = int(len(delta_wk_grid)) * int(len(delta_jf_grid)) * int(len(delta_mpt_grid))
+    combo_iter = product(delta_wk_grid, delta_jf_grid, delta_mpt_grid)
+    if ray is None or n_jobs <= 1:
+        out = []
+        t0 = time.time()
+        last_eta_ts = t0
+        done = 0
+        for dw, dj, dm in tqdm(combo_iter, desc="BBCH delta-grid", total=total):
+            mae, rmse, _ = _eval_params(
+                cache,
+                t_base=float(fixed_t_base),
+                theta=float(fixed_theta),
+                start_doy=int(fixed_start_doy),
+                use_rgdd_gate=use_rgdd_gate,
+                rgdd_min=float(fixed_rgdd_min),
+                rgdd_window=rgdd_window,
+                use_variety_delta=True,
+                delta_wk=float(dw),
+                delta_jf=float(dj),
+                delta_mpt=float(dm),
+            )
+            out.append(
+                {
+                    "t_base": float(fixed_t_base),
+                    "theta_agdd": float(fixed_theta),
+                    "start_doy": int(fixed_start_doy),
+                    "rgdd_min": float(fixed_rgdd_min),
+                    "delta_wk": float(dw),
+                    "delta_jf": float(dj),
+                    "delta_mpt": float(dm),
+                    "mae_days": float(mae),
+                    "rmse_days": float(rmse),
+                }
+            )
+            done += 1
+            last_eta_ts = _maybe_print_eta("BBCH delta-grid", done, total, t0, last_eta_ts)
+        trials = pd.DataFrame(out).sort_values(["mae_days", "rmse_days"]).reset_index(drop=True)
+        return trials.iloc[0].to_dict(), trials
+
+    cache_ref = ray.put(cache)
+    pending = {}
+    rows_out: List[Dict] = []
+    done = 0
+    pbar = tqdm(total=total, desc="BBCH delta-grid")
+    t0 = time.time()
+    last_eta_ts = t0
+    finished_iter = False
+
+    def _next_combo():
+        nonlocal finished_iter
+        if finished_iter:
+            return None
+        try:
+            return next(combo_iter)
+        except StopIteration:
+            finished_iter = True
+            return None
+
+    while done < total:
+        while len(pending) < max(1, n_jobs):
+            nxt = _next_combo()
+            if nxt is None:
+                break
+            dw, dj, dm = nxt
+            fut = _eval_combo_remote.remote(
+                cache_ref,
+                fixed_t_base,
+                fixed_theta,
+                fixed_rgdd_min,
+                dw,
+                dj,
+                dm,
+                fixed_start_doy,
+                use_rgdd_gate,
+                rgdd_window,
+                True,
+            )
+            pending[fut] = True
+        if not pending:
+            break
+        ready, _ = ray.wait(list(pending.keys()), num_returns=1)
+        for r in ready:
+            rows_out.append(ray.get(r))
+            pending.pop(r, None)
+            done += 1
+            pbar.update(1)
+            last_eta_ts = _maybe_print_eta("BBCH delta-grid", done, total, t0, last_eta_ts)
     pbar.close()
     trials = pd.DataFrame(rows_out).sort_values(["mae_days", "rmse_days"]).reset_index(drop=True)
     return trials.iloc[0].to_dict(), trials
@@ -374,40 +515,54 @@ def _loocv(
     n_jobs: int,
     use_rgdd_gate: bool,
     rgdd_window: int,
-    use_variety_delta: bool,
 ) -> pd.DataFrame:
     out = []
+    loocv_t0 = time.time()
+    loocv_last_eta = loocv_t0
     for i in tqdm(range(len(rows)), desc="BBCH LOOCV"):
         train = [rows[j] for j in range(len(rows)) if j != i]
         test = rows[i]
         train_cache = _build_cache(train)
-        best, _ = _grid_search(
+        best_stage1, _ = _grid_search(
             train_cache,
             tbase_grid,
             theta_grid,
             start_doy_grid,
             rgdd_grid,
-            delta_wk_grid,
-            delta_jf_grid,
-            delta_mpt_grid,
+            np.array([0.0]),
+            np.array([0.0]),
+            np.array([0.0]),
             n_jobs=n_jobs,
             use_rgdd_gate=use_rgdd_gate,
             rgdd_window=rgdd_window,
-            use_variety_delta=use_variety_delta,
+            use_variety_delta=False,
+        )
+        best_stage2, _ = _grid_search_delta_only(
+            train_cache,
+            fixed_t_base=float(best_stage1["t_base"]),
+            fixed_theta=float(best_stage1["theta_agdd"]),
+            fixed_start_doy=int(best_stage1["start_doy"]),
+            fixed_rgdd_min=float(best_stage1["rgdd_min"]),
+            delta_wk_grid=delta_wk_grid,
+            delta_jf_grid=delta_jf_grid,
+            delta_mpt_grid=delta_mpt_grid,
+            n_jobs=n_jobs,
+            use_rgdd_gate=use_rgdd_gate,
+            rgdd_window=rgdd_window,
         )
         test_cache = _build_cache([test])
         mae, rmse, detail = _eval_params(
             test_cache,
-            best["t_base"],
-            best["theta_agdd"],
-            start_doy=int(best["start_doy"]),
+            best_stage1["t_base"],
+            best_stage1["theta_agdd"],
+            start_doy=int(best_stage1["start_doy"]),
             use_rgdd_gate=use_rgdd_gate,
-            rgdd_min=best["rgdd_min"],
+            rgdd_min=best_stage1["rgdd_min"],
             rgdd_window=rgdd_window,
-            use_variety_delta=use_variety_delta,
-            delta_wk=float(best.get("delta_wk", 0.0)),
-            delta_jf=float(best.get("delta_jf", 0.0)),
-            delta_mpt=float(best.get("delta_mpt", 0.0)),
+            use_variety_delta=True,
+            delta_wk=float(best_stage2.get("delta_wk", 0.0)),
+            delta_jf=float(best_stage2.get("delta_jf", 0.0)),
+            delta_mpt=float(best_stage2.get("delta_mpt", 0.0)),
         )
         d = detail[0]
         out.append(
@@ -418,19 +573,22 @@ def _loocv(
                 "pred_bbch53": d["pred_bbch53"],
                 "error_days": d["error_days"],
                 "abs_error_days": d["abs_error_days"],
-                "fit_t_base": best["t_base"],
-                "fit_theta_agdd": best["theta_agdd"],
-                "fit_start_doy": int(best["start_doy"]),
-                "fit_rgdd_min": best["rgdd_min"],
-                "fit_delta_wk": best.get("delta_wk", 0.0),
-                "fit_delta_jf": best.get("delta_jf", 0.0),
-                "fit_delta_mpt": best.get("delta_mpt", 0.0),
-                "fit_train_mae_days": best["mae_days"],
-                "fit_train_rmse_days": best["rmse_days"],
+                "fit_t_base": best_stage1["t_base"],
+                "fit_theta_agdd": best_stage1["theta_agdd"],
+                "fit_start_doy": int(best_stage1["start_doy"]),
+                "fit_rgdd_min": best_stage1["rgdd_min"],
+                "fit_delta_wk": best_stage2.get("delta_wk", 0.0),
+                "fit_delta_jf": best_stage2.get("delta_jf", 0.0),
+                "fit_delta_mpt": best_stage2.get("delta_mpt", 0.0),
+                "fit_stage1_train_mae_days": best_stage1["mae_days"],
+                "fit_stage1_train_rmse_days": best_stage1["rmse_days"],
+                "fit_stage2_train_mae_days": best_stage2["mae_days"],
+                "fit_stage2_train_rmse_days": best_stage2["rmse_days"],
                 "test_mae_days": mae,
                 "test_rmse_days": rmse,
             }
         )
+        loocv_last_eta = _maybe_print_eta("BBCH LOOCV folds", i + 1, len(rows), loocv_t0, loocv_last_eta, interval=5.0)
     return pd.DataFrame(out)
 
 
@@ -466,6 +624,7 @@ def main() -> None:
     parser.add_argument(
         "--search-tbase",
         action="store_true",
+        default=True,
         help="If set, optimize both t_base and theta; otherwise fix t_base=tbase_main and optimize theta only.",
     )
     parser.add_argument("--delta-min", type=float, default=-0.5, help="Lower bound for variety delta.")
@@ -474,9 +633,6 @@ def main() -> None:
     args = parser.parse_args()
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    # Fixed mode: always use global theta + variety delta (WK/JF/MPT).
-    use_variety_delta = True
-
     actual = _load_actual()
     rows = list(actual.itertuples(index=False))
     cache = _build_cache(rows)
@@ -505,44 +661,67 @@ def main() -> None:
             rgdd_grid = np.arange(args.rgdd_min, args.rgdd_max + 1e-12, args.rgdd_step)
     else:
         rgdd_grid = np.array([0.0])
-    if use_variety_delta:
-        delta_grid = np.arange(args.delta_min, args.delta_max + 1e-12, args.delta_step)
-    else:
-        delta_grid = np.array([0.0])
+    delta_grid = np.arange(args.delta_min, args.delta_max + 1e-12, args.delta_step)
     delta_wk_grid = delta_grid
     delta_jf_grid = delta_grid
     delta_mpt_grid = delta_grid
+
+    stage1_total = (
+        int(len(tbase_grid))
+        * int(len(theta_grid))
+        * int(len(start_doy_grid))
+        * int(len(rgdd_grid))
+    )
+    stage2_total = int(len(delta_wk_grid)) * int(len(delta_jf_grid)) * int(len(delta_mpt_grid))
+    print(
+        f"[BBCH] Stage1 grid={stage1_total:,} | Stage2 grid={stage2_total:,} | "
+        f"LOOCV total≈{(stage1_total + stage2_total) * len(rows):,}",
+        flush=True,
+    )
 
     ray_used = ray is not None and args.n_jobs > 1
     if ray_used:
         ray.init(num_cpus=max(1, args.n_jobs), include_dashboard=False, logging_level="ERROR")
 
-    best, trials = _grid_search(
+    best_stage1, trials_stage1 = _grid_search(
         cache,
         tbase_grid,
         theta_grid,
         start_doy_grid,
         rgdd_grid,
-        delta_wk_grid,
-        delta_jf_grid,
-        delta_mpt_grid,
+        np.array([0.0]),
+        np.array([0.0]),
+        np.array([0.0]),
         n_jobs=args.n_jobs,
         use_rgdd_gate=args.use_rgdd_gate,
         rgdd_window=args.rgdd_window,
-        use_variety_delta=use_variety_delta,
+        use_variety_delta=False,
+    )
+    best_stage2, trials_stage2 = _grid_search_delta_only(
+        cache,
+        fixed_t_base=float(best_stage1["t_base"]),
+        fixed_theta=float(best_stage1["theta_agdd"]),
+        fixed_start_doy=int(best_stage1["start_doy"]),
+        fixed_rgdd_min=float(best_stage1["rgdd_min"]),
+        delta_wk_grid=delta_wk_grid,
+        delta_jf_grid=delta_jf_grid,
+        delta_mpt_grid=delta_mpt_grid,
+        n_jobs=args.n_jobs,
+        use_rgdd_gate=args.use_rgdd_gate,
+        rgdd_window=args.rgdd_window,
     )
     final_mae, final_rmse, final_detail = _eval_params(
         cache,
-        best["t_base"],
-        best["theta_agdd"],
-        start_doy=int(best["start_doy"]),
+        best_stage1["t_base"],
+        best_stage1["theta_agdd"],
+        start_doy=int(best_stage1["start_doy"]),
         use_rgdd_gate=args.use_rgdd_gate,
-        rgdd_min=float(best.get("rgdd_min", 0.0)),
+        rgdd_min=float(best_stage1.get("rgdd_min", 0.0)),
         rgdd_window=args.rgdd_window,
-        use_variety_delta=use_variety_delta,
-        delta_wk=float(best.get("delta_wk", 0.0)),
-        delta_jf=float(best.get("delta_jf", 0.0)),
-        delta_mpt=float(best.get("delta_mpt", 0.0)),
+        use_variety_delta=True,
+        delta_wk=float(best_stage2.get("delta_wk", 0.0)),
+        delta_jf=float(best_stage2.get("delta_jf", 0.0)),
+        delta_mpt=float(best_stage2.get("delta_mpt", 0.0)),
     )
     loocv = _loocv(
         rows,
@@ -556,14 +735,13 @@ def main() -> None:
         n_jobs=args.n_jobs,
         use_rgdd_gate=args.use_rgdd_gate,
         rgdd_window=args.rgdd_window,
-        use_variety_delta=use_variety_delta,
     )
 
     if ray_used:
         ray.shutdown()
 
     q_values = [float(x) for x in args.theta_quantiles.split(",") if x.strip()]
-    start_doy_for_scenarios = int(best["start_doy"])
+    start_doy_for_scenarios = int(best_stage1["start_doy"])
     theta_obs_df = _backcalc_theta_at_obs(
         cache,
         t_base=args.tbase_main,
@@ -580,12 +758,12 @@ def main() -> None:
             theta=theta_q,
             start_doy=start_doy_for_scenarios,
             use_rgdd_gate=args.use_rgdd_gate,
-            rgdd_min=float(best.get("rgdd_min", 0.0)),
+            rgdd_min=float(best_stage1.get("rgdd_min", 0.0)),
             rgdd_window=args.rgdd_window,
-            use_variety_delta=use_variety_delta,
-            delta_wk=float(best.get("delta_wk", 0.0)),
-            delta_jf=float(best.get("delta_jf", 0.0)),
-            delta_mpt=float(best.get("delta_mpt", 0.0)),
+            use_variety_delta=True,
+            delta_wk=float(best_stage2.get("delta_wk", 0.0)),
+            delta_jf=float(best_stage2.get("delta_jf", 0.0)),
+            delta_mpt=float(best_stage2.get("delta_mpt", 0.0)),
         )
         scenario_rows.append(
             {
@@ -599,14 +777,54 @@ def main() -> None:
     scenario_df = pd.DataFrame(scenario_rows).sort_values("theta_quantile").reset_index(drop=True)
     scenario_df.to_csv(OUT_DIR / "bbch53_main_setting_scenarios.csv", index=False)
 
-    trials.to_csv(OUT_DIR / "bbch53_trials.csv", index=False)
+    trials_stage1.to_csv(OUT_DIR / "bbch53_trials_stage1_global.csv", index=False)
+    trials_stage2.to_csv(OUT_DIR / "bbch53_trials_stage2_delta.csv", index=False)
+    merged_best_row = {
+        "t_base": float(best_stage1["t_base"]),
+        "theta_agdd": float(best_stage1["theta_agdd"]),
+        "start_doy": int(best_stage1["start_doy"]),
+        "rgdd_min": float(best_stage1["rgdd_min"]),
+        "delta_wk": float(best_stage2.get("delta_wk", 0.0)),
+        "delta_jf": float(best_stage2.get("delta_jf", 0.0)),
+        "delta_mpt": float(best_stage2.get("delta_mpt", 0.0)),
+        "mae_days": float(final_mae),
+        "rmse_days": float(final_rmse),
+    }
+    pd.DataFrame([merged_best_row]).to_csv(OUT_DIR / "bbch53_trials.csv", index=False)
     pd.DataFrame(final_detail).to_csv(OUT_DIR / "bbch53_fit_detail.csv", index=False)
     loocv.to_csv(OUT_DIR / "bbch53_loocv.csv", index=False)
 
+    stage1_summary = {
+        "best_t_base": float(best_stage1["t_base"]),
+        "best_theta_agdd": float(best_stage1["theta_agdd"]),
+        "best_start_doy": int(best_stage1["start_doy"]),
+        "best_rgdd_min": float(best_stage1.get("rgdd_min", 0.0)) if args.use_rgdd_gate else None,
+        "fit_mae_days": float(best_stage1["mae_days"]),
+        "fit_rmse_days": float(best_stage1["rmse_days"]),
+        "grid_size": int(stage1_total),
+    }
+    with open(OUT_DIR / "bbch53_stage1_global_best.json", "w", encoding="utf-8") as f:
+        json.dump(stage1_summary, f, indent=2)
+
+    stage2_summary = {
+        "fixed_t_base": float(best_stage1["t_base"]),
+        "fixed_theta_agdd": float(best_stage1["theta_agdd"]),
+        "fixed_start_doy": int(best_stage1["start_doy"]),
+        "fixed_rgdd_min": float(best_stage1.get("rgdd_min", 0.0)) if args.use_rgdd_gate else None,
+        "best_delta_wk": float(best_stage2.get("delta_wk", 0.0)),
+        "best_delta_jf": float(best_stage2.get("delta_jf", 0.0)),
+        "best_delta_mpt": float(best_stage2.get("delta_mpt", 0.0)),
+        "fit_mae_days": float(best_stage2["mae_days"]),
+        "fit_rmse_days": float(best_stage2["rmse_days"]),
+        "grid_size": int(stage2_total),
+    }
+    with open(OUT_DIR / "bbch53_stage2_delta_best.json", "w", encoding="utf-8") as f:
+        json.dump(stage2_summary, f, indent=2)
+
     summary = {
-        "best_t_base": float(best["t_base"]),
-        "best_theta_agdd": float(best["theta_agdd"]),
-        "best_start_doy": int(best["start_doy"]),
+        "best_t_base": float(best_stage1["t_base"]),
+        "best_theta_agdd": float(best_stage1["theta_agdd"]),
+        "best_start_doy": int(best_stage1["start_doy"]),
         "fit_mae_days": float(final_mae),
         "fit_rmse_days": float(final_rmse),
         "loocv_mae_days": float(loocv["abs_error_days"].mean()),
@@ -614,27 +832,25 @@ def main() -> None:
         "t_base_main_setting": float(args.tbase_main),
         "main_theta_quantiles": q_values,
         "main_theta_scenarios_file": "bbch53_main_setting_scenarios.csv",
-        "best_rgdd_min": float(best.get("rgdd_min", 0.0)) if args.use_rgdd_gate else None,
-        "best_delta_wk": float(best.get("delta_wk", 0.0)),
-        "best_delta_jf": float(best.get("delta_jf", 0.0)),
-        "best_delta_mpt": float(best.get("delta_mpt", 0.0)),
+        "best_rgdd_min": float(best_stage1.get("rgdd_min", 0.0)) if args.use_rgdd_gate else None,
+        "best_delta_wk": float(best_stage2.get("delta_wk", 0.0)),
+        "best_delta_jf": float(best_stage2.get("delta_jf", 0.0)),
+        "best_delta_mpt": float(best_stage2.get("delta_mpt", 0.0)),
         "use_rgdd_gate": bool(args.use_rgdd_gate),
         "use_variety_delta": True,
         "rgdd_window": int(args.rgdd_window),
         "start_doy_min": int(args.start_doy_min),
         "start_doy_max": int(args.start_doy_max),
         "start_doy_step": int(args.start_doy_step),
-        "calibration_mode": (
-            "search_tbase_startdoy_theta_variety_delta"
-            if args.search_tbase
-            else "fixed_tbase_startdoy_theta_variety_delta"
-        ),
+        "calibration_mode": "two_stage_global_then_variety_delta",
         "t_base_search_enabled": bool(args.search_tbase),
         "t_base_grid_size": int(len(tbase_grid)),
         "start_doy_grid_size": int(len(start_doy_grid)),
         "theta_grid_size": int(len(theta_grid)),
         "rgdd_grid_size": int(len(rgdd_grid)),
         "delta_grid_size": int(len(delta_grid)),
+        "stage1_total_grid": int(stage1_total),
+        "stage2_total_grid": int(stage2_total),
         "variety_codes": ["WK", "JF", "MPT"],
         "n_site_year": int(len(rows)),
     }
@@ -643,6 +859,10 @@ def main() -> None:
 
     print(f"Saved: {OUT_DIR / 'bbch53_best.json'}")
     print(f"Saved: {OUT_DIR / 'bbch53_trials.csv'}")
+    print(f"Saved: {OUT_DIR / 'bbch53_trials_stage1_global.csv'}")
+    print(f"Saved: {OUT_DIR / 'bbch53_trials_stage2_delta.csv'}")
+    print(f"Saved: {OUT_DIR / 'bbch53_stage1_global_best.json'}")
+    print(f"Saved: {OUT_DIR / 'bbch53_stage2_delta_best.json'}")
     print(f"Saved: {OUT_DIR / 'bbch53_fit_detail.csv'}")
     print(f"Saved: {OUT_DIR / 'bbch53_loocv.csv'}")
     print(f"Saved: {OUT_DIR / 'bbch53_theta_obs_tbase_main.csv'}")
