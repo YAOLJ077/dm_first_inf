@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import time
+import math
 from pathlib import Path
 from typing import Dict, List, Tuple
 from itertools import product
@@ -673,15 +674,22 @@ def main() -> None:
         * int(len(rgdd_grid))
     )
     stage2_total = int(len(delta_wk_grid)) * int(len(delta_jf_grid)) * int(len(delta_mpt_grid))
+    host_cpus = os.cpu_count() or 1
+    # Keep Ray startup practical: tiny tasks + huge worker counts can appear "stuck".
+    recommended_jobs = max(1, int(math.ceil(min(stage1_total, stage2_total) ** 0.5)))
+    effective_jobs = max(1, min(int(args.n_jobs), int(host_cpus), int(stage1_total), int(stage2_total), recommended_jobs * 8))
     print(
         f"[BBCH] Stage1 grid={stage1_total:,} | Stage2 grid={stage2_total:,} | "
-        f"LOOCV total≈{(stage1_total + stage2_total) * len(rows):,}",
+        f"LOOCV total≈{(stage1_total + stage2_total) * len(rows):,} | "
+        f"requested_jobs={args.n_jobs} | effective_jobs={effective_jobs} | host_cpus={host_cpus}",
         flush=True,
     )
 
-    ray_used = ray is not None and args.n_jobs > 1
+    ray_used = ray is not None and effective_jobs > 1
     if ray_used:
-        ray.init(num_cpus=max(1, args.n_jobs), include_dashboard=False, logging_level="ERROR")
+        print(f"[BBCH] Initializing Ray with num_cpus={effective_jobs} ...", flush=True)
+        ray.init(num_cpus=effective_jobs, include_dashboard=False, logging_level="ERROR")
+        print("[BBCH] Ray initialized.", flush=True)
 
     best_stage1, trials_stage1 = _grid_search(
         cache,
@@ -692,7 +700,7 @@ def main() -> None:
         np.array([0.0]),
         np.array([0.0]),
         np.array([0.0]),
-        n_jobs=args.n_jobs,
+        n_jobs=effective_jobs,
         use_rgdd_gate=args.use_rgdd_gate,
         rgdd_window=args.rgdd_window,
         use_variety_delta=False,
@@ -706,7 +714,7 @@ def main() -> None:
         delta_wk_grid=delta_wk_grid,
         delta_jf_grid=delta_jf_grid,
         delta_mpt_grid=delta_mpt_grid,
-        n_jobs=args.n_jobs,
+        n_jobs=effective_jobs,
         use_rgdd_gate=args.use_rgdd_gate,
         rgdd_window=args.rgdd_window,
     )
@@ -732,7 +740,7 @@ def main() -> None:
         delta_wk_grid,
         delta_jf_grid,
         delta_mpt_grid,
-        n_jobs=args.n_jobs,
+        n_jobs=effective_jobs,
         use_rgdd_gate=args.use_rgdd_gate,
         rgdd_window=args.rgdd_window,
     )
