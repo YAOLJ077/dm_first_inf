@@ -8,7 +8,7 @@ import sys
 from dataclasses import dataclass
 from itertools import product
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -350,9 +350,15 @@ def _build_shift_candidates(
     delta_jf: float,
     delta_mpt: float,
     shift_grid: np.ndarray,
+    desc: Optional[str] = None,
 ) -> pd.DataFrame:
     rows = []
-    for sw, sj, sm in product(shift_grid.astype(int), shift_grid.astype(int), shift_grid.astype(int)):
+    s = shift_grid.astype(int)
+    it = product(s, s, s)
+    total = int(len(s) ** 3)
+    if desc:
+        it = tqdm(it, total=total, desc=desc)
+    for sw, sj, sm in it:
         rows.append(
             {
                 "t_base": float(t_base),
@@ -475,6 +481,7 @@ def _pick_candidate_train_topk_then_val(
     prior_start_shift_wk: int,
     prior_start_shift_jf: int,
     prior_start_shift_mpt: int,
+    desc: Optional[str] = None,
 ) -> Dict:
     scored = _score_candidates_on_train(
         train_samples=train_samples,
@@ -493,7 +500,10 @@ def _pick_candidate_train_topk_then_val(
     top = scored.head(k).copy()
 
     val_rows = []
-    for r in top.itertuples(index=False):
+    it = top.itertuples(index=False)
+    if desc:
+        it = tqdm(it, total=len(top), desc=desc)
+    for r in it:
         val_mae, val_rmse, detail = _eval_params(
             samples=test_samples,
             t_base=float(r.t_base),
@@ -615,6 +625,7 @@ def _loocv_full_grid(
             delta_jf=float(best_stage2_train["delta_jf"]),
             delta_mpt=float(best_stage2_train["delta_mpt"]),
             shift_grid=shift_grid,
+            desc=f"LOOCV fold {i + 1}/{len(samples)} stage3-shift",
         )
 
         best_fold = _pick_candidate_train_topk_then_val(
@@ -631,6 +642,7 @@ def _loocv_full_grid(
             prior_start_shift_wk=prior_start_shift_wk,
             prior_start_shift_jf=prior_start_shift_jf,
             prior_start_shift_mpt=prior_start_shift_mpt,
+            desc=f"LOOCV fold {i + 1}/{len(samples)} stage3-val",
         )
         mae, rmse, detail = _eval_params(
             samples=test,
