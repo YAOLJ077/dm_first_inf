@@ -75,19 +75,17 @@ def _build_cache(rows: List) -> List[Dict]:
     return cache
 
 
-def _start_dt_for_year(year: int, month: int, day: int) -> pd.Timestamp:
-    try:
-        return pd.Timestamp(year=int(year), month=int(month), day=int(day))
-    except ValueError:
-        first = pd.Timestamp(year=int(year), month=int(month), day=1)
-        return first + pd.offsets.MonthEnd(0)
+def _start_dt_for_year_from_doy(year: int, doy: int) -> pd.Timestamp:
+    y = int(year)
+    d = int(doy)
+    return pd.Timestamp(year=y, month=1, day=1) + pd.Timedelta(days=d - 1)
 
 
-def _backcalc_theta_at_obs(cache: List[Dict], t_base: float, start_month: int, start_day: int) -> pd.DataFrame:
+def _backcalc_theta_at_obs(cache: List[Dict], t_base: float, start_doy: int) -> pd.DataFrame:
     rows = []
     for s in cache:
         obs = pd.to_datetime(s["obs_bbch53"]).normalize()
-        start_dt = _start_dt_for_year(s["year"], start_month, start_day)
+        start_dt = _start_dt_for_year_from_doy(s["year"], start_doy)
         ag = compute_agdd_hourly(s["hourly"], t_base=t_base, start_datetime=start_dt)
         ag = ag[ag["datetime"] <= (obs + pd.Timedelta(hours=23, minutes=59, seconds=59))]
         theta_obs = float(ag["agdd"].iloc[-1]) if not ag.empty else np.nan
@@ -106,14 +104,13 @@ def _backcalc_theta_at_obs(cache: List[Dict], t_base: float, start_month: int, s
 def _backcalc_rgdd_at_obs(
     cache: List[Dict],
     t_base: float,
-    start_month: int,
-    start_day: int,
+    start_doy: int,
     rgdd_window: int,
 ) -> pd.DataFrame:
     rows = []
     for s in cache:
         obs = pd.to_datetime(s["obs_bbch53"]).normalize()
-        start_dt = _start_dt_for_year(s["year"], start_month, start_day)
+        start_dt = _start_dt_for_year_from_doy(s["year"], start_doy)
         ag = compute_agdd_hourly(s["hourly"], t_base=t_base, start_datetime=start_dt)
         if ag.empty:
             rgdd_obs = np.nan
@@ -172,8 +169,7 @@ def _eval_params(
     cache: List[Dict],
     t_base: float,
     theta: float,
-    start_month: int,
-    start_day: int,
+    start_doy: int,
     use_rgdd_gate: bool,
     rgdd_min: float,
     rgdd_window: int,
@@ -193,7 +189,7 @@ def _eval_params(
         else:
             delta_var = 0.0
             theta_eff = float(theta)
-        start_dt = _start_dt_for_year(s["year"], start_month, start_day)
+        start_dt = _start_dt_for_year_from_doy(s["year"], start_doy)
         pred = _estimate_bbch53_date_with_gate(
             s["hourly"],
             theta_agdd=theta_eff,
@@ -220,6 +216,8 @@ def _eval_params(
                 "rgdd_gate_used": bool(use_rgdd_gate),
                 "rgdd_min": float(rgdd_min) if use_rgdd_gate else np.nan,
                 "variety_code": str(s.get("variety_code", "UNK")),
+                "start_doy": int(start_doy),
+                "start_date_used": start_dt,
                 "theta_eff": float(theta_eff),
                 "delta_variety": float(delta_var) if use_variety_delta else np.nan,
             }
@@ -240,8 +238,7 @@ if ray is not None:
         delta_wk: float,
         delta_jf: float,
         delta_mpt: float,
-        start_month: int,
-        start_day: int,
+        start_doy: int,
         use_rgdd_gate: bool,
         rgdd_window: int,
         use_variety_delta: bool,
@@ -252,8 +249,7 @@ if ray is not None:
             cache,
             float(t_base),
             float(theta),
-            int(start_month),
-            int(start_day),
+            int(start_doy),
             bool(use_rgdd_gate),
             float(rgdd_min),
             int(rgdd_window),
@@ -265,6 +261,7 @@ if ray is not None:
         return {
             "t_base": float(t_base),
             "theta_agdd": float(theta),
+            "start_doy": int(start_doy),
             "rgdd_min": float(rgdd_min),
             "delta_wk": float(delta_wk),
             "delta_jf": float(delta_jf),
@@ -278,21 +275,21 @@ def _grid_search(
     cache: List[Dict],
     tbase_grid: np.ndarray,
     theta_grid: np.ndarray,
+    start_doy_grid: np.ndarray,
     rgdd_grid: np.ndarray,
     delta_wk_grid: np.ndarray,
     delta_jf_grid: np.ndarray,
     delta_mpt_grid: np.ndarray,
     n_jobs: int,
-    start_month: int,
-    start_day: int,
     use_rgdd_gate: bool,
     rgdd_window: int,
     use_variety_delta: bool,
 ) -> Tuple[Dict, pd.DataFrame]:
     combos = [
-        (float(tb), float(th), float(rg), float(dw), float(dj), float(dm))
+        (float(tb), float(th), int(sd), float(rg), float(dw), float(dj), float(dm))
         for tb in tbase_grid
         for th in theta_grid
+        for sd in start_doy_grid
         for rg in rgdd_grid
         for dw in delta_wk_grid
         for dj in delta_jf_grid
@@ -300,14 +297,14 @@ def _grid_search(
     ]
     if ray is None or n_jobs <= 1:
         out = []
-        for tb, th, rg, dw, dj, dm in tqdm(combos, desc="BBCH grid", total=len(combos)):
+        for tb, th, sd, rg, dw, dj, dm in tqdm(combos, desc="BBCH grid", total=len(combos)):
             mae, rmse, _ = _eval_params(
-                cache, tb, th, start_month, start_day, use_rgdd_gate, rg, rgdd_window,
+                cache, tb, th, sd, use_rgdd_gate, rg, rgdd_window,
                 use_variety_delta, dw, dj, dm
             )
             out.append(
                 {
-                    "t_base": tb, "theta_agdd": th, "rgdd_min": rg,
+                    "t_base": tb, "theta_agdd": th, "start_doy": int(sd), "rgdd_min": rg,
                     "delta_wk": dw, "delta_jf": dj, "delta_mpt": dm,
                     "mae_days": mae, "rmse_days": rmse,
                 }
@@ -324,10 +321,10 @@ def _grid_search(
     pbar = tqdm(total=total, desc="BBCH grid")
     while done < total:
         while cursor < total and len(pending) < max(1, n_jobs):
-            tb, th, rg, dw, dj, dm = combos[cursor]
+            tb, th, sd, rg, dw, dj, dm = combos[cursor]
             fut = _eval_combo_remote.remote(
                 cache_ref, tb, th, rg, dw, dj, dm,
-                start_month, start_day, use_rgdd_gate, rgdd_window, use_variety_delta
+                sd, use_rgdd_gate, rgdd_window, use_variety_delta
             )
             pending[fut] = True
             cursor += 1
@@ -346,13 +343,12 @@ def _loocv(
     rows: List,
     tbase_grid: np.ndarray,
     theta_grid: np.ndarray,
+    start_doy_grid: np.ndarray,
     rgdd_grid: np.ndarray,
     delta_wk_grid: np.ndarray,
     delta_jf_grid: np.ndarray,
     delta_mpt_grid: np.ndarray,
     n_jobs: int,
-    start_month: int,
-    start_day: int,
     use_rgdd_gate: bool,
     rgdd_window: int,
     use_variety_delta: bool,
@@ -366,13 +362,12 @@ def _loocv(
             train_cache,
             tbase_grid,
             theta_grid,
+            start_doy_grid,
             rgdd_grid,
             delta_wk_grid,
             delta_jf_grid,
             delta_mpt_grid,
             n_jobs=n_jobs,
-            start_month=start_month,
-            start_day=start_day,
             use_rgdd_gate=use_rgdd_gate,
             rgdd_window=rgdd_window,
             use_variety_delta=use_variety_delta,
@@ -382,8 +377,7 @@ def _loocv(
             test_cache,
             best["t_base"],
             best["theta_agdd"],
-            start_month=start_month,
-            start_day=start_day,
+            start_doy=int(best["start_doy"]),
             use_rgdd_gate=use_rgdd_gate,
             rgdd_min=best["rgdd_min"],
             rgdd_window=rgdd_window,
@@ -403,6 +397,7 @@ def _loocv(
                 "abs_error_days": d["abs_error_days"],
                 "fit_t_base": best["t_base"],
                 "fit_theta_agdd": best["theta_agdd"],
+                "fit_start_doy": int(best["start_doy"]),
                 "fit_rgdd_min": best["rgdd_min"],
                 "fit_delta_wk": best.get("delta_wk", 0.0),
                 "fit_delta_jf": best.get("delta_jf", 0.0),
@@ -432,8 +427,11 @@ def main() -> None:
         help="Quantiles for main-setting threshold scenarios.",
     )
     parser.add_argument("--n-jobs", type=int, default=64)
-    parser.add_argument("--start-month", type=int, default=2, help="Weak fixed start month for AGDD accumulation.")
-    parser.add_argument("--start-day", type=int, default=1, help="Weak fixed start day for AGDD accumulation.")
+    parser.add_argument("--start-month", type=int, default=2, help="(Legacy metadata only, not used in optimization).")
+    parser.add_argument("--start-day", type=int, default=1, help="(Legacy metadata only, not used in optimization).")
+    parser.add_argument("--start-doy-min", type=int, default=32, help="Minimum DOY for start search (default Feb-1).")
+    parser.add_argument("--start-doy-max", type=int, default=60, help="Maximum DOY for start search (default Mar-1).")
+    parser.add_argument("--start-doy-step", type=int, default=1, help="Step size for start DOY grid.")
     parser.add_argument("--use-rgdd-gate", action="store_true", help="Enable condition-B gate: AGDD and RGDD-window.")
     parser.add_argument("--rgdd-window", type=int, default=7, help="Rolling window days for RGDD gate.")
     parser.add_argument("--rgdd-min", type=float, default=0.0, help="RGDD gate lower bound (used if auto grid is off).")
@@ -464,13 +462,13 @@ def main() -> None:
     tbase_grid_full = np.arange(args.tbase_min, args.tbase_max + 1e-12, args.tbase_step)
     tbase_grid = tbase_grid_full if args.search_tbase else np.array([float(args.tbase_main)])
     theta_grid = np.arange(args.theta_min, args.theta_max + 1e-12, args.theta_step)
+    start_doy_grid = np.arange(args.start_doy_min, args.start_doy_max + 1, args.start_doy_step, dtype=int)
     if args.use_rgdd_gate:
         if args.rgdd_auto_grid:
             rgdd_obs = _backcalc_rgdd_at_obs(
                 cache,
                 t_base=args.tbase_main,
-                start_month=args.start_month,
-                start_day=args.start_day,
+                start_doy=int(np.median(start_doy_grid)),
                 rgdd_window=args.rgdd_window,
             )
             valid = rgdd_obs["rgdd_window_obs"].dropna()
@@ -502,13 +500,12 @@ def main() -> None:
         cache,
         tbase_grid,
         theta_grid,
+        start_doy_grid,
         rgdd_grid,
         delta_wk_grid,
         delta_jf_grid,
         delta_mpt_grid,
         n_jobs=args.n_jobs,
-        start_month=args.start_month,
-        start_day=args.start_day,
         use_rgdd_gate=args.use_rgdd_gate,
         rgdd_window=args.rgdd_window,
         use_variety_delta=use_variety_delta,
@@ -517,8 +514,7 @@ def main() -> None:
         cache,
         best["t_base"],
         best["theta_agdd"],
-        start_month=args.start_month,
-        start_day=args.start_day,
+        start_doy=int(best["start_doy"]),
         use_rgdd_gate=args.use_rgdd_gate,
         rgdd_min=float(best.get("rgdd_min", 0.0)),
         rgdd_window=args.rgdd_window,
@@ -531,13 +527,12 @@ def main() -> None:
         rows,
         tbase_grid,
         theta_grid,
+        start_doy_grid,
         rgdd_grid,
         delta_wk_grid,
         delta_jf_grid,
         delta_mpt_grid,
         n_jobs=args.n_jobs,
-        start_month=args.start_month,
-        start_day=args.start_day,
         use_rgdd_gate=args.use_rgdd_gate,
         rgdd_window=args.rgdd_window,
         use_variety_delta=use_variety_delta,
@@ -547,11 +542,11 @@ def main() -> None:
         ray.shutdown()
 
     q_values = [float(x) for x in args.theta_quantiles.split(",") if x.strip()]
+    start_doy_for_scenarios = int(best["start_doy"])
     theta_obs_df = _backcalc_theta_at_obs(
         cache,
         t_base=args.tbase_main,
-        start_month=args.start_month,
-        start_day=args.start_day,
+        start_doy=start_doy_for_scenarios,
     ).dropna(subset=["theta_obs"])
     theta_obs_df.to_csv(OUT_DIR / "bbch53_theta_obs_tbase_main.csv", index=False)
 
@@ -562,8 +557,7 @@ def main() -> None:
             cache,
             t_base=args.tbase_main,
             theta=theta_q,
-            start_month=args.start_month,
-            start_day=args.start_day,
+            start_doy=start_doy_for_scenarios,
             use_rgdd_gate=args.use_rgdd_gate,
             rgdd_min=float(best.get("rgdd_min", 0.0)),
             rgdd_window=args.rgdd_window,
@@ -591,6 +585,7 @@ def main() -> None:
     summary = {
         "best_t_base": float(best["t_base"]),
         "best_theta_agdd": float(best["theta_agdd"]),
+        "best_start_doy": int(best["start_doy"]),
         "fit_mae_days": float(final_mae),
         "fit_rmse_days": float(final_rmse),
         "loocv_mae_days": float(loocv["abs_error_days"].mean()),
@@ -605,11 +600,16 @@ def main() -> None:
         "use_rgdd_gate": bool(args.use_rgdd_gate),
         "use_variety_delta": True,
         "rgdd_window": int(args.rgdd_window),
-        "start_month": int(args.start_month),
-        "start_day": int(args.start_day),
-        "calibration_mode": ("search_tbase_theta_variety_delta" if args.search_tbase else "fixed_tbase_theta_variety_delta"),
+        "fixed_start_month": int(args.start_month),
+        "fixed_start_day": int(args.start_day),
+        "calibration_mode": (
+            "search_tbase_startdoy_theta_variety_delta"
+            if args.search_tbase
+            else "fixed_tbase_startdoy_theta_variety_delta"
+        ),
         "t_base_search_enabled": bool(args.search_tbase),
         "t_base_grid_size": int(len(tbase_grid)),
+        "start_doy_grid_size": int(len(start_doy_grid)),
         "theta_grid_size": int(len(theta_grid)),
         "rgdd_grid_size": int(len(rgdd_grid)),
         "delta_grid_size": int(len(delta_grid)),
