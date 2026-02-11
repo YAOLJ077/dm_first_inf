@@ -260,6 +260,7 @@ def _grid_search_stage1(
     theta_grid: np.ndarray,
     start_doy_grid: np.ndarray,
     rgdd_grid: np.ndarray,
+    n_jobs: int,
     use_rgdd_gate: bool,
     rgdd_window: int,
 ) -> Tuple[Dict, pd.DataFrame]:
@@ -308,6 +309,7 @@ def _grid_search_stage2(
     fixed_start_doy: int,
     fixed_rgdd_min: float,
     delta_grid: np.ndarray,
+    n_jobs: int,
     use_rgdd_gate: bool,
     rgdd_window: int,
 ) -> Tuple[Dict, pd.DataFrame]:
@@ -382,6 +384,7 @@ def _loocv(
     start_doy_grid: np.ndarray,
     rgdd_grid: np.ndarray,
     delta_grid: np.ndarray,
+    n_jobs: int,
     use_rgdd_gate: bool,
     rgdd_window: int,
 ) -> pd.DataFrame:
