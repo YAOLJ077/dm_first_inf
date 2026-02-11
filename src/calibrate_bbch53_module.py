@@ -7,6 +7,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Dict, List, Tuple
+from itertools import product
 
 import numpy as np
 import pandas as pd
@@ -285,19 +286,27 @@ def _grid_search(
     rgdd_window: int,
     use_variety_delta: bool,
 ) -> Tuple[Dict, pd.DataFrame]:
-    combos = [
-        (float(tb), float(th), int(sd), float(rg), float(dw), float(dj), float(dm))
-        for tb in tbase_grid
-        for th in theta_grid
-        for sd in start_doy_grid
-        for rg in rgdd_grid
-        for dw in delta_wk_grid
-        for dj in delta_jf_grid
-        for dm in delta_mpt_grid
-    ]
+    total = (
+        int(len(tbase_grid))
+        * int(len(theta_grid))
+        * int(len(start_doy_grid))
+        * int(len(rgdd_grid))
+        * int(len(delta_wk_grid))
+        * int(len(delta_jf_grid))
+        * int(len(delta_mpt_grid))
+    )
+    combo_iter = product(
+        tbase_grid,
+        theta_grid,
+        start_doy_grid,
+        rgdd_grid,
+        delta_wk_grid,
+        delta_jf_grid,
+        delta_mpt_grid,
+    )
     if ray is None or n_jobs <= 1:
         out = []
-        for tb, th, sd, rg, dw, dj, dm in tqdm(combos, desc="BBCH grid", total=len(combos)):
+        for tb, th, sd, rg, dw, dj, dm in tqdm(combo_iter, desc="BBCH grid", total=total):
             mae, rmse, _ = _eval_params(
                 cache, tb, th, sd, use_rgdd_gate, rg, rgdd_window,
                 use_variety_delta, dw, dj, dm
@@ -316,18 +325,32 @@ def _grid_search(
     pending = {}
     rows_out: List[Dict] = []
     done = 0
-    total = len(combos)
-    cursor = 0
     pbar = tqdm(total=total, desc="BBCH grid")
+    finished_iter = False
+
+    def _next_combo():
+        nonlocal finished_iter
+        if finished_iter:
+            return None
+        try:
+            return next(combo_iter)
+        except StopIteration:
+            finished_iter = True
+            return None
+
     while done < total:
-        while cursor < total and len(pending) < max(1, n_jobs):
-            tb, th, sd, rg, dw, dj, dm = combos[cursor]
+        while len(pending) < max(1, n_jobs):
+            nxt = _next_combo()
+            if nxt is None:
+                break
+            tb, th, sd, rg, dw, dj, dm = nxt
             fut = _eval_combo_remote.remote(
                 cache_ref, tb, th, rg, dw, dj, dm,
                 sd, use_rgdd_gate, rgdd_window, use_variety_delta
             )
             pending[fut] = True
-            cursor += 1
+        if not pending:
+            break
         ready, _ = ray.wait(list(pending.keys()), num_returns=1)
         for r in ready:
             rows_out.append(ray.get(r))
@@ -426,7 +449,7 @@ def main() -> None:
         default="0.25,0.5,0.75",
         help="Quantiles for main-setting threshold scenarios.",
     )
-    parser.add_argument("--n-jobs", type=int, default=512)
+    parser.add_argument("--n-jobs", type=int, default=256)
     parser.add_argument("--start-doy-min", type=int, default=32, help="Minimum DOY for start search (default Feb-1).")
     parser.add_argument("--start-doy-max", type=int, default=46, help="Maximum DOY for start search (default Feb-15).")
     parser.add_argument("--start-doy-step", type=int, default=1, help="Step size for start DOY grid.")
