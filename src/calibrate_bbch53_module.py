@@ -57,6 +57,9 @@ class Sample:
     year_signal: float = 0.0
 
 
+FIXED_WK_PRIOR = {"delta": -0.05, "shift": 6}
+
+
 def _load_actual() -> pd.DataFrame:
     df = pd.read_excel(DATA_DIR / "actual_data.xlsx")
     df["bbch_date"] = pd.to_datetime(df["bbch_date"], errors="coerce")
@@ -782,6 +785,10 @@ def _kfold_full_grid(
     prior_start_shift_wk: int,
     prior_start_shift_jf: int,
     prior_start_shift_mpt: int,
+    prior_k_mpt: float,
+    wk_fixed_enable: bool,
+    wk_fixed_delta: float,
+    wk_fixed_shift: int,
     penalty_delta_l1: float,
     penalty_shift_l1: float,
     n_folds: int,
@@ -810,75 +817,38 @@ def _kfold_full_grid(
         )
         best_stage1_fold = trials_stage1_fold.iloc[0].to_dict()
 
-        # Dynamic priors under this fold's stage1 settings for varieties missing in train.
-        fold_prior_wk = _fit_variety_prior_from_all_samples(
-            samples=samples,
-            variety_code="WK",
-            t_base=float(best_stage1_fold["t_base"]),
-            theta_agdd=float(best_stage1_fold["theta_agdd"]),
-            start_doy=int(best_stage1_fold["start_doy"]),
-            rgdd_min=float(best_stage1_fold["rgdd_min"]),
-            kmpt_grid=kmpt_grid,
-            delta_grid=delta_grid,
-            shift_grid=shift_grid,
-            use_rgdd_gate=use_rgdd_gate,
-            rgdd_window=rgdd_window,
-            penalty_delta_l1=penalty_delta_l1,
-            penalty_shift_l1=penalty_shift_l1,
-        )
-        fold_prior_jf = _fit_variety_prior_from_all_samples(
-            samples=samples,
-            variety_code="JF",
-            t_base=float(best_stage1_fold["t_base"]),
-            theta_agdd=float(best_stage1_fold["theta_agdd"]),
-            start_doy=int(best_stage1_fold["start_doy"]),
-            rgdd_min=float(best_stage1_fold["rgdd_min"]),
-            kmpt_grid=kmpt_grid,
-            delta_grid=delta_grid,
-            shift_grid=shift_grid,
-            use_rgdd_gate=use_rgdd_gate,
-            rgdd_window=rgdd_window,
-            penalty_delta_l1=penalty_delta_l1,
-            penalty_shift_l1=penalty_shift_l1,
-        )
-        fold_prior_mpt = _fit_variety_prior_from_all_samples(
-            samples=samples,
-            variety_code="MPT",
-            t_base=float(best_stage1_fold["t_base"]),
-            theta_agdd=float(best_stage1_fold["theta_agdd"]),
-            start_doy=int(best_stage1_fold["start_doy"]),
-            rgdd_min=float(best_stage1_fold["rgdd_min"]),
-            kmpt_grid=kmpt_grid,
-            delta_grid=delta_grid,
-            shift_grid=shift_grid,
-            use_rgdd_gate=use_rgdd_gate,
-            rgdd_window=rgdd_window,
-            penalty_delta_l1=penalty_delta_l1,
-            penalty_shift_l1=penalty_shift_l1,
-        )
-
         # Stage2: per-variety independent calibration of (delta, start_shift)
-        wk = _select_variety_params_fold(
-            train_samples=train,
-            test_samples=test,
-            variety_code="WK",
-            t_base=float(best_stage1_fold["t_base"]),
-            theta_agdd=float(best_stage1_fold["theta_agdd"]),
-            start_doy=int(best_stage1_fold["start_doy"]),
-            rgdd_min=float(best_stage1_fold["rgdd_min"]),
-            kmpt_grid=kmpt_grid,
-            delta_grid=delta_grid,
-            shift_grid=shift_grid,
-            loocv_topk_frac=loocv_topk_frac,
-            use_rgdd_gate=use_rgdd_gate,
-            rgdd_window=rgdd_window,
-            unseen_variety_strategy=unseen_variety_strategy,
-            prior_delta=float(fold_prior_wk["delta"]),
-            prior_shift=int(fold_prior_wk["shift"]),
-            penalty_delta_l1=penalty_delta_l1,
-            penalty_shift_l1=penalty_shift_l1,
-            desc=f"CV fold {i + 1}/{len(folds)} stage2-WK",
-        )
+        if wk_fixed_enable:
+            wk = {
+                "delta": float(wk_fixed_delta),
+                "shift": int(wk_fixed_shift),
+                "k_mpt": 0.0,
+                "topk_pool_size": 0,
+                "train_mae_days": np.nan,
+                "train_rmse_days": np.nan,
+            }
+        else:
+            wk = _select_variety_params_fold(
+                train_samples=train,
+                test_samples=test,
+                variety_code="WK",
+                t_base=float(best_stage1_fold["t_base"]),
+                theta_agdd=float(best_stage1_fold["theta_agdd"]),
+                start_doy=int(best_stage1_fold["start_doy"]),
+                rgdd_min=float(best_stage1_fold["rgdd_min"]),
+                kmpt_grid=kmpt_grid,
+                delta_grid=delta_grid,
+                shift_grid=shift_grid,
+                loocv_topk_frac=loocv_topk_frac,
+                use_rgdd_gate=use_rgdd_gate,
+                rgdd_window=rgdd_window,
+                unseen_variety_strategy=unseen_variety_strategy,
+                prior_delta=float(prior_delta_wk),
+                prior_shift=int(prior_start_shift_wk),
+                penalty_delta_l1=penalty_delta_l1,
+                penalty_shift_l1=penalty_shift_l1,
+                desc=f"CV fold {i + 1}/{len(folds)} stage2-WK",
+            )
         jf = _select_variety_params_fold(
             train_samples=train,
             test_samples=test,
@@ -894,8 +864,8 @@ def _kfold_full_grid(
             use_rgdd_gate=use_rgdd_gate,
             rgdd_window=rgdd_window,
             unseen_variety_strategy=unseen_variety_strategy,
-            prior_delta=float(fold_prior_jf["delta"]),
-            prior_shift=int(fold_prior_jf["shift"]),
+            prior_delta=float(prior_delta_jf),
+            prior_shift=int(prior_start_shift_jf),
             penalty_delta_l1=penalty_delta_l1,
             penalty_shift_l1=penalty_shift_l1,
             desc=f"CV fold {i + 1}/{len(folds)} stage2-JF",
@@ -915,8 +885,8 @@ def _kfold_full_grid(
             use_rgdd_gate=use_rgdd_gate,
             rgdd_window=rgdd_window,
             unseen_variety_strategy=unseen_variety_strategy,
-            prior_delta=float(fold_prior_mpt["delta"]),
-            prior_shift=int(fold_prior_mpt["shift"]),
+            prior_delta=float(prior_delta_mpt),
+            prior_shift=int(prior_start_shift_mpt),
             penalty_delta_l1=penalty_delta_l1,
             penalty_shift_l1=penalty_shift_l1,
             desc=f"CV fold {i + 1}/{len(folds)} stage2-MPT",
@@ -929,7 +899,7 @@ def _kfold_full_grid(
             "delta_wk": float(wk["delta"]),
             "delta_jf": float(jf["delta"]),
             "delta_mpt": float(mpt["delta"]),
-            "k_mpt": float(mpt.get("k_mpt", 0.0)),
+            "k_mpt": float(mpt.get("k_mpt", prior_k_mpt)),
             "start_shift_wk": int(wk["shift"]),
             "start_shift_jf": int(jf["shift"]),
             "start_shift_mpt": int(mpt["shift"]),
@@ -1066,10 +1036,17 @@ def _build_candidate_leaderboard_from_cv_rows(
     return pd.DataFrame(rows).reset_index(drop=True)
 
 
-def _pick_final_from_leaderboard(leaderboard: pd.DataFrame, selector: str, min_selected_folds: int = 1) -> Dict:
+def _pick_final_from_leaderboard(
+    leaderboard: pd.DataFrame,
+    selector: str,
+    min_selected_folds: int = 1,
+    allow_relax: bool = True,
+) -> Optional[Dict]:
     eligible = leaderboard[leaderboard["n_selected_folds"] >= int(min_selected_folds)].copy()
     relaxed = False
     if eligible.empty:
+        if not allow_relax:
+            return None
         eligible = leaderboard.copy()
         relaxed = True
     if str(selector).lower() == "fit":
@@ -1116,8 +1093,8 @@ def main() -> None:
     parser.add_argument("--rgdd-min", type=float, default=0.0)
     parser.add_argument("--rgdd-max", type=float, default=160.0)
     parser.add_argument("--rgdd-step", type=float, default=10.0)
-    parser.add_argument("--kmpt-min", type=float, default=-0.2)
-    parser.add_argument("--kmpt-max", type=float, default=0.2)
+    parser.add_argument("--kmpt-min", type=float, default=-0.4)
+    parser.add_argument("--kmpt-max", type=float, default=0.3)
     parser.add_argument("--kmpt-step", type=float, default=0.1)
     parser.add_argument("--delta-min", type=float, default=-0.75)
     parser.add_argument("--delta-max", type=float, default=0.75)
@@ -1134,6 +1111,9 @@ def main() -> None:
     parser.add_argument("--loocv-unseen-variety-strategy", type=str, default="global", choices=["zero", "global"])
     parser.add_argument("--cv-folds", type=int, default=0, help="0 means LOOCV; otherwise use K-fold.")
     parser.add_argument("--gate-min-selected-folds", type=int, default=4, help="Minimum fold coverage for gate/cv selector.")
+    parser.add_argument("--wk-fixed-enable", action=argparse.BooleanOptionalAction, default=True, help="Use fixed WK delta/start_shift in stage2.")
+    parser.add_argument("--wk-fixed-delta", type=float, default=float(FIXED_WK_PRIOR["delta"]))
+    parser.add_argument("--wk-fixed-start-shift", type=int, default=int(FIXED_WK_PRIOR["shift"]))
     args = parser.parse_args()
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -1159,66 +1139,17 @@ def main() -> None:
         flush=True,
     )
 
-    # Build priors from all samples for folds where a variety is absent in train.
-    prior_stage1 = _run_grid(
-        samples=samples,
-        tbase_grid=tbase_grid,
-        theta_grid=theta_grid,
-        start_doy_grid=start_doy_grid,
-        rgdd_grid=rgdd_grid,
-        delta_grid=np.array([0.0]),
-        shift_grid=np.array([0], dtype=int),
-        n_jobs=int(args.n_jobs),
-        use_rgdd_gate=args.use_rgdd_gate,
-        rgdd_window=args.rgdd_window,
-        backend=args.backend,
-        desc="Prior stage1(all)",
-    ).iloc[0].to_dict()
-    prior_wk = _fit_variety_prior_from_all_samples(
-        samples=samples,
-        variety_code="WK",
-        t_base=float(prior_stage1["t_base"]),
-        theta_agdd=float(prior_stage1["theta_agdd"]),
-        start_doy=int(prior_stage1["start_doy"]),
-        rgdd_min=float(prior_stage1["rgdd_min"]),
-        kmpt_grid=kmpt_grid,
-        delta_grid=delta_grid,
-        shift_grid=shift_grid,
-        use_rgdd_gate=args.use_rgdd_gate,
-        rgdd_window=args.rgdd_window,
-        penalty_delta_l1=float(args.penalty_delta_l1),
-        penalty_shift_l1=float(args.penalty_start_shift_l1),
-    )
-    prior_jf = _fit_variety_prior_from_all_samples(
-        samples=samples,
-        variety_code="JF",
-        t_base=float(prior_stage1["t_base"]),
-        theta_agdd=float(prior_stage1["theta_agdd"]),
-        start_doy=int(prior_stage1["start_doy"]),
-        rgdd_min=float(prior_stage1["rgdd_min"]),
-        kmpt_grid=kmpt_grid,
-        delta_grid=delta_grid,
-        shift_grid=shift_grid,
-        use_rgdd_gate=args.use_rgdd_gate,
-        rgdd_window=args.rgdd_window,
-        penalty_delta_l1=float(args.penalty_delta_l1),
-        penalty_shift_l1=float(args.penalty_start_shift_l1),
-    )
-    prior_mpt = _fit_variety_prior_from_all_samples(
-        samples=samples,
-        variety_code="MPT",
-        t_base=float(prior_stage1["t_base"]),
-        theta_agdd=float(prior_stage1["theta_agdd"]),
-        start_doy=int(prior_stage1["start_doy"]),
-        rgdd_min=float(prior_stage1["rgdd_min"]),
-        kmpt_grid=kmpt_grid,
-        delta_grid=delta_grid,
-        shift_grid=shift_grid,
-        use_rgdd_gate=args.use_rgdd_gate,
-        rgdd_window=args.rgdd_window,
-        penalty_delta_l1=float(args.penalty_delta_l1),
-        penalty_shift_l1=float(args.penalty_start_shift_l1),
-    )
+    prior_source = "wk_fixed_only"
+    prior_stage1 = {
+        "t_base": float(args.tbase_main),
+        "theta_agdd": float(np.median(theta_grid)),
+        "start_doy": int(np.median(start_doy_grid)),
+        "rgdd_min": float(np.median(rgdd_grid)),
+    }
+    prior_wk = {"delta": float(args.wk_fixed_delta), "shift": int(args.wk_fixed_start_shift), "k_mpt": 0.0}
+    # JF/MPT are not fixed; keep neutral priors only for fallback safety.
+    prior_jf = {"delta": 0.0, "shift": 0, "k_mpt": 0.0}
+    prior_mpt = {"delta": 0.0, "shift": 0, "k_mpt": 0.0}
 
     cv_df = _kfold_full_grid(
         samples=samples,
@@ -1241,6 +1172,10 @@ def main() -> None:
         prior_start_shift_wk=int(prior_wk["shift"]),
         prior_start_shift_jf=int(prior_jf["shift"]),
         prior_start_shift_mpt=int(prior_mpt["shift"]),
+        prior_k_mpt=float(prior_mpt.get("k_mpt", 0.0)),
+        wk_fixed_enable=bool(args.wk_fixed_enable),
+        wk_fixed_delta=float(args.wk_fixed_delta),
+        wk_fixed_shift=int(args.wk_fixed_start_shift),
         penalty_delta_l1=float(args.penalty_delta_l1),
         penalty_shift_l1=float(args.penalty_start_shift_l1),
         n_folds=int(n_folds),
@@ -1256,11 +1191,13 @@ def main() -> None:
         leaderboard=leaderboard_df,
         selector="fit",
         min_selected_folds=int(args.gate_min_selected_folds),
+        allow_relax=True,
     )
     best_final_gate = _pick_final_from_leaderboard(
         leaderboard=leaderboard_df,
         selector="cv",
         min_selected_folds=int(args.gate_min_selected_folds),
+        allow_relax=False,
     )
     best_final = best_final_main
 
@@ -1280,22 +1217,26 @@ def main() -> None:
         start_shift_jf=int(best_final["start_shift_jf"]),
         start_shift_mpt=int(best_final["start_shift_mpt"]),
     )
-    gate_fit_mae, gate_fit_rmse, gate_fit_detail = _eval_params(
-        samples=samples,
-        t_base=float(best_final_gate["t_base"]),
-        theta=float(best_final_gate["theta_agdd"]),
-        start_doy=int(best_final_gate["start_doy"]),
-        use_rgdd_gate=args.use_rgdd_gate,
-        rgdd_min=float(best_final_gate["rgdd_min"]),
-        rgdd_window=args.rgdd_window,
-        k_mpt=float(best_final_gate["k_mpt"]),
-        delta_wk=float(best_final_gate["delta_wk"]),
-        delta_jf=float(best_final_gate["delta_jf"]),
-        delta_mpt=float(best_final_gate["delta_mpt"]),
-        start_shift_wk=int(best_final_gate["start_shift_wk"]),
-        start_shift_jf=int(best_final_gate["start_shift_jf"]),
-        start_shift_mpt=int(best_final_gate["start_shift_mpt"]),
-    )
+    gate_available = best_final_gate is not None
+    if gate_available:
+        gate_fit_mae, gate_fit_rmse, gate_fit_detail = _eval_params(
+            samples=samples,
+            t_base=float(best_final_gate["t_base"]),
+            theta=float(best_final_gate["theta_agdd"]),
+            start_doy=int(best_final_gate["start_doy"]),
+            use_rgdd_gate=args.use_rgdd_gate,
+            rgdd_min=float(best_final_gate["rgdd_min"]),
+            rgdd_window=args.rgdd_window,
+            k_mpt=float(best_final_gate["k_mpt"]),
+            delta_wk=float(best_final_gate["delta_wk"]),
+            delta_jf=float(best_final_gate["delta_jf"]),
+            delta_mpt=float(best_final_gate["delta_mpt"]),
+            start_shift_wk=int(best_final_gate["start_shift_wk"]),
+            start_shift_jf=int(best_final_gate["start_shift_jf"]),
+            start_shift_mpt=int(best_final_gate["start_shift_mpt"]),
+        )
+    else:
+        gate_fit_mae, gate_fit_rmse, gate_fit_detail = np.nan, np.nan, []
 
     q_values = [float(x) for x in args.theta_quantiles.split(",") if x.strip()]
     theta_obs_df = _backcalc_theta_at_obs(samples, t_base=args.tbase_main, start_doy=int(best_final["start_doy"]))
@@ -1323,9 +1264,8 @@ def main() -> None:
         scenario_rows.append({"t_base_main": float(args.tbase_main), "theta_quantile": q, "theta_agdd": theta_q, "mae_days": mae_q, "rmse_days": rmse_q})
     scenario_df = pd.DataFrame(scenario_rows).sort_values("theta_quantile").reset_index(drop=True)
 
-    pd.DataFrame(
-        [
-            {
+    trial_rows = [
+        {
                 "selector": "main_fit",
                 "t_base": float(best_final["t_base"]),
                 "theta_agdd": float(best_final["theta_agdd"]),
@@ -1347,7 +1287,10 @@ def main() -> None:
                 "selected_n_folds": int(best_final["selected_n_folds"]),
                 "gate_min_selected_folds": int(best_final["gate_min_selected_folds"]),
                 "gate_constraint_relaxed": bool(best_final["gate_constraint_relaxed"]),
-            },
+            }
+    ]
+    if gate_available:
+        trial_rows.append(
             {
                 "selector": "gate_cv",
                 "t_base": float(best_final_gate["t_base"]),
@@ -1370,14 +1313,14 @@ def main() -> None:
                 "selected_n_folds": int(best_final_gate["selected_n_folds"]),
                 "gate_min_selected_folds": int(best_final_gate["gate_min_selected_folds"]),
                 "gate_constraint_relaxed": bool(best_final_gate["gate_constraint_relaxed"]),
-            },
-        ]
-    ).to_csv(OUT_DIR / "bbch53_trials.csv", index=False)
+            }
+        )
+    pd.DataFrame(trial_rows).to_csv(OUT_DIR / "bbch53_trials.csv", index=False)
 
     pd.DataFrame(fit_detail).to_csv(OUT_DIR / "bbch53_fit_detail.csv", index=False)
-    pd.DataFrame(gate_fit_detail).to_csv(OUT_DIR / "bbch53_fit_detail_gate.csv", index=False)
+    if gate_available:
+        pd.DataFrame(gate_fit_detail).to_csv(OUT_DIR / "bbch53_fit_detail_gate.csv", index=False)
     cv_df.to_csv(OUT_DIR / "bbch53_cv.csv", index=False)
-    cv_df.to_csv(OUT_DIR / "bbch53_loocv.csv", index=False)
     leaderboard_df.sort_values(["fit_mae_days", "fit_rmse_days", "gate_cv_mae_days", "gate_cv_rmse_days"]).to_csv(
         OUT_DIR / "bbch53_selection_compare.csv", index=False
     )
@@ -1393,8 +1336,6 @@ def main() -> None:
         "fit_rmse_days": float(fit_rmse),
         "cv_mae_days": float(cv_df["abs_error_days"].mean()),
         "cv_rmse_days": float(np.sqrt(np.mean(cv_df["abs_error_days"].values ** 2))),
-        "loocv_mae_days": float(cv_df["abs_error_days"].mean()) if n_folds >= len(samples) else None,
-        "loocv_rmse_days": float(np.sqrt(np.mean(cv_df["abs_error_days"].values ** 2))) if n_folds >= len(samples) else None,
         "t_base_main_setting": float(args.tbase_main),
         "main_theta_quantiles": q_values,
         "main_theta_scenarios_file": "bbch53_main_setting_scenarios.csv",
@@ -1412,25 +1353,26 @@ def main() -> None:
         "selected_n_folds": int(best_final["selected_n_folds"]),
         "gate_min_selected_folds": int(args.gate_min_selected_folds),
         "main_selector_constraint_relaxed": bool(best_final["gate_constraint_relaxed"]),
-        "gate_t_base": float(best_final_gate["t_base"]),
-        "gate_theta_agdd": float(best_final_gate["theta_agdd"]),
-        "gate_start_doy": int(best_final_gate["start_doy"]),
-        "gate_k_mpt": float(best_final_gate["k_mpt"]),
-        "gate_rgdd_min": float(best_final_gate["rgdd_min"]) if args.use_rgdd_gate else None,
-        "gate_delta_wk": float(best_final_gate["delta_wk"]),
-        "gate_delta_jf": float(best_final_gate["delta_jf"]),
-        "gate_delta_mpt": float(best_final_gate["delta_mpt"]),
-        "gate_start_shift_wk": int(best_final_gate["start_shift_wk"]),
-        "gate_start_shift_jf": int(best_final_gate["start_shift_jf"]),
-        "gate_start_shift_mpt": int(best_final_gate["start_shift_mpt"]),
-        "gate_fit_mae_days": float(gate_fit_mae),
-        "gate_fit_rmse_days": float(gate_fit_rmse),
-        "gate_selected_by_cv_mae_days": float(best_final_gate["selected_by_cv_mae_days"]),
-        "gate_selected_by_cv_rmse_days": float(best_final_gate["selected_by_cv_rmse_days"]),
-        "gate_selected_by_fit_mae_days": float(best_final_gate["selected_by_fit_mae_days"]),
-        "gate_selected_by_fit_rmse_days": float(best_final_gate["selected_by_fit_rmse_days"]),
-        "gate_selected_n_folds": int(best_final_gate["selected_n_folds"]),
-        "gate_selector_constraint_relaxed": bool(best_final_gate["gate_constraint_relaxed"]),
+        "gate_available": bool(gate_available),
+        "gate_t_base": float(best_final_gate["t_base"]) if gate_available else None,
+        "gate_theta_agdd": float(best_final_gate["theta_agdd"]) if gate_available else None,
+        "gate_start_doy": int(best_final_gate["start_doy"]) if gate_available else None,
+        "gate_k_mpt": float(best_final_gate["k_mpt"]) if gate_available else None,
+        "gate_rgdd_min": (float(best_final_gate["rgdd_min"]) if args.use_rgdd_gate else None) if gate_available else None,
+        "gate_delta_wk": float(best_final_gate["delta_wk"]) if gate_available else None,
+        "gate_delta_jf": float(best_final_gate["delta_jf"]) if gate_available else None,
+        "gate_delta_mpt": float(best_final_gate["delta_mpt"]) if gate_available else None,
+        "gate_start_shift_wk": int(best_final_gate["start_shift_wk"]) if gate_available else None,
+        "gate_start_shift_jf": int(best_final_gate["start_shift_jf"]) if gate_available else None,
+        "gate_start_shift_mpt": int(best_final_gate["start_shift_mpt"]) if gate_available else None,
+        "gate_fit_mae_days": float(gate_fit_mae) if gate_available else None,
+        "gate_fit_rmse_days": float(gate_fit_rmse) if gate_available else None,
+        "gate_selected_by_cv_mae_days": float(best_final_gate["selected_by_cv_mae_days"]) if gate_available else None,
+        "gate_selected_by_cv_rmse_days": float(best_final_gate["selected_by_cv_rmse_days"]) if gate_available else None,
+        "gate_selected_by_fit_mae_days": float(best_final_gate["selected_by_fit_mae_days"]) if gate_available else None,
+        "gate_selected_by_fit_rmse_days": float(best_final_gate["selected_by_fit_rmse_days"]) if gate_available else None,
+        "gate_selected_n_folds": int(best_final_gate["selected_n_folds"]) if gate_available else None,
+        "gate_selector_constraint_relaxed": (bool(best_final_gate["gate_constraint_relaxed"]) if gate_available else None),
         "penalty_delta_l1": float(args.penalty_delta_l1),
         "penalty_start_shift_l1": float(args.penalty_start_shift_l1),
         "use_rgdd_gate": bool(args.use_rgdd_gate),
@@ -1463,6 +1405,10 @@ def main() -> None:
         "prior_stage1_t_base": float(prior_stage1["t_base"]),
         "prior_stage1_theta_agdd": float(prior_stage1["theta_agdd"]),
         "prior_stage1_start_doy": int(prior_stage1["start_doy"]),
+        "prior_source": str(prior_source),
+        "wk_fixed_enable": bool(args.wk_fixed_enable),
+        "wk_fixed_delta": float(args.wk_fixed_delta),
+        "wk_fixed_start_shift": int(args.wk_fixed_start_shift),
         "prior_k_mpt": float(prior_mpt["k_mpt"]),
         "prior_delta_wk": float(prior_wk["delta"]),
         "prior_delta_jf": float(prior_jf["delta"]),
@@ -1470,7 +1416,7 @@ def main() -> None:
         "prior_start_shift_wk": int(prior_wk["shift"]),
         "prior_start_shift_jf": int(prior_jf["shift"]),
         "prior_start_shift_mpt": int(prior_mpt["shift"]),
-        "loocv_mode": "loocv_train_topk_then_val_then_finalize" if n_folds >= len(samples) else "kfold_train_topk_then_val_then_finalize",
+        "cv_mode": "loocv_train_topk_then_val_then_finalize" if n_folds >= len(samples) else "kfold_train_topk_then_val_then_finalize",
         "variety_codes": ["WK", "JF", "MPT"],
         "n_site_year": int(len(samples)),
     }
@@ -1479,9 +1425,9 @@ def main() -> None:
     print(f"Saved: {OUT_DIR / 'bbch53_best.json'}")
     print(f"Saved: {OUT_DIR / 'bbch53_trials.csv'}")
     print(f"Saved: {OUT_DIR / 'bbch53_fit_detail.csv'}")
-    print(f"Saved: {OUT_DIR / 'bbch53_fit_detail_gate.csv'}")
+    if gate_available:
+        print(f"Saved: {OUT_DIR / 'bbch53_fit_detail_gate.csv'}")
     print(f"Saved: {OUT_DIR / 'bbch53_cv.csv'}")
-    print(f"Saved: {OUT_DIR / 'bbch53_loocv.csv'}")
     print(f"Saved: {OUT_DIR / 'bbch53_selection_compare.csv'}")
     print(f"Saved: {OUT_DIR / 'bbch53_theta_obs_tbase_main.csv'}")
     print(f"Saved: {OUT_DIR / 'bbch53_main_setting_scenarios.csv'}")
