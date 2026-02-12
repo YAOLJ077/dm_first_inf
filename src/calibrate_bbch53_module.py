@@ -1093,7 +1093,7 @@ def main() -> None:
     parser.add_argument("--rgdd-min", type=float, default=0.0)
     parser.add_argument("--rgdd-max", type=float, default=160.0)
     parser.add_argument("--rgdd-step", type=float, default=10.0)
-    parser.add_argument("--kmpt-min", type=float, default=-0.4)
+    parser.add_argument("--kmpt-min", type=float, default=-0.5)
     parser.add_argument("--kmpt-max", type=float, default=0.3)
     parser.add_argument("--kmpt-step", type=float, default=0.1)
     parser.add_argument("--delta-min", type=float, default=-0.75)
