@@ -786,10 +786,6 @@ def _kfold_full_grid(
     prior_start_shift_jf: int,
     prior_start_shift_mpt: int,
     prior_k_mpt: float,
-    prior_stage1_t_base: float,
-    prior_stage1_theta_agdd: float,
-    prior_stage1_start_doy: int,
-    prior_stage1_rgdd_min: float,
     wk_fixed_enable: bool,
     wk_fixed_delta: float,
     wk_fixed_shift: int,
@@ -805,30 +801,21 @@ def _kfold_full_grid(
         train = [samples[j] for j in range(len(samples)) if j not in test_idx]
         test = [samples[j] for j in sorted(test_idx)]
 
-        test_has_wk = any(str(s.variety_code) == "WK" for s in test)
-        if wk_fixed_enable and test_has_wk:
-            best_stage1_fold = {
-                "t_base": float(prior_stage1_t_base),
-                "theta_agdd": float(prior_stage1_theta_agdd),
-                "start_doy": int(prior_stage1_start_doy),
-                "rgdd_min": float(prior_stage1_rgdd_min),
-            }
-        else:
-            trials_stage1_fold = _run_grid(
-                samples=train,
-                tbase_grid=tbase_grid,
-                theta_grid=theta_grid,
-                start_doy_grid=start_doy_grid,
-                rgdd_grid=rgdd_grid,
-                delta_grid=np.array([0.0]),
-                shift_grid=np.array([0], dtype=int),
-                n_jobs=int(n_jobs),
-                use_rgdd_gate=use_rgdd_gate,
-                rgdd_window=rgdd_window,
-                backend=backend,
-                desc=f"CV fold {i + 1}/{len(folds)} stage1",
-            )
-            best_stage1_fold = trials_stage1_fold.iloc[0].to_dict()
+        trials_stage1_fold = _run_grid(
+            samples=train,
+            tbase_grid=tbase_grid,
+            theta_grid=theta_grid,
+            start_doy_grid=start_doy_grid,
+            rgdd_grid=rgdd_grid,
+            delta_grid=np.array([0.0]),
+            shift_grid=np.array([0], dtype=int),
+            n_jobs=int(n_jobs),
+            use_rgdd_gate=use_rgdd_gate,
+            rgdd_window=rgdd_window,
+            backend=backend,
+            desc=f"CV fold {i + 1}/{len(folds)} stage1",
+        )
+        best_stage1_fold = trials_stage1_fold.iloc[0].to_dict()
 
         # Stage2: per-variety independent calibration of (delta, start_shift)
         if wk_fixed_enable:
@@ -1168,10 +1155,6 @@ def main() -> None:
         prior_start_shift_jf=int(prior_jf["shift"]),
         prior_start_shift_mpt=int(prior_mpt["shift"]),
         prior_k_mpt=float(prior_mpt.get("k_mpt", 0.0)),
-        prior_stage1_t_base=float(prior_stage1["t_base"]),
-        prior_stage1_theta_agdd=float(prior_stage1["theta_agdd"]),
-        prior_stage1_start_doy=int(prior_stage1["start_doy"]),
-        prior_stage1_rgdd_min=float(prior_stage1["rgdd_min"]),
         wk_fixed_enable=bool(args.wk_fixed_enable),
         wk_fixed_delta=float(args.wk_fixed_delta),
         wk_fixed_shift=int(args.wk_fixed_start_shift),
