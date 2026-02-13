@@ -746,6 +746,73 @@ def _fit_variety_prior_from_all_samples(
     return {"delta": float(best["delta"]), "shift": int(best["shift"]), "k_mpt": float(best["k_mpt"]), "mae_days": float(best["mae_days"]), "rmse_days": float(best["rmse_days"])}
 
 
+def _fit_wk_directional_prior(
+    wk_samples: List[Sample],
+    tbase_grid: np.ndarray,
+    theta_grid: np.ndarray,
+    start_doy_grid: np.ndarray,
+    rgdd_grid: np.ndarray,
+    delta_grid: np.ndarray,
+    shift_grid: np.ndarray,
+    use_rgdd_gate: bool,
+    rgdd_window: int,
+    penalty_delta_l1: float,
+    penalty_shift_l1: float,
+    n_jobs: int,
+    backend: str,
+) -> Dict:
+    if not wk_samples:
+        return {
+            "stage1": {"t_base": 10.0, "theta_agdd": 280.0, "start_doy": 53, "rgdd_min": 60.0},
+            "wk": {"delta": -0.05, "shift": 6},
+        }
+    stage1_best = _run_grid(
+        samples=wk_samples,
+        tbase_grid=tbase_grid,
+        theta_grid=theta_grid,
+        start_doy_grid=start_doy_grid,
+        rgdd_grid=rgdd_grid,
+        delta_grid=np.array([0.0]),
+        shift_grid=np.array([0], dtype=int),
+        n_jobs=int(n_jobs),
+        use_rgdd_gate=use_rgdd_gate,
+        rgdd_window=rgdd_window,
+        backend=backend,
+        desc="WK prior stage1",
+    ).iloc[0].to_dict()
+
+    wk_rows = []
+    for d, s in product(delta_grid, shift_grid.astype(int)):
+        mae, rmse, _ = _eval_params(
+            samples=wk_samples,
+            t_base=float(stage1_best["t_base"]),
+            theta=float(stage1_best["theta_agdd"]),
+            start_doy=int(stage1_best["start_doy"]),
+            use_rgdd_gate=use_rgdd_gate,
+            rgdd_min=float(stage1_best["rgdd_min"]),
+            rgdd_window=int(rgdd_window),
+            delta_wk=float(d),
+            delta_jf=0.0,
+            delta_mpt=0.0,
+            k_mpt=0.0,
+            start_shift_wk=int(s),
+            start_shift_jf=0,
+            start_shift_mpt=0,
+        )
+        obj = float(mae) + float(penalty_delta_l1) * abs(float(d)) + float(penalty_shift_l1) * abs(float(s))
+        wk_rows.append({"delta": float(d), "shift": int(s), "obj_days": float(obj), "mae_days": float(mae), "rmse_days": float(rmse)})
+    wk_best = pd.DataFrame(wk_rows).sort_values(["obj_days", "mae_days", "rmse_days"]).iloc[0].to_dict()
+    return {
+        "stage1": {
+            "t_base": float(stage1_best["t_base"]),
+            "theta_agdd": float(stage1_best["theta_agdd"]),
+            "start_doy": int(stage1_best["start_doy"]),
+            "rgdd_min": float(stage1_best["rgdd_min"]),
+        },
+        "wk": {"delta": float(wk_best["delta"]), "shift": int(wk_best["shift"])},
+    }
+
+
 def _build_variety_stratified_folds(samples: List[Sample], n_folds: int) -> List[List[int]]:
     n_folds = int(n_folds)
     if n_folds >= len(samples):
@@ -786,6 +853,13 @@ def _kfold_full_grid(
     prior_start_shift_jf: int,
     prior_start_shift_mpt: int,
     prior_k_mpt: float,
+    wk_prior_stage1_t_base: float,
+    wk_prior_stage1_theta_agdd: float,
+    wk_prior_stage1_start_doy: int,
+    wk_prior_stage1_rgdd_min: float,
+    wk_prior_delta: float,
+    wk_prior_shift: int,
+    wk_prior_enable: bool,
     wk_fixed_enable: bool,
     wk_fixed_delta: float,
     wk_fixed_shift: int,
@@ -801,27 +875,45 @@ def _kfold_full_grid(
         train = [samples[j] for j in range(len(samples)) if j not in test_idx]
         test = [samples[j] for j in sorted(test_idx)]
 
-        trials_stage1_fold = _run_grid(
-            samples=train,
-            tbase_grid=tbase_grid,
-            theta_grid=theta_grid,
-            start_doy_grid=start_doy_grid,
-            rgdd_grid=rgdd_grid,
-            delta_grid=np.array([0.0]),
-            shift_grid=np.array([0], dtype=int),
-            n_jobs=int(n_jobs),
-            use_rgdd_gate=use_rgdd_gate,
-            rgdd_window=rgdd_window,
-            backend=backend,
-            desc=f"CV fold {i + 1}/{len(folds)} stage1",
-        )
-        best_stage1_fold = trials_stage1_fold.iloc[0].to_dict()
+        test_has_wk = any(str(s.variety_code) == "WK" for s in test)
+        if wk_prior_enable and test_has_wk:
+            best_stage1_fold = {
+                "t_base": float(wk_prior_stage1_t_base),
+                "theta_agdd": float(wk_prior_stage1_theta_agdd),
+                "start_doy": int(wk_prior_stage1_start_doy),
+                "rgdd_min": float(wk_prior_stage1_rgdd_min),
+            }
+        else:
+            trials_stage1_fold = _run_grid(
+                samples=train,
+                tbase_grid=tbase_grid,
+                theta_grid=theta_grid,
+                start_doy_grid=start_doy_grid,
+                rgdd_grid=rgdd_grid,
+                delta_grid=np.array([0.0]),
+                shift_grid=np.array([0], dtype=int),
+                n_jobs=int(n_jobs),
+                use_rgdd_gate=use_rgdd_gate,
+                rgdd_window=rgdd_window,
+                backend=backend,
+                desc=f"CV fold {i + 1}/{len(folds)} stage1",
+            )
+            best_stage1_fold = trials_stage1_fold.iloc[0].to_dict()
 
         # Stage2: per-variety independent calibration of (delta, start_shift)
-        if wk_fixed_enable:
+        if wk_fixed_enable and (not test_has_wk):
             wk = {
                 "delta": float(wk_fixed_delta),
                 "shift": int(wk_fixed_shift),
+                "k_mpt": 0.0,
+                "topk_pool_size": 0,
+                "train_mae_days": np.nan,
+                "train_rmse_days": np.nan,
+            }
+        elif wk_prior_enable and test_has_wk:
+            wk = {
+                "delta": float(wk_prior_delta),
+                "shift": int(wk_prior_shift),
                 "k_mpt": 0.0,
                 "topk_pool_size": 0,
                 "train_mae_days": np.nan,
@@ -1093,6 +1185,7 @@ def main() -> None:
     parser.add_argument("--cv-topk-frac", type=float, default=0.10, help="Top fraction by train MAE before val selection.")
     parser.add_argument("--cv-unseen-variety-strategy", type=str, default="global", choices=["zero", "global"])
     parser.add_argument("--cv-folds", type=int, default=0, help="0 means LOOCV; otherwise use K-fold.")
+    parser.add_argument("--wk-prior-enable", action=argparse.BooleanOptionalAction, default=True, help="Use WK directional prior when WK is validation fold.")
     parser.add_argument("--wk-fixed-enable", action=argparse.BooleanOptionalAction, default=True, help="Use fixed WK delta/start_shift in stage2.")
     parser.add_argument("--wk-fixed-delta", type=float, default=float(FIXED_WK_PRIOR["delta"]))
     parser.add_argument("--wk-fixed-start-shift", type=int, default=int(FIXED_WK_PRIOR["shift"]))
@@ -1133,6 +1226,23 @@ def main() -> None:
     prior_jf = {"delta": 0.0, "shift": 0, "k_mpt": 0.0}
     prior_mpt = {"delta": 0.0, "shift": 0, "k_mpt": 0.0}
 
+    wk_samples = [s for s in samples if str(s.variety_code) == "WK"]
+    wk_directional_prior = _fit_wk_directional_prior(
+        wk_samples=wk_samples,
+        tbase_grid=tbase_grid,
+        theta_grid=theta_grid,
+        start_doy_grid=start_doy_grid,
+        rgdd_grid=rgdd_grid,
+        delta_grid=delta_grid,
+        shift_grid=shift_grid,
+        use_rgdd_gate=args.use_rgdd_gate,
+        rgdd_window=args.rgdd_window,
+        penalty_delta_l1=float(args.penalty_delta_l1),
+        penalty_shift_l1=float(args.penalty_start_shift_l1),
+        n_jobs=int(args.n_jobs),
+        backend=args.backend,
+    )
+
     cv_df = _kfold_full_grid(
         samples=samples,
         tbase_grid=tbase_grid,
@@ -1155,6 +1265,13 @@ def main() -> None:
         prior_start_shift_jf=int(prior_jf["shift"]),
         prior_start_shift_mpt=int(prior_mpt["shift"]),
         prior_k_mpt=float(prior_mpt.get("k_mpt", 0.0)),
+        wk_prior_stage1_t_base=float(wk_directional_prior["stage1"]["t_base"]),
+        wk_prior_stage1_theta_agdd=float(wk_directional_prior["stage1"]["theta_agdd"]),
+        wk_prior_stage1_start_doy=int(wk_directional_prior["stage1"]["start_doy"]),
+        wk_prior_stage1_rgdd_min=float(wk_directional_prior["stage1"]["rgdd_min"]),
+        wk_prior_delta=float(wk_directional_prior["wk"]["delta"]),
+        wk_prior_shift=int(wk_directional_prior["wk"]["shift"]),
+        wk_prior_enable=bool(args.wk_prior_enable),
         wk_fixed_enable=bool(args.wk_fixed_enable),
         wk_fixed_delta=float(args.wk_fixed_delta),
         wk_fixed_shift=int(args.wk_fixed_start_shift),
@@ -1303,6 +1420,13 @@ def main() -> None:
         "prior_stage1_t_base": float(prior_stage1["t_base"]),
         "prior_stage1_theta_agdd": float(prior_stage1["theta_agdd"]),
         "prior_stage1_start_doy": int(prior_stage1["start_doy"]),
+        "wk_prior_enable": bool(args.wk_prior_enable),
+        "wk_prior_stage1_t_base": float(wk_directional_prior["stage1"]["t_base"]),
+        "wk_prior_stage1_theta_agdd": float(wk_directional_prior["stage1"]["theta_agdd"]),
+        "wk_prior_stage1_start_doy": int(wk_directional_prior["stage1"]["start_doy"]),
+        "wk_prior_stage1_rgdd_min": float(wk_directional_prior["stage1"]["rgdd_min"]),
+        "wk_prior_delta": float(wk_directional_prior["wk"]["delta"]),
+        "wk_prior_start_shift": int(wk_directional_prior["wk"]["shift"]),
         "prior_source": str(prior_source),
         "wk_fixed_enable": bool(args.wk_fixed_enable),
         "wk_fixed_delta": float(args.wk_fixed_delta),
