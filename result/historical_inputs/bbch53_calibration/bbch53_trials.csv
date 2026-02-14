@@ -1,2 +1,2 @@
-t_base,theta_agdd,start_doy,rgdd_min,delta_wk,delta_jf,delta_mpt,start_shift_wk,start_shift_jf,start_shift_mpt,mae_days,rmse_days
-9.0,350.0,53,0.0,-0.2,0.0,0.2,-2,0,0,7.666666666666667,12.206555615733702
+selector,t_base,theta_agdd,start_doy,rgdd_min,k_mpt,delta_wk,delta_jf,delta_mpt,start_shift_wk,start_shift_jf,start_shift_mpt,mae_days,rmse_days,selected_by_cv_mae_days,selected_by_cv_rmse_days,selected_by_fit_mae_days,selected_by_fit_rmse_days,selected_n_folds
+main_fit,10.0,280.0,53,60.0,-0.7,-0.05,0.04999999999999982,0.9499999999999997,6,0,-14,2.6666666666666665,4.320493798938574,2.0,2.0,2.6666666666666665,4.320493798938574,1
