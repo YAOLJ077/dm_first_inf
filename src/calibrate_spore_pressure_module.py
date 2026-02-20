@@ -52,18 +52,18 @@ OUT_DIR = PROJECT_ROOT / "result" / "historical_inputs" / "spore_pressure_calibr
 
 # tightened search bounds (1.5x expansion disabled)
 PARAM_BOUNDS = {
-    "rho": (0.1, 0.98),
-    "beta_mp": (0.0, 3.5),
-    "beta_rain": (0.0, 0.25),
-    "beta_wind": (0.0, 0.25),
-    "gamma_vpd": (0.0, 1.2),
-    "k_mp": (0.02, 0.9),
-    "tmin": (5.0, 16.0),
+    "rho": (0.08, 0.99),
+    "beta_mp": (0.0, 4.0),
+    "beta_rain": (0.0, 0.30),
+    "beta_wind": (0.0, 0.30),
+    "gamma_vpd": (0.0, 1.4),
+    "k_mp": (0.01, 1.0),
+    "tmin": (4.0, 17.0),
     # fixed spaces (no dynamic bounds): order is enforced after sampling
-    "topt": (7.0, 32.0),
-    "tmax": (9.0, 40.0),
-    "roll_window": (3, 9),
-    "baseline_q": (0.45, 0.75),
+    "topt": (6.0, 34.0),
+    "tmax": (8.0, 42.0),
+    "roll_window": (2, 10),
+    "baseline_q": (0.40, 0.80),
 }
 
 
@@ -490,8 +490,10 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--n-jobs", type=int, default=128)
     parser.add_argument("--batch-size", type=int, default=8)
-    parser.add_argument("--loocv-trials", type=int, default=12000)
+    parser.add_argument("--loocv-trials", type=int, default=18000)
     parser.add_argument("--cv-topk-frac", type=float, default=0.10)
+    parser.add_argument("--min-selected-folds", type=int, default=2)
+    parser.add_argument("--param-round-decimals", type=int, default=4)
     args = parser.parse_args()
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -524,8 +526,16 @@ def main() -> None:
         "rho", "beta_mp", "beta_rain", "beta_wind", "gamma_vpd", "k_mp",
         "tmin", "topt", "tmax", "roll_window", "baseline_q",
     ]
+    loocv_group = loocv_df.copy()
+    # Reduce floating-point fragmentation before grouping fold-selected candidates.
+    dec = int(max(0, args.param_round_decimals))
+    for c in select_cols:
+        if c == "roll_window":
+            loocv_group[c] = pd.to_numeric(loocv_group[c], errors="coerce").round().astype("Int64")
+        else:
+            loocv_group[c] = pd.to_numeric(loocv_group[c], errors="coerce").round(dec)
     leaderboard = (
-        loocv_df.groupby(select_cols, dropna=False, as_index=False)
+        loocv_group.groupby(select_cols, dropna=False, as_index=False)
         .agg(
             cv_train_mae_mean=("fit_train_mae", "mean"),
             cv_val_mae_mean=("test_mae", "mean"),
@@ -535,11 +545,17 @@ def main() -> None:
             fit_mae_full=("fit_mae_full", "mean"),
             constraint_satisfied_rate=("constraint_satisfied", "mean"),
         )
-        .sort_values(["fit_mae_full", "cv_val_mae_mean", "cv_train_mae_mean"])
+        .sort_values(["cv_val_mae_mean", "fit_mae_full", "cv_train_mae_mean"])
         .reset_index(drop=True)
     )
+    min_folds = int(max(1, args.min_selected_folds))
+    leaderboard_gate = leaderboard[leaderboard["n_selected_folds"] >= min_folds].copy()
+    selection_constraint_relaxed = False
+    if leaderboard_gate.empty:
+        leaderboard_gate = leaderboard.copy()
+        selection_constraint_relaxed = True
     leaderboard.to_csv(OUT_DIR / "spore_proxy_selection_compare.csv", index=False)
-    best_row = leaderboard.iloc[0].to_dict()
+    best_row = leaderboard_gate.iloc[0].to_dict()
     best_params = _extract_params_from_trial_row(best_row)
 
     best_loss, detail = _evaluate_params(site_year_cache, best_params)
@@ -557,6 +573,10 @@ def main() -> None:
         "cv_train_mae_std": float(loocv_df["fit_train_mae"].std(ddof=0)),
         "cv_val_mae_std": float(loocv_df["test_mae"].std(ddof=0)),
         "cv_constraint_satisfied_rate": float(loocv_df["constraint_satisfied"].mean()),
+        "selected_n_folds": int(best_row.get("n_selected_folds", 0)),
+        "min_selected_folds": int(min_folds),
+        "selection_constraint_relaxed": bool(selection_constraint_relaxed),
+        "param_round_decimals": int(dec),
     }
     with open(OUT_DIR / "spore_proxy_best.json", "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
