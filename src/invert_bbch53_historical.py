@@ -20,6 +20,11 @@ except Exception:  # pragma: no cover
     def tqdm(x, **kwargs):  # type: ignore
         return x
 
+try:
+    import ray
+except Exception:  # pragma: no cover
+    ray = None
+
 SRC_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SRC_DIR.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -212,6 +217,12 @@ def _invert_one_task(task: Dict) -> Dict:
     }
 
 
+if ray is not None:
+    @ray.remote
+    def _invert_one_task_ray(task: Dict) -> Dict:
+        return _invert_one_task(task)
+
+
 def _mean_temp_janfeb_from_json(json_path: Path, year: int) -> float:
     data = json.loads(json_path.read_text(encoding="utf-8", errors="ignore"))
     rows = data.get("weather_hourly", []) if isinstance(data, dict) else data
@@ -261,11 +272,76 @@ def _calc_year_signal_for_one_grid(args: Tuple[int, pd.DataFrame, Path]) -> Tupl
     return int(grid_id), zmap
 
 
-def _calc_year_signal_by_grid(df_index: pd.DataFrame, variety_dir: Path, max_workers: int = 32) -> Dict[Tuple[int, int], float]:
+if ray is not None:
+    @ray.remote
+    def _calc_year_signal_for_one_grid_ray(grid_id: int, records: List[Dict], variety_dir_str: str) -> Tuple[int, Dict[int, float]]:
+        vals: Dict[int, float] = {}
+        variety_dir = Path(variety_dir_str)
+        for r in records:
+            year = int(r["year"])
+            json_rel = str(r["json_rel_path"])
+            json_path = variety_dir / json_rel
+            if not json_path.exists():
+                continue
+            vals[year] = _mean_temp_janfeb_from_json(json_path, year)
+        if not vals:
+            return int(grid_id), {}
+        years = sorted(vals.keys())
+        arr = np.asarray([vals[y] for y in years], dtype=float)
+        mu = float(np.nanmean(arr)) if len(arr) > 0 else 0.0
+        sd = float(np.nanstd(arr)) if len(arr) > 0 else 1.0
+        if (not np.isfinite(sd)) or sd < 1e-8:
+            sd = 1.0
+        zmap = {int(y): float((float(vals[y]) - mu) / sd) if np.isfinite(vals[y]) else 0.0 for y in years}
+        return int(grid_id), zmap
+
+
+def _calc_year_signal_by_grid(
+    df_index: pd.DataFrame,
+    variety_dir: Path,
+    max_workers: int = 32,
+    backend: str = "thread",
+) -> Dict[Tuple[int, int], float]:
     out: Dict[Tuple[int, int], float] = {}
     groups = list(df_index.groupby("grid_id"))
     if not groups:
         return out
+    backend = str(backend).lower()
+    if backend == "serial":
+        for gid, sub in tqdm(groups, total=len(groups), desc=f"{variety_dir.name.upper()} year-signal"):
+            grid_id, zmap = _calc_year_signal_for_one_grid((int(gid), sub.copy(), variety_dir))
+            for year, z in zmap.items():
+                out[(int(year), int(grid_id))] = float(z)
+        return out
+
+    if backend == "ray" and ray is not None:
+        ray_inited_here = False
+        if not ray.is_initialized():
+            ncpu = max(1, min(int(max_workers), int(os.cpu_count() or 1)))
+            os.environ.setdefault("RAY_DISABLE_METRICS", "1")
+            os.environ.setdefault("RAY_DISABLE_USAGE_STATS", "1")
+            os.environ.setdefault("RAY_METRICS_EXPORT_PORT", "0")
+            ray.init(num_cpus=ncpu, include_dashboard=False, logging_level="ERROR", ignore_reinit_error=True)
+            ray_inited_here = True
+
+        futs = []
+        for gid, sub in groups:
+            recs = sub[["year", "json_rel_path"]].to_dict("records")
+            futs.append(_calc_year_signal_for_one_grid_ray.remote(int(gid), recs, str(variety_dir)))
+        pbar = tqdm(total=len(futs), desc=f"{variety_dir.name.upper()} year-signal")
+        pending = list(futs)
+        while pending:
+            ready, pending = ray.wait(pending, num_returns=1)
+            grid_id, zmap = ray.get(ready[0])
+            for year, z in zmap.items():
+                out[(int(year), int(grid_id))] = float(z)
+            pbar.update(1)
+        pbar.close()
+
+        if ray_inited_here:
+            ray.shutdown()
+        return out
+
     workers = max(1, min(int(max_workers), 64))
     with ThreadPoolExecutor(max_workers=workers) as ex:
         futs = [ex.submit(_calc_year_signal_for_one_grid, (int(gid), sub.copy(), variety_dir)) for gid, sub in groups]
@@ -319,6 +395,7 @@ def _parse_args() -> argparse.Namespace:
     )
     p.add_argument("--n-jobs", type=int, default=128, help="Number of worker processes.")
     p.add_argument("--chunksize", type=int, default=16, help="Task chunksize for process pool.")
+    p.add_argument("--backend", type=str, default="process", choices=["process", "ray", "serial"])
     p.add_argument(
         "--year-signal-scope",
         type=str,
@@ -326,7 +403,8 @@ def _parse_args() -> argparse.Namespace:
         choices=["mpt_only", "all", "none"],
         help="Which varieties to compute year_signal for.",
     )
-    p.add_argument("--year-signal-workers", type=int, default=32, help="Workers for year_signal preprocessing.")
+    p.add_argument("--year-signal-workers", type=int, default=128, help="Workers for year_signal preprocessing.")
+    p.add_argument("--year-signal-backend", type=str, default="ray", choices=["thread", "ray", "serial"])
     return p.parse_args()
 
 
@@ -393,12 +471,14 @@ def main() -> None:
                 df_index=df_idx,
                 variety_dir=vdir,
                 max_workers=int(args.year_signal_workers),
+                backend=str(args.year_signal_backend),
             )
         elif need_year_signal and (vcode != "MPT"):
             year_signal_map = _calc_year_signal_by_grid(
                 df_index=df_idx,
                 variety_dir=vdir,
                 max_workers=int(args.year_signal_workers),
+                backend=str(args.year_signal_backend),
             )
         else:
             year_signal_map = {}
@@ -437,15 +517,68 @@ def main() -> None:
         print("[WARN] No tasks generated.")
         return
 
-    max_workers = max(1, min(int(args.n_jobs), int(os.cpu_count() or 1)))
     all_rows: List[Dict] = []
-    with ProcessPoolExecutor(max_workers=max_workers) as ex:
-        futures = [ex.submit(_invert_one_task, t) for t in tasks]
-        pbar = tqdm(total=len(futures), desc="BBCH53 inversion")
-        for fut in as_completed(futures):
-            all_rows.append(fut.result())
-            pbar.update(1)
-        pbar.close()
+    host_cpus = int(os.cpu_count() or 1)
+    if str(args.backend) == "serial":
+        for t in tqdm(tasks, total=len(tasks), desc="BBCH53 inversion"):
+            all_rows.append(_invert_one_task(t))
+    elif str(args.backend) == "ray":
+        if ray is None:
+            print("[WARN] backend=ray but ray is not installed, fallback to process backend.")
+            backend = "process"
+        else:
+            backend = "ray"
+        if backend == "ray":
+            os.environ.setdefault("RAY_DISABLE_METRICS", "1")
+            os.environ.setdefault("RAY_DISABLE_USAGE_STATS", "1")
+            os.environ.setdefault("RAY_METRICS_EXPORT_PORT", "0")
+            max_workers = max(1, min(int(args.n_jobs), host_cpus))
+            print(f"[INFO] Ray backend enabled with workers={max_workers}")
+            ray.init(
+                num_cpus=max_workers,
+                include_dashboard=False,
+                logging_level="ERROR",
+                ignore_reinit_error=True,
+            )
+            futures = [_invert_one_task_ray.remote(t) for t in tasks]
+            pbar = tqdm(total=len(futures), desc="BBCH53 inversion")
+            pending = futures
+            while pending:
+                ready, pending = ray.wait(pending, num_returns=1)
+                all_rows.append(ray.get(ready[0]))
+                pbar.update(1)
+            pbar.close()
+            ray.shutdown()
+        else:
+            win_cap = 61 if os.name == "nt" else host_cpus
+            max_workers = max(1, min(int(args.n_jobs), host_cpus, win_cap))
+            if int(args.n_jobs) != max_workers:
+                print(
+                    f"[INFO] n_jobs adjusted from {int(args.n_jobs)} to {int(max_workers)} "
+                    f"(os_cap={win_cap}, host_cpus={host_cpus})"
+                )
+            with ProcessPoolExecutor(max_workers=max_workers) as ex:
+                futures = [ex.submit(_invert_one_task, t) for t in tasks]
+                pbar = tqdm(total=len(futures), desc="BBCH53 inversion")
+                for fut in as_completed(futures):
+                    all_rows.append(fut.result())
+                    pbar.update(1)
+                pbar.close()
+    else:
+        win_cap = 61 if os.name == "nt" else host_cpus
+        max_workers = max(1, min(int(args.n_jobs), host_cpus, win_cap))
+        if int(args.n_jobs) != max_workers:
+            print(
+                f"[INFO] n_jobs adjusted from {int(args.n_jobs)} to {int(max_workers)} "
+                f"(os_cap={win_cap}, host_cpus={host_cpus})"
+            )
+        with ProcessPoolExecutor(max_workers=max_workers) as ex:
+            futures = [ex.submit(_invert_one_task, t) for t in tasks]
+            pbar = tqdm(total=len(futures), desc="BBCH53 inversion")
+            for fut in as_completed(futures):
+                all_rows.append(fut.result())
+                pbar.update(1)
+            pbar.close()
 
     out_all = pd.DataFrame(all_rows).sort_values(["variety", "year", "grid_id"]).reset_index(drop=True)
     out_all.to_csv(output_root / "bbch53_dates_all_varieties_2000_2024.csv", index=False)
