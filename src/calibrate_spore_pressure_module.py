@@ -487,13 +487,10 @@ def _loocv_train_topk_then_val(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Calibrate standalone weather->spore pressure module.")
-    parser.add_argument("--n-trials", type=int, default=15000)
-    parser.add_argument("--n-startup", type=int, default=6000)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--n-jobs", type=int, default=128)
     parser.add_argument("--batch-size", type=int, default=8)
-    parser.add_argument("--run-loocv", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--loocv-trials", type=int, default=200)
+    parser.add_argument("--loocv-trials", type=int, default=12000)
     parser.add_argument("--cv-topk-frac", type=float, default=0.10)
     args = parser.parse_args()
 
@@ -508,64 +505,42 @@ def main() -> None:
     ray_used = ray is not None and args.n_jobs > 1
     if ray_used:
         ray.init(num_cpus=max(1, args.n_jobs), include_dashboard=False, logging_level="ERROR")
-    # Keep global trials as reference, but final model selection follows LOOCV train-topk-then-val logic.
-    if optuna is not None:
-        _, _, trial_rows = _parallel_optuna_search(
-            site_year_cache=site_year_cache,
-            n_trials=int(args.n_trials),
-            n_startup=int(args.n_startup),
-            seed=int(args.seed),
-            n_jobs=int(args.n_jobs),
-            batch_size=int(args.batch_size),
-        )
-    else:
-        _, _, trial_rows = _parallel_random_search(
-            site_year_cache=site_year_cache,
-            n_trials=int(args.n_trials),
-            seed=int(args.seed),
-            n_jobs=int(args.n_jobs),
-            batch_size=int(args.batch_size),
-        )
-    pd.DataFrame(trial_rows).sort_values("value").to_csv(OUT_DIR / "spore_proxy_trials.csv", index=False)
+    # LOOCV-only calibration flow.
+    loocv_df = _loocv_train_topk_then_val(
+        rows=rows,
+        spore_df=spore_df,
+        full_cache=site_year_cache,
+        n_trials=int(args.loocv_trials),
+        n_startup=max(20, int(args.loocv_trials) // 4),
+        seed=int(args.seed + 1000),
+        n_jobs=int(args.n_jobs),
+        topk_frac=float(args.cv_topk_frac),
+    )
+    loocv_df.to_csv(OUT_DIR / "spore_proxy_loocv.csv", index=False)
+    # Keep this output for compatibility with existing downstream readers.
+    loocv_df.sort_values(["test_mae", "fit_train_mae"]).to_csv(OUT_DIR / "spore_proxy_trials.csv", index=False)
 
-    if args.run_loocv:
-        loocv_df = _loocv_train_topk_then_val(
-            rows=rows,
-            spore_df=spore_df,
-            full_cache=site_year_cache,
-            n_trials=int(args.loocv_trials),
-            n_startup=max(20, int(args.loocv_trials) // 4),
-            seed=int(args.seed + 1000),
-            n_jobs=int(args.n_jobs),
-            topk_frac=float(args.cv_topk_frac),
+    select_cols = [
+        "rho", "beta_mp", "beta_rain", "beta_wind", "gamma_vpd", "k_mp",
+        "tmin", "topt", "tmax", "roll_window", "baseline_q",
+    ]
+    leaderboard = (
+        loocv_df.groupby(select_cols, dropna=False, as_index=False)
+        .agg(
+            cv_train_mae_mean=("fit_train_mae", "mean"),
+            cv_val_mae_mean=("test_mae", "mean"),
+            cv_train_mae_std=("fit_train_mae", "std"),
+            cv_val_mae_std=("test_mae", "std"),
+            n_selected_folds=("plot", "count"),
+            fit_mae_full=("fit_mae_full", "mean"),
+            constraint_satisfied_rate=("constraint_satisfied", "mean"),
         )
-        loocv_df.to_csv(OUT_DIR / "spore_proxy_loocv.csv", index=False)
-
-        select_cols = [
-            "rho", "beta_mp", "beta_rain", "beta_wind", "gamma_vpd", "k_mp",
-            "tmin", "topt", "tmax", "roll_window", "baseline_q",
-        ]
-        leaderboard = (
-            loocv_df.groupby(select_cols, dropna=False, as_index=False)
-            .agg(
-                cv_train_mae_mean=("fit_train_mae", "mean"),
-                cv_val_mae_mean=("test_mae", "mean"),
-                cv_train_mae_std=("fit_train_mae", "std"),
-                cv_val_mae_std=("test_mae", "std"),
-                n_selected_folds=("plot", "count"),
-                fit_mae_full=("fit_mae_full", "mean"),
-                constraint_satisfied_rate=("constraint_satisfied", "mean"),
-            )
-            .sort_values(["fit_mae_full", "cv_val_mae_mean", "cv_train_mae_mean"])
-            .reset_index(drop=True)
-        )
-        leaderboard.to_csv(OUT_DIR / "spore_proxy_selection_compare.csv", index=False)
-        best_row = leaderboard.iloc[0].to_dict()
-        best_params = _extract_params_from_trial_row(best_row)
-    else:
-        # Fallback: full-data best by global search if LOOCV disabled.
-        best_trial = pd.DataFrame(trial_rows).sort_values("value").iloc[0].to_dict()
-        best_params = _extract_params_from_trial_row(best_trial)
+        .sort_values(["fit_mae_full", "cv_val_mae_mean", "cv_train_mae_mean"])
+        .reset_index(drop=True)
+    )
+    leaderboard.to_csv(OUT_DIR / "spore_proxy_selection_compare.csv", index=False)
+    best_row = leaderboard.iloc[0].to_dict()
+    best_params = _extract_params_from_trial_row(best_row)
 
     best_loss, detail = _evaluate_params(site_year_cache, best_params)
     detail.to_csv(OUT_DIR / "spore_proxy_fit_detail.csv", index=False)
@@ -576,20 +551,13 @@ def main() -> None:
         "best_params": {k: (float(v) if isinstance(v, (int, float, np.floating, np.integer)) else v) for k, v in best_params.items()},
         "cv_topk_frac": float(args.cv_topk_frac),
         "param_bounds": PARAM_BOUNDS,
+        "selection_mode": "loocv_train_topk_then_val_then_min_full_fit_mae",
+        "cv_train_mae_mean": float(loocv_df["fit_train_mae"].mean()),
+        "cv_val_mae_mean": float(loocv_df["test_mae"].mean()),
+        "cv_train_mae_std": float(loocv_df["fit_train_mae"].std(ddof=0)),
+        "cv_val_mae_std": float(loocv_df["test_mae"].std(ddof=0)),
+        "cv_constraint_satisfied_rate": float(loocv_df["constraint_satisfied"].mean()),
     }
-    if args.run_loocv:
-        summary.update(
-            {
-                "cv_train_mae_mean": float(loocv_df["fit_train_mae"].mean()),
-                "cv_val_mae_mean": float(loocv_df["test_mae"].mean()),
-                "cv_train_mae_std": float(loocv_df["fit_train_mae"].std(ddof=0)),
-                "cv_val_mae_std": float(loocv_df["test_mae"].std(ddof=0)),
-                "cv_constraint_satisfied_rate": float(loocv_df["constraint_satisfied"].mean()),
-                "selection_mode": "loocv_train_topk_then_val_then_min_full_fit_mae",
-            }
-        )
-    else:
-        summary.update({"selection_mode": "full_data_search"})
     with open(OUT_DIR / "spore_proxy_best.json", "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
     # Directly consumable config for historical inversion scripts.
@@ -614,8 +582,8 @@ def main() -> None:
             "best_summary": "spore_proxy_best.json",
             "fit_detail": "spore_proxy_fit_detail.csv",
             "trials": "spore_proxy_trials.csv",
-            "loocv": "spore_proxy_loocv.csv" if args.run_loocv else None,
-            "selection_compare": "spore_proxy_selection_compare.csv" if args.run_loocv else None,
+            "loocv": "spore_proxy_loocv.csv",
+            "selection_compare": "spore_proxy_selection_compare.csv",
         },
     }
     with open(OUT_DIR / "spore_pressure_params_for_inversion.json", "w", encoding="utf-8") as f:
@@ -628,9 +596,8 @@ def main() -> None:
     print(f"Saved: {OUT_DIR / 'spore_pressure_params_for_inversion.json'}")
     print(f"Saved: {OUT_DIR / 'spore_proxy_trials.csv'}")
     print(f"Saved: {OUT_DIR / 'spore_proxy_fit_detail.csv'}")
-    if args.run_loocv:
-        print(f"Saved: {OUT_DIR / 'spore_proxy_loocv.csv'}")
-        print(f"Saved: {OUT_DIR / 'spore_proxy_selection_compare.csv'}")
+    print(f"Saved: {OUT_DIR / 'spore_proxy_loocv.csv'}")
+    print(f"Saved: {OUT_DIR / 'spore_proxy_selection_compare.csv'}")
 
 
 if __name__ == "__main__":
