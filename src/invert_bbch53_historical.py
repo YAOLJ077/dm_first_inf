@@ -37,6 +37,11 @@ try:
 except Exception:  # pragma: no cover
     from bbch53_module import load_hourly_weather_from_json, compute_agdd_hourly
 
+os.environ.setdefault("RAY_DISABLE_METRICS", "1")
+os.environ.setdefault("RAY_DISABLE_USAGE_STATS", "1")
+os.environ.setdefault("RAY_METRICS_EXPORT_PORT", "0")
+os.environ.setdefault("RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO", "0")
+
 
 VARIETY_CODE_MAP = {"wk": "WK", "jf": "JF", "mpt": "MPT"}
 
@@ -223,6 +228,55 @@ if ray is not None:
         return _invert_one_task(task)
 
 
+def _export_csrb_one(task: Dict) -> int:
+    json_path = Path(str(task["json_abs_path"]))
+    if not json_path.exists():
+        return 0
+    raw = json.loads(json_path.read_text(encoding="utf-8"))
+    raw["variety_code"] = str(task["variety"])
+    raw["Place"] = raw.get("Place", f"grid_{int(task['grid_id'])}")
+    bbch53_value = str(task["bbch53_date"]) if str(task["bbch53_date"]) else None
+    raw["BBCH_53"] = bbch53_value
+    raw["HHCH_53"] = bbch53_value
+    out_json_dir = Path(str(task["output_root"])) / str(task["variety"]).lower() / str(int(task["year"]))
+    out_json_dir.mkdir(parents=True, exist_ok=True)
+    out_json_name = json_path.name.replace(".json", "_with_bbch53.json")
+    (out_json_dir / out_json_name).write_text(
+        json.dumps(raw, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return 1
+
+
+def _export_result_one(task: Dict) -> int:
+    out_json_dir = Path(str(task["output_root"])) / str(task["variety"]).lower() / str(int(task["year"]))
+    out_json_dir.mkdir(parents=True, exist_ok=True)
+    out_name = f"grid_{int(task['grid_id'])}_bbch53.json"
+    payload = {
+        "variety": str(task["variety"]),
+        "year": int(task["year"]),
+        "grid_id": int(task["grid_id"]),
+        "latitude": float(task["latitude"]),
+        "longitude": float(task["longitude"]),
+        "bbch53_date": str(task["bbch53_date"]) if str(task["bbch53_date"]) else None,
+        "bbch53_doy": (None if pd.isna(task["bbch53_doy"]) else int(task["bbch53_doy"])),
+        "source_json_file": str(task["json_file_path"]),
+        "params": task["params"],
+    }
+    (out_json_dir / out_name).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return 1
+
+
+if ray is not None:
+    @ray.remote
+    def _export_csrb_one_ray(task: Dict) -> int:
+        return _export_csrb_one(task)
+
+    @ray.remote
+    def _export_result_one_ray(task: Dict) -> int:
+        return _export_result_one(task)
+
+
 def _mean_temp_janfeb_from_json(json_path: Path, year: int) -> float:
     data = json.loads(json_path.read_text(encoding="utf-8", errors="ignore"))
     rows = data.get("weather_hourly", []) if isinstance(data, dict) else data
@@ -395,7 +449,19 @@ def _parse_args() -> argparse.Namespace:
     )
     p.add_argument("--n-jobs", type=int, default=128, help="Number of worker processes.")
     p.add_argument("--chunksize", type=int, default=16, help="Task chunksize for process pool.")
-    p.add_argument("--backend", type=str, default="process", choices=["process", "ray", "serial"])
+    p.add_argument("--backend", type=str, default="ray", choices=["process", "ray", "serial"])
+    p.add_argument(
+        "--export-only",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Skip inversion and only export JSON from existing CSV.",
+    )
+    p.add_argument(
+        "--existing-csv",
+        type=str,
+        default="",
+        help="Existing bbch53_dates_all_varieties_2000_2024.csv path (relative to project root or absolute).",
+    )
     p.add_argument(
         "--year-signal-scope",
         type=str,
@@ -440,115 +506,154 @@ def main() -> None:
     }
     (output_root / "bbch53_inversion_config.json").write_text(json.dumps(run_cfg, indent=2), encoding="utf-8")
 
-    tasks: List[Dict] = []
-
-    for v in tqdm(var_list, total=len(var_list), desc="Prepare varieties"):
-        if v not in VARIETY_CODE_MAP:
-            print(f"[WARN] Skip unknown variety: {v}")
-            continue
-        vcode = VARIETY_CODE_MAP[v]
-        vdir = input_root / v
-        if not vdir.exists():
-            print(f"[WARN] Missing variety directory: {vdir}")
-            continue
-
-        idx_path = _find_index_file(vdir)
-        df_idx = _parse_grid_index_file(idx_path)
-        df_idx = df_idx[(df_idx["year"] >= int(args.year_min)) & (df_idx["year"] <= int(args.year_max))].copy()
-        if df_idx.empty:
-            print(f"[WARN] No rows in year range for {v}")
-            continue
-
-        need_year_signal = False
-        if str(args.year_signal_scope) == "all":
-            need_year_signal = True
-        elif str(args.year_signal_scope) == "mpt_only":
-            need_year_signal = (vcode == "MPT")
-        elif str(args.year_signal_scope) == "none":
-            need_year_signal = False
-        if need_year_signal and (vcode == "MPT") and abs(float(kmpt)) > 1e-12:
-            year_signal_map = _calc_year_signal_by_grid(
-                df_index=df_idx,
-                variety_dir=vdir,
-                max_workers=int(args.year_signal_workers),
-                backend=str(args.year_signal_backend),
-            )
-        elif need_year_signal and (vcode != "MPT"):
-            year_signal_map = _calc_year_signal_by_grid(
-                df_index=df_idx,
-                variety_dir=vdir,
-                max_workers=int(args.year_signal_workers),
-                backend=str(args.year_signal_backend),
-            )
-        else:
-            year_signal_map = {}
-        for r in df_idx.itertuples(index=False):
-            year = int(r.year)
-            grid_id = int(r.grid_id)
-            lat = float(r.latitude)
-            lon = float(r.longitude)
-            json_path = _resolve_weather_path(vdir, year, grid_id, df_idx)
-            if json_path is None:
-                continue
-            tasks.append(
-                {
-                    "variety": vcode,
-                    "variety_dir_key": v,
-                    "year": year,
-                    "grid_id": grid_id,
-                    "latitude": lat,
-                    "longitude": lon,
-                    "json_rel_path": str(r.json_rel_path),
-                    "json_path": str(json_path),
-                    "year_signal": float(year_signal_map.get((year, grid_id), 0.0)),
-                    "t_base": float(args.t_base),
-                    "theta_agdd": float(args.theta_agdd),
-                    "start_doy": int(args.start_doy),
-                    "use_rgdd_gate": bool(args.use_rgdd_gate),
-                    "rgdd_min": float(args.rgdd_min),
-                    "rgdd_window": int(args.rgdd_window),
-                    "delta": float(dmap[vcode]),
-                    "start_shift": int(smap[vcode]),
-                    "k_mpt": float(kmpt),
-                }
-            )
-
-    if not tasks:
-        print("[WARN] No tasks generated.")
-        return
-
-    all_rows: List[Dict] = []
     host_cpus = int(os.cpu_count() or 1)
-    if str(args.backend) == "serial":
-        for t in tqdm(tasks, total=len(tasks), desc="BBCH53 inversion"):
-            all_rows.append(_invert_one_task(t))
-    elif str(args.backend) == "ray":
-        if ray is None:
-            print("[WARN] backend=ray but ray is not installed, fallback to process backend.")
-            backend = "process"
-        else:
-            backend = "ray"
-        if backend == "ray":
-            os.environ.setdefault("RAY_DISABLE_METRICS", "1")
-            os.environ.setdefault("RAY_DISABLE_USAGE_STATS", "1")
-            os.environ.setdefault("RAY_METRICS_EXPORT_PORT", "0")
-            max_workers = max(1, min(int(args.n_jobs), host_cpus))
-            print(f"[INFO] Ray backend enabled with workers={max_workers}")
-            ray.init(
-                num_cpus=max_workers,
-                include_dashboard=False,
-                logging_level="ERROR",
-                ignore_reinit_error=True,
+    ray_initialized_here = False
+
+    if bool(args.export_only):
+        csv_path = Path(args.existing_csv).expanduser() if str(args.existing_csv).strip() else (output_root / "bbch53_dates_all_varieties_2000_2024.csv")
+        if not csv_path.is_absolute():
+            csv_path = (PROJECT_ROOT / csv_path).resolve()
+        if not csv_path.exists():
+            raise FileNotFoundError(f"Existing CSV not found: {csv_path}")
+        out_all = pd.read_csv(csv_path)
+        if "variety" not in out_all.columns:
+            raise ValueError(f"CSV missing 'variety' column: {csv_path}")
+        out_all["variety"] = out_all["variety"].astype(str).str.upper()
+        out_all["year"] = pd.to_numeric(out_all["year"], errors="coerce").astype("Int64")
+        out_all["grid_id"] = pd.to_numeric(out_all["grid_id"], errors="coerce").astype("Int64")
+        out_all["bbch53_doy"] = pd.to_numeric(out_all["bbch53_doy"], errors="coerce")
+        out_all = out_all.dropna(subset=["variety", "year", "grid_id"]).copy()
+        out_all["year"] = out_all["year"].astype(int)
+        out_all["grid_id"] = out_all["grid_id"].astype(int)
+        if "json_abs_path" not in out_all.columns:
+            if "json_file_path" not in out_all.columns:
+                raise ValueError("CSV missing both 'json_abs_path' and 'json_file_path'; cannot export CSRB json.")
+            out_all["json_abs_path"] = out_all.apply(
+                lambda r: str((input_root / str(r["variety"]).lower() / str(r["json_file_path"])).resolve()),
+                axis=1,
             )
-            futures = [_invert_one_task_ray.remote(t) for t in tasks]
-            pbar = tqdm(total=len(futures), desc="BBCH53 inversion")
-            pending = futures
-            while pending:
-                ready, pending = ray.wait(pending, num_returns=1)
-                all_rows.append(ray.get(ready[0]))
-                pbar.update(1)
-            pbar.close()
-            ray.shutdown()
+        print(f"[INFO] Export-only mode: loaded {len(out_all)} rows from {csv_path}")
+    else:
+        tasks: List[Dict] = []
+        for v in tqdm(var_list, total=len(var_list), desc="Prepare varieties"):
+            if v not in VARIETY_CODE_MAP:
+                print(f"[WARN] Skip unknown variety: {v}")
+                continue
+            vcode = VARIETY_CODE_MAP[v]
+            vdir = input_root / v
+            if not vdir.exists():
+                print(f"[WARN] Missing variety directory: {vdir}")
+                continue
+
+            idx_path = _find_index_file(vdir)
+            df_idx = _parse_grid_index_file(idx_path)
+            df_idx = df_idx[(df_idx["year"] >= int(args.year_min)) & (df_idx["year"] <= int(args.year_max))].copy()
+            if df_idx.empty:
+                print(f"[WARN] No rows in year range for {v}")
+                continue
+
+            need_year_signal = False
+            if str(args.year_signal_scope) == "all":
+                need_year_signal = True
+            elif str(args.year_signal_scope) == "mpt_only":
+                need_year_signal = (vcode == "MPT")
+            elif str(args.year_signal_scope) == "none":
+                need_year_signal = False
+            if need_year_signal and (vcode == "MPT") and abs(float(kmpt)) > 1e-12:
+                year_signal_map = _calc_year_signal_by_grid(
+                    df_index=df_idx,
+                    variety_dir=vdir,
+                    max_workers=int(args.year_signal_workers),
+                    backend=str(args.year_signal_backend),
+                )
+            elif need_year_signal and (vcode != "MPT"):
+                year_signal_map = _calc_year_signal_by_grid(
+                    df_index=df_idx,
+                    variety_dir=vdir,
+                    max_workers=int(args.year_signal_workers),
+                    backend=str(args.year_signal_backend),
+                )
+            else:
+                year_signal_map = {}
+            for r in df_idx.itertuples(index=False):
+                year = int(r.year)
+                grid_id = int(r.grid_id)
+                lat = float(r.latitude)
+                lon = float(r.longitude)
+                json_path = _resolve_weather_path(vdir, year, grid_id, df_idx)
+                if json_path is None:
+                    continue
+                tasks.append(
+                    {
+                        "variety": vcode,
+                        "variety_dir_key": v,
+                        "year": year,
+                        "grid_id": grid_id,
+                        "latitude": lat,
+                        "longitude": lon,
+                        "json_rel_path": str(r.json_rel_path),
+                        "json_path": str(json_path),
+                        "year_signal": float(year_signal_map.get((year, grid_id), 0.0)),
+                        "t_base": float(args.t_base),
+                        "theta_agdd": float(args.theta_agdd),
+                        "start_doy": int(args.start_doy),
+                        "use_rgdd_gate": bool(args.use_rgdd_gate),
+                        "rgdd_min": float(args.rgdd_min),
+                        "rgdd_window": int(args.rgdd_window),
+                        "delta": float(dmap[vcode]),
+                        "start_shift": int(smap[vcode]),
+                        "k_mpt": float(kmpt),
+                    }
+                )
+
+        if not tasks:
+            print("[WARN] No tasks generated.")
+            return
+
+        all_rows: List[Dict] = []
+        if str(args.backend) == "serial":
+            for t in tqdm(tasks, total=len(tasks), desc="BBCH53 inversion"):
+                all_rows.append(_invert_one_task(t))
+        elif str(args.backend) == "ray":
+            if ray is None:
+                print("[WARN] backend=ray but ray is not installed, fallback to process backend.")
+                backend = "process"
+            else:
+                backend = "ray"
+            if backend == "ray":
+                max_workers = max(1, min(int(args.n_jobs), host_cpus))
+                print(f"[INFO] Ray backend enabled with workers={max_workers}")
+                if not ray.is_initialized():
+                    ray.init(
+                        num_cpus=max_workers,
+                        include_dashboard=False,
+                        logging_level="ERROR",
+                        ignore_reinit_error=True,
+                    )
+                    ray_initialized_here = True
+                futures = [_invert_one_task_ray.remote(t) for t in tasks]
+                pbar = tqdm(total=len(futures), desc="BBCH53 inversion")
+                pending = futures
+                while pending:
+                    ready, pending = ray.wait(pending, num_returns=1)
+                    all_rows.append(ray.get(ready[0]))
+                    pbar.update(1)
+                pbar.close()
+            else:
+                win_cap = 61 if os.name == "nt" else host_cpus
+                max_workers = max(1, min(int(args.n_jobs), host_cpus, win_cap))
+                if int(args.n_jobs) != max_workers:
+                    print(
+                        f"[INFO] n_jobs adjusted from {int(args.n_jobs)} to {int(max_workers)} "
+                        f"(os_cap={win_cap}, host_cpus={host_cpus})"
+                    )
+                with ProcessPoolExecutor(max_workers=max_workers) as ex:
+                    futures = [ex.submit(_invert_one_task, t) for t in tasks]
+                    pbar = tqdm(total=len(futures), desc="BBCH53 inversion")
+                    for fut in as_completed(futures):
+                        all_rows.append(fut.result())
+                        pbar.update(1)
+                    pbar.close()
         else:
             win_cap = 61 if os.name == "nt" else host_cpus
             max_workers = max(1, min(int(args.n_jobs), host_cpus, win_cap))
@@ -564,25 +669,10 @@ def main() -> None:
                     all_rows.append(fut.result())
                     pbar.update(1)
                 pbar.close()
-    else:
-        win_cap = 61 if os.name == "nt" else host_cpus
-        max_workers = max(1, min(int(args.n_jobs), host_cpus, win_cap))
-        if int(args.n_jobs) != max_workers:
-            print(
-                f"[INFO] n_jobs adjusted from {int(args.n_jobs)} to {int(max_workers)} "
-                f"(os_cap={win_cap}, host_cpus={host_cpus})"
-            )
-        with ProcessPoolExecutor(max_workers=max_workers) as ex:
-            futures = [ex.submit(_invert_one_task, t) for t in tasks]
-            pbar = tqdm(total=len(futures), desc="BBCH53 inversion")
-            for fut in as_completed(futures):
-                all_rows.append(fut.result())
-                pbar.update(1)
-            pbar.close()
 
-    out_all = pd.DataFrame(all_rows).sort_values(["variety", "year", "grid_id"]).reset_index(drop=True)
-    out_all.to_csv(output_root / "bbch53_dates_all_varieties_2000_2024.csv", index=False)
-    print(f"Saved: {output_root / 'bbch53_dates_all_varieties_2000_2024.csv'}")
+        out_all = pd.DataFrame(all_rows).sort_values(["variety", "year", "grid_id"]).reset_index(drop=True)
+        out_all.to_csv(output_root / "bbch53_dates_all_varieties_2000_2024.csv", index=False)
+        print(f"Saved: {output_root / 'bbch53_dates_all_varieties_2000_2024.csv'}")
 
     for v in var_list:
         if v not in VARIETY_CODE_MAP:
@@ -610,60 +700,88 @@ def main() -> None:
             sub.to_csv(out_dir_v / f"bbch53_dates_{int(y)}.csv", index=False)
 
     if bool(args.export_csrb_json):
-        pbar_json = tqdm(out_all.itertuples(index=False), total=len(out_all), desc="Export CSRB json")
-        for r in pbar_json:
-            json_path = Path(str(r.json_abs_path))
-            if not json_path.exists():
-                continue
-            raw = json.loads(json_path.read_text(encoding="utf-8"))
-            raw["variety_code"] = str(r.variety)
-            raw["Place"] = raw.get("Place", f"grid_{int(r.grid_id)}")
-            bbch53_value = str(r.bbch53_date) if str(r.bbch53_date) else None
-            raw["BBCH_53"] = bbch53_value
-            # Backward compatibility for old scripts that still read HHCH_53.
-            raw["HHCH_53"] = bbch53_value
-            out_json_dir = output_root / str(r.variety).lower() / str(int(r.year))
-            out_json_dir.mkdir(parents=True, exist_ok=True)
-            out_json_name = json_path.name.replace(".json", "_with_bbch53.json")
-            (out_json_dir / out_json_name).write_text(
-                json.dumps(raw, ensure_ascii=False, indent=2),
-                encoding="utf-8",
+        export_tasks = []
+        for r in out_all.itertuples(index=False):
+            export_tasks.append(
+                {
+                    "json_abs_path": str(r.json_abs_path),
+                    "variety": str(r.variety),
+                    "grid_id": int(r.grid_id),
+                    "year": int(r.year),
+                    "bbch53_date": str(r.bbch53_date) if str(r.bbch53_date) else "",
+                    "output_root": str(output_root),
+                }
             )
+        if str(args.backend) == "ray" and ray is not None:
+            if not ray.is_initialized():
+                max_workers = max(1, min(int(args.n_jobs), host_cpus))
+                ray.init(num_cpus=max_workers, include_dashboard=False, logging_level="ERROR", ignore_reinit_error=True)
+                ray_initialized_here = True
+            futures = [_export_csrb_one_ray.remote(t) for t in export_tasks]
+            pbar_json = tqdm(total=len(futures), desc="Export CSRB json")
+            pending = futures
+            while pending:
+                ready, pending = ray.wait(pending, num_returns=1)
+                ray.get(ready[0])
+                pbar_json.update(1)
+            pbar_json.close()
+        else:
+            pbar_json = tqdm(export_tasks, total=len(export_tasks), desc="Export CSRB json")
+            for t in pbar_json:
+                _export_csrb_one(t)
 
     if bool(args.export_result_json):
-        pbar_res_json = tqdm(out_all.itertuples(index=False), total=len(out_all), desc="Export result json")
-        for r in pbar_res_json:
-            vkey = str(r.variety).lower()
-            y = int(r.year)
-            out_json_dir = output_root / vkey / str(y)
-            out_json_dir.mkdir(parents=True, exist_ok=True)
-            out_name = f"grid_{int(r.grid_id)}_bbch53.json"
-            payload = {
-                "variety": str(r.variety),
-                "year": y,
-                "grid_id": int(r.grid_id),
-                "latitude": float(r.latitude),
-                "longitude": float(r.longitude),
-                "bbch53_date": str(r.bbch53_date) if str(r.bbch53_date) else None,
-                "bbch53_doy": (None if pd.isna(r.bbch53_doy) else int(r.bbch53_doy)),
-                "source_json_file": str(r.json_file_path),
-                "params": {
-                    "t_base": float(args.t_base),
-                    "theta_agdd": float(args.theta_agdd),
-                    "start_doy": int(args.start_doy),
-                    "use_rgdd_gate": bool(args.use_rgdd_gate),
-                    "rgdd_min": float(args.rgdd_min),
-                    "rgdd_window": int(args.rgdd_window),
-                    "delta_wk": float(args.delta_wk),
-                    "delta_jf": float(args.delta_jf),
-                    "delta_mpt": float(args.delta_mpt),
-                    "start_shift_wk": int(args.start_shift_wk),
-                    "start_shift_jf": int(args.start_shift_jf),
-                    "start_shift_mpt": int(args.start_shift_mpt),
-                    "k_mpt": float(args.k_mpt),
-                },
-            }
-            (out_json_dir / out_name).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        params_payload = {
+            "t_base": float(args.t_base),
+            "theta_agdd": float(args.theta_agdd),
+            "start_doy": int(args.start_doy),
+            "use_rgdd_gate": bool(args.use_rgdd_gate),
+            "rgdd_min": float(args.rgdd_min),
+            "rgdd_window": int(args.rgdd_window),
+            "delta_wk": float(args.delta_wk),
+            "delta_jf": float(args.delta_jf),
+            "delta_mpt": float(args.delta_mpt),
+            "start_shift_wk": int(args.start_shift_wk),
+            "start_shift_jf": int(args.start_shift_jf),
+            "start_shift_mpt": int(args.start_shift_mpt),
+            "k_mpt": float(args.k_mpt),
+        }
+        export_tasks = []
+        for r in out_all.itertuples(index=False):
+            export_tasks.append(
+                {
+                    "variety": str(r.variety),
+                    "year": int(r.year),
+                    "grid_id": int(r.grid_id),
+                    "latitude": float(r.latitude),
+                    "longitude": float(r.longitude),
+                    "bbch53_date": str(r.bbch53_date) if str(r.bbch53_date) else "",
+                    "bbch53_doy": (None if pd.isna(r.bbch53_doy) else int(r.bbch53_doy)),
+                    "json_file_path": str(r.json_file_path),
+                    "output_root": str(output_root),
+                    "params": params_payload,
+                }
+            )
+        if str(args.backend) == "ray" and ray is not None:
+            if not ray.is_initialized():
+                max_workers = max(1, min(int(args.n_jobs), host_cpus))
+                ray.init(num_cpus=max_workers, include_dashboard=False, logging_level="ERROR", ignore_reinit_error=True)
+                ray_initialized_here = True
+            futures = [_export_result_one_ray.remote(t) for t in export_tasks]
+            pbar_res_json = tqdm(total=len(futures), desc="Export result json")
+            pending = futures
+            while pending:
+                ready, pending = ray.wait(pending, num_returns=1)
+                ray.get(ready[0])
+                pbar_res_json.update(1)
+            pbar_res_json.close()
+        else:
+            pbar_res_json = tqdm(export_tasks, total=len(export_tasks), desc="Export result json")
+            for t in pbar_res_json:
+                _export_result_one(t)
+
+    if ray_initialized_here and ray is not None and ray.is_initialized():
+        ray.shutdown()
 
     print(f"Saved: {output_root / 'bbch53_inversion_config.json'}")
 
