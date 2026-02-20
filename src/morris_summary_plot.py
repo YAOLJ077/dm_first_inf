@@ -123,7 +123,8 @@ def _plot_heatmap(mat: pd.DataFrame, title: str, out_path: str):
         ax.text(j, i, f"{v:.2f}", ha="center", va="center", color="white")
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     fig.tight_layout()
-    fig.savefig(out_path, dpi=200)
+    # fig.savefig(out_path, dpi=200)
+    plt.show()
     plt.close(fig)
 
 
@@ -141,7 +142,8 @@ def _plot_mu_star_bar(stats: pd.DataFrame, title: str, out_path: str):
     ax.set_xlabel("mu_star (mean ± std)")
     ax.set_title(title)
     fig.tight_layout()
-    fig.savefig(out_path, dpi=200)
+    # fig.savefig(out_path, dpi=200)
+    plt.show()
     plt.close(fig)
 
 
@@ -161,7 +163,8 @@ def _plot_signed_mu_bar(stats: pd.DataFrame, title: str, out_path: str):
     ax.set_xlabel("mu (signed, mean ± std)")
     ax.set_title(title)
     fig.tight_layout()
-    fig.savefig(out_path, dpi=200)
+    # fig.savefig(out_path, dpi=200)
+    plt.show()
     plt.close(fig)
 
 
@@ -252,7 +255,7 @@ def main():
         print(f"Saved: {pairwise_out}")
 
     print(f"Saved: {summary_out}")
-    print(f"Plots saved in: {PLOT_DIR}")
+    # print(f"Plots saved in: {PLOT_DIR}")
 
 
 if __name__ == "__main__":
