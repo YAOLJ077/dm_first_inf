@@ -390,13 +390,13 @@ def main() -> None:
             need_year_signal = False
         if need_year_signal and (vcode == "MPT") and abs(float(kmpt)) > 1e-12:
             year_signal_map = _calc_year_signal_by_grid(
-                df_idx=df_idx,
+                df_index=df_idx,
                 variety_dir=vdir,
                 max_workers=int(args.year_signal_workers),
             )
         elif need_year_signal and (vcode != "MPT"):
             year_signal_map = _calc_year_signal_by_grid(
-                df_idx=df_idx,
+                df_index=df_idx,
                 variety_dir=vdir,
                 max_workers=int(args.year_signal_workers),
             )
