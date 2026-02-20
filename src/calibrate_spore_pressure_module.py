@@ -59,10 +59,9 @@ PARAM_BOUNDS = {
     "gamma_vpd": (0.0, 1.2),
     "k_mp": (0.02, 0.9),
     "tmin": (5.0, 16.0),
-    # dependent constraints are still enforced in sampling logic:
-    # topt >= tmin + 2.0, tmax >= topt + 2.0
-    "topt_max": 32.0,
-    "tmax_max": 40,
+    # fixed spaces (no dynamic bounds): order is enforced after sampling
+    "topt": (7.0, 32.0),
+    "tmax": (9.0, 40.0),
     "roll_window": (3, 9),
     "baseline_q": (0.45, 0.75),
 }
@@ -157,9 +156,17 @@ if ray is not None:
 
 
 def _suggest_params(trial: "optuna_typing.trial.Trial") -> Dict[str, float]:
-    tmin = trial.suggest_float("tmin", PARAM_BOUNDS["tmin"][0], PARAM_BOUNDS["tmin"][1])
-    topt = trial.suggest_float("topt", tmin + 2.0, PARAM_BOUNDS["topt_max"])
-    tmax = trial.suggest_float("tmax", topt + 2.0, PARAM_BOUNDS["tmax_max"])
+    tmin_raw = trial.suggest_float("tmin", PARAM_BOUNDS["tmin"][0], PARAM_BOUNDS["tmin"][1])
+    topt_raw = trial.suggest_float("topt", PARAM_BOUNDS["topt"][0], PARAM_BOUNDS["topt"][1])
+    tmax_raw = trial.suggest_float("tmax", PARAM_BOUNDS["tmax"][0], PARAM_BOUNDS["tmax"][1])
+    # Enforce biological order under fixed search spaces.
+    tmin = float(tmin_raw)
+    topt = float(max(topt_raw, tmin + 2.0))
+    tmax = float(max(tmax_raw, topt + 2.0))
+    if tmax > PARAM_BOUNDS["tmax"][1]:
+        tmax = float(PARAM_BOUNDS["tmax"][1])
+        topt = min(float(topt), tmax - 2.0)
+        topt = max(float(topt), tmin + 2.0)
     return {
         "rho": trial.suggest_float("rho", PARAM_BOUNDS["rho"][0], PARAM_BOUNDS["rho"][1]),
         "beta_mp": trial.suggest_float("beta_mp", PARAM_BOUNDS["beta_mp"][0], PARAM_BOUNDS["beta_mp"][1]),
@@ -176,9 +183,16 @@ def _suggest_params(trial: "optuna_typing.trial.Trial") -> Dict[str, float]:
 
 
 def _sample_params_rng(rng: np.random.Generator) -> Dict[str, float]:
-    tmin = float(rng.uniform(PARAM_BOUNDS["tmin"][0], PARAM_BOUNDS["tmin"][1]))
-    topt = float(rng.uniform(tmin + 2.0, PARAM_BOUNDS["topt_max"]))
-    tmax = float(rng.uniform(topt + 2.0, PARAM_BOUNDS["tmax_max"]))
+    tmin_raw = float(rng.uniform(PARAM_BOUNDS["tmin"][0], PARAM_BOUNDS["tmin"][1]))
+    topt_raw = float(rng.uniform(PARAM_BOUNDS["topt"][0], PARAM_BOUNDS["topt"][1]))
+    tmax_raw = float(rng.uniform(PARAM_BOUNDS["tmax"][0], PARAM_BOUNDS["tmax"][1]))
+    tmin = float(tmin_raw)
+    topt = float(max(topt_raw, tmin + 2.0))
+    tmax = float(max(tmax_raw, topt + 2.0))
+    if tmax > PARAM_BOUNDS["tmax"][1]:
+        tmax = float(PARAM_BOUNDS["tmax"][1])
+        topt = min(float(topt), tmax - 2.0)
+        topt = max(float(topt), tmin + 2.0)
     return {
         "rho": float(rng.uniform(PARAM_BOUNDS["rho"][0], PARAM_BOUNDS["rho"][1])),
         "beta_mp": float(rng.uniform(PARAM_BOUNDS["beta_mp"][0], PARAM_BOUNDS["beta_mp"][1])),
