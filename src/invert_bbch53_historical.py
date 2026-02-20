@@ -6,7 +6,7 @@ import json
 import os
 import re
 import sys
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -213,7 +213,8 @@ def _invert_one_task(task: Dict) -> Dict:
 
 def _calc_year_signal_by_grid(df_index: pd.DataFrame, variety_dir: Path) -> Dict[Tuple[int, int], float]:
     out: Dict[Tuple[int, int], float] = {}
-    for grid_id, sub in df_index.groupby("grid_id"):
+    groups = list(df_index.groupby("grid_id"))
+    for grid_id, sub in tqdm(groups, total=len(groups), desc=f"{variety_dir.name.upper()} year-signal"):
         vals = []
         keys = []
         for r in sub.itertuples(index=False):
@@ -319,7 +320,7 @@ def main() -> None:
 
     tasks: List[Dict] = []
 
-    for v in var_list:
+    for v in tqdm(var_list, total=len(var_list), desc="Prepare varieties"):
         if v not in VARIETY_CODE_MAP:
             print(f"[WARN] Skip unknown variety: {v}")
             continue
@@ -375,9 +376,12 @@ def main() -> None:
     max_workers = max(1, min(int(args.n_jobs), int(os.cpu_count() or 1)))
     all_rows: List[Dict] = []
     with ProcessPoolExecutor(max_workers=max_workers) as ex:
-        it = ex.map(_invert_one_task, tasks, chunksize=max(1, int(args.chunksize)))
-        for row in tqdm(it, total=len(tasks), desc="BBCH53 inversion"):
-            all_rows.append(row)
+        futures = [ex.submit(_invert_one_task, t) for t in tasks]
+        pbar = tqdm(total=len(futures), desc="BBCH53 inversion")
+        for fut in as_completed(futures):
+            all_rows.append(fut.result())
+            pbar.update(1)
+        pbar.close()
 
     out_all = pd.DataFrame(all_rows).sort_values(["variety", "year", "grid_id"]).reset_index(drop=True)
     out_all.to_csv(output_root / "bbch53_dates_all_varieties_2000_2024.csv", index=False)
