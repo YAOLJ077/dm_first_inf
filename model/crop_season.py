@@ -14,9 +14,8 @@ class CropSeasonFirst:
         self.place = csrb.get("Place")
         self._delta_pre_bbch53 = 7  # days
 
-        self.bbch_53_datetime = pd.to_datetime(
-            csrb.get("HHCH_53"), errors="coerce"
-        )
+        bbch53_value = csrb.get("BBCH_53", csrb.get("HHCH_53"))
+        self.bbch_53_datetime = pd.to_datetime(bbch53_value, errors="coerce")
         self.season_start = (
             self.bbch_53_datetime - pd.Timedelta(days=self._delta_pre_bbch53)
             if pd.notna(self.bbch_53_datetime)

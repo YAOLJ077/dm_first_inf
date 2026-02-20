@@ -42,10 +42,10 @@ OUTPUT_FIG = os.path.join(
 # ======================================================
 df = pd.read_excel(COHORT_FILE, parse_dates=True)
 
-# --- read HHCH_53 ---
+# --- read BBCH_53 (fallback HHCH_53 for compatibility) ---
 with open(JSON_FILE, "r", encoding="utf-8") as f:
     js = json.load(f)
-HHCH_53 = pd.to_datetime(js["HHCH_53"])
+HHCH_53 = pd.to_datetime(js.get("BBCH_53", js.get("HHCH_53")))
 
 # ======================================================
 # ========== FILTER VALID COHORTS ======================
