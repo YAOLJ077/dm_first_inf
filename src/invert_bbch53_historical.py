@@ -7,6 +7,7 @@ import os
 import re
 import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -211,32 +212,67 @@ def _invert_one_task(task: Dict) -> Dict:
     }
 
 
-def _calc_year_signal_by_grid(df_index: pd.DataFrame, variety_dir: Path) -> Dict[Tuple[int, int], float]:
+def _mean_temp_janfeb_from_json(json_path: Path, year: int) -> float:
+    data = json.loads(json_path.read_text(encoding="utf-8", errors="ignore"))
+    rows = data.get("weather_hourly", []) if isinstance(data, dict) else data
+    sum_jf = 0.0
+    n_jf = 0
+    sum_all = 0.0
+    n_all = 0
+    y_prefix = f"{int(year):04d}-"
+    for r in rows:
+        dt = str(r.get("datetime", ""))
+        if not dt.startswith(y_prefix):
+            continue
+        try:
+            t = float(r.get("air_temp"))
+        except Exception:
+            continue
+        n_all += 1
+        sum_all += t
+        m = dt[5:7] if len(dt) >= 7 else ""
+        if m in ("01", "02"):
+            n_jf += 1
+            sum_jf += t
+    if n_jf > 0:
+        return float(sum_jf / n_jf)
+    if n_all > 0:
+        return float(sum_all / n_all)
+    return float("nan")
+
+
+def _calc_year_signal_for_one_grid(args: Tuple[int, pd.DataFrame, Path]) -> Tuple[int, Dict[int, float]]:
+    grid_id, sub, variety_dir = args
+    vals: Dict[int, float] = {}
+    for r in sub.itertuples(index=False):
+        json_path = variety_dir / str(r.json_rel_path)
+        if not json_path.exists():
+            continue
+        vals[int(r.year)] = _mean_temp_janfeb_from_json(json_path, int(r.year))
+    if not vals:
+        return int(grid_id), {}
+    years = sorted(vals.keys())
+    arr = np.asarray([vals[y] for y in years], dtype=float)
+    mu = float(np.nanmean(arr)) if len(arr) > 0 else 0.0
+    sd = float(np.nanstd(arr)) if len(arr) > 0 else 1.0
+    if (not np.isfinite(sd)) or sd < 1e-8:
+        sd = 1.0
+    zmap = {int(y): float((float(vals[y]) - mu) / sd) if np.isfinite(vals[y]) else 0.0 for y in years}
+    return int(grid_id), zmap
+
+
+def _calc_year_signal_by_grid(df_index: pd.DataFrame, variety_dir: Path, max_workers: int = 32) -> Dict[Tuple[int, int], float]:
     out: Dict[Tuple[int, int], float] = {}
     groups = list(df_index.groupby("grid_id"))
-    for grid_id, sub in tqdm(groups, total=len(groups), desc=f"{variety_dir.name.upper()} year-signal"):
-        vals = []
-        keys = []
-        for r in sub.itertuples(index=False):
-            json_path = variety_dir / str(r.json_rel_path)
-            if not json_path.exists():
-                continue
-            h = _load_hourly_year(json_path, int(r.year))
-            jan_feb = h[h["datetime"].dt.month.isin([1, 2])]
-            if jan_feb.empty:
-                v = float(h["air_temp"].mean()) if not h.empty else np.nan
-            else:
-                v = float(jan_feb["air_temp"].mean())
-            vals.append(v)
-            keys.append((int(r.year), int(grid_id)))
-        arr = np.asarray(vals, dtype=float)
-        mu = float(np.nanmean(arr)) if len(arr) > 0 else 0.0
-        sd = float(np.nanstd(arr)) if len(arr) > 0 else 1.0
-        if (not np.isfinite(sd)) or sd < 1e-8:
-            sd = 1.0
-        for v, key in zip(vals, keys):
-            z = (float(v) - mu) / sd if np.isfinite(v) else 0.0
-            out[key] = float(z)
+    if not groups:
+        return out
+    workers = max(1, min(int(max_workers), 64))
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        futs = [ex.submit(_calc_year_signal_for_one_grid, (int(gid), sub.copy(), variety_dir)) for gid, sub in groups]
+        for fut in tqdm(as_completed(futs), total=len(futs), desc=f"{variety_dir.name.upper()} year-signal"):
+            grid_id, zmap = fut.result()
+            for year, z in zmap.items():
+                out[(int(year), int(grid_id))] = float(z)
     return out
 
 
@@ -283,6 +319,14 @@ def _parse_args() -> argparse.Namespace:
     )
     p.add_argument("--n-jobs", type=int, default=128, help="Number of worker processes.")
     p.add_argument("--chunksize", type=int, default=16, help="Task chunksize for process pool.")
+    p.add_argument(
+        "--year-signal-scope",
+        type=str,
+        default="mpt_only",
+        choices=["mpt_only", "all", "none"],
+        help="Which varieties to compute year_signal for.",
+    )
+    p.add_argument("--year-signal-workers", type=int, default=32, help="Workers for year_signal preprocessing.")
     return p.parse_args()
 
 
@@ -337,7 +381,27 @@ def main() -> None:
             print(f"[WARN] No rows in year range for {v}")
             continue
 
-        year_signal_map = _calc_year_signal_by_grid(df_idx, vdir)
+        need_year_signal = False
+        if str(args.year_signal_scope) == "all":
+            need_year_signal = True
+        elif str(args.year_signal_scope) == "mpt_only":
+            need_year_signal = (vcode == "MPT")
+        elif str(args.year_signal_scope) == "none":
+            need_year_signal = False
+        if need_year_signal and (vcode == "MPT") and abs(float(kmpt)) > 1e-12:
+            year_signal_map = _calc_year_signal_by_grid(
+                df_idx=df_idx,
+                variety_dir=vdir,
+                max_workers=int(args.year_signal_workers),
+            )
+        elif need_year_signal and (vcode != "MPT"):
+            year_signal_map = _calc_year_signal_by_grid(
+                df_idx=df_idx,
+                variety_dir=vdir,
+                max_workers=int(args.year_signal_workers),
+            )
+        else:
+            year_signal_map = {}
         for r in df_idx.itertuples(index=False):
             year = int(r.year)
             grid_id = int(r.grid_id)
