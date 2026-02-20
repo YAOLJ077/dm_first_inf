@@ -36,22 +36,80 @@ VARIETY_CODE_MAP = {"wk": "WK", "jf": "JF", "mpt": "MPT"}
 
 
 def _parse_grid_index_file(index_path: Path) -> pd.DataFrame:
+    # Preferred path: structured table with header columns.
+    for sep in [",", "\t", None]:
+        try:
+            df = pd.read_csv(index_path, sep=sep, engine="python")
+            cols = {str(c).strip().lower(): c for c in df.columns}
+            required = ["year", "grid_id", "latitude", "longitude", "json_file_path"]
+            if all(k in cols for k in required):
+                out = pd.DataFrame(
+                    {
+                        "year": pd.to_numeric(df[cols["year"]], errors="coerce").astype("Int64"),
+                        "grid_id": pd.to_numeric(df[cols["grid_id"]], errors="coerce").astype("Int64"),
+                        "latitude": pd.to_numeric(df[cols["latitude"]], errors="coerce"),
+                        "longitude": pd.to_numeric(df[cols["longitude"]], errors="coerce"),
+                        "json_rel_path": df[cols["json_file_path"]].astype(str).str.strip(),
+                    }
+                )
+                out = out.dropna(subset=["year", "grid_id", "latitude", "longitude", "json_rel_path"]).copy()
+                if not out.empty:
+                    out["year"] = out["year"].astype(int)
+                    out["grid_id"] = out["grid_id"].astype(int)
+                    return out.reset_index(drop=True)
+        except Exception:
+            pass
+
     rows: List[Dict] = []
-    for line in index_path.read_text(encoding="utf-8").splitlines():
+    raw_lines = index_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    for line in raw_lines:
         s = line.strip()
         if (not s) or s.startswith("#"):
             continue
-        parts = re.split(r"\s+", s)
-        if len(parts) < 5:
+        s = (
+            s.replace("，", ",")
+            .replace("（", " ")
+            .replace("）", " ")
+            .replace("：", ":")
+        )
+        # skip header-like lines
+        low = s.lower()
+        if ("year" in low and "grid" in low and "json" in low) or ("grid_id" in low):
             continue
-        try:
-            year = int(parts[0])
-            grid_id = int(parts[1])
-            lat = float(parts[2])
-            lon = float(parts[3])
-            json_rel = parts[4]
-        except Exception:
-            continue
+
+        # Robust pattern: year, grid_id, lat, lon, json_path(.json)
+        m = re.search(
+            r"(?P<year>\d{4})\s*[, \t]+\s*(?P<grid>-?\d+)\s*[, \t]+\s*"
+            r"(?P<lat>-?\d+(?:\.\d+)?)\s*[, \t]+\s*"
+            r"(?P<lon>-?\d+(?:\.\d+)?)\s*[, \t]+\s*"
+            r"(?P<path>\S+?\.json)",
+            s,
+            flags=re.IGNORECASE,
+        )
+        if not m:
+            parts = re.split(r"[,\t ]+", s)
+            if len(parts) >= 5:
+                try:
+                    year = int(parts[0])
+                    grid_id = int(parts[1])
+                    lat = float(parts[2])
+                    lon = float(parts[3])
+                    json_rel = parts[4]
+                except Exception:
+                    continue
+            else:
+                continue
+        else:
+            try:
+                year = int(m.group("year"))
+                grid_id = int(m.group("grid"))
+                lat = float(m.group("lat"))
+                lon = float(m.group("lon"))
+                json_rel = m.group("path")
+            except Exception:
+                continue
+
+        json_rel = json_rel.strip().strip('"').strip("'")
         rows.append(
             {
                 "year": year,
@@ -62,7 +120,11 @@ def _parse_grid_index_file(index_path: Path) -> pd.DataFrame:
             }
         )
     if not rows:
-        raise ValueError(f"No valid rows parsed from index file: {index_path}")
+        preview = "\n".join(raw_lines[:8])
+        raise ValueError(
+            f"No valid rows parsed from index file: {index_path}\n"
+            f"First lines preview:\n{preview}"
+        )
     return pd.DataFrame(rows)
 
 
