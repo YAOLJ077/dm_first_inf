@@ -47,6 +47,23 @@ except Exception:  # pragma: no cover
 DATA_DIR = PROJECT_ROOT / "data"
 OUT_DIR = PROJECT_ROOT / "result" / "historical_inputs" / "spore_pressure_calibration"
 
+# tightened search bounds (1.5x expansion disabled)
+PARAM_BOUNDS = {
+    "rho": (0.1, 0.98),
+    "beta_mp": (0.0, 3.5),
+    "beta_rain": (0.0, 0.25),
+    "beta_wind": (0.0, 0.25),
+    "gamma_vpd": (0.0, 1.2),
+    "k_mp": (0.02, 0.9),
+    "tmin": (5.0, 16.0),
+    # dependent constraints are still enforced in sampling logic:
+    # topt >= tmin + 2.0, tmax >= topt + 2.0
+    "topt_max": 32.0,
+    "tmax_max": 40,
+    "roll_window": (3, 9),
+    "baseline_q": (0.45, 0.75),
+}
+
 
 def _load_actual() -> pd.DataFrame:
     df = pd.read_excel(DATA_DIR / "actual_data.xlsx")
@@ -127,40 +144,40 @@ if ray is not None:
 
 
 def _suggest_params(trial: optuna.Trial) -> Dict[str, float]:
-    tmin = trial.suggest_float("tmin", 5.0, 16.0)
-    topt = trial.suggest_float("topt", tmin + 2.0, 30.0)
-    tmax = trial.suggest_float("tmax", topt + 2.0, 40.0)
+    tmin = trial.suggest_float("tmin", PARAM_BOUNDS["tmin"][0], PARAM_BOUNDS["tmin"][1])
+    topt = trial.suggest_float("topt", tmin + 2.0, PARAM_BOUNDS["topt_max"])
+    tmax = trial.suggest_float("tmax", topt + 2.0, PARAM_BOUNDS["tmax_max"])
     return {
-        "rho": trial.suggest_float("rho", 0.2, 0.99),
-        "beta_mp": trial.suggest_float("beta_mp", 0.1, 4.0),
-        "beta_rain": trial.suggest_float("beta_rain", 0.0, 0.3),
-        "beta_wind": trial.suggest_float("beta_wind", 0.0, 0.3),
-        "gamma_vpd": trial.suggest_float("gamma_vpd", 0.0, 1.5),
-        "k_mp": trial.suggest_float("k_mp", 0.03, 1.0),
+        "rho": trial.suggest_float("rho", PARAM_BOUNDS["rho"][0], PARAM_BOUNDS["rho"][1]),
+        "beta_mp": trial.suggest_float("beta_mp", PARAM_BOUNDS["beta_mp"][0], PARAM_BOUNDS["beta_mp"][1]),
+        "beta_rain": trial.suggest_float("beta_rain", PARAM_BOUNDS["beta_rain"][0], PARAM_BOUNDS["beta_rain"][1]),
+        "beta_wind": trial.suggest_float("beta_wind", PARAM_BOUNDS["beta_wind"][0], PARAM_BOUNDS["beta_wind"][1]),
+        "gamma_vpd": trial.suggest_float("gamma_vpd", PARAM_BOUNDS["gamma_vpd"][0], PARAM_BOUNDS["gamma_vpd"][1]),
+        "k_mp": trial.suggest_float("k_mp", PARAM_BOUNDS["k_mp"][0], PARAM_BOUNDS["k_mp"][1]),
         "tmin": tmin,
         "topt": topt,
         "tmax": tmax,
-        "roll_window": trial.suggest_int("roll_window", 3, 7),
-        "baseline_q": trial.suggest_float("baseline_q", 0.45, 0.75),
+        "roll_window": trial.suggest_int("roll_window", PARAM_BOUNDS["roll_window"][0], PARAM_BOUNDS["roll_window"][1]),
+        "baseline_q": trial.suggest_float("baseline_q", PARAM_BOUNDS["baseline_q"][0], PARAM_BOUNDS["baseline_q"][1]),
     }
 
 
 def _sample_params_rng(rng: np.random.Generator) -> Dict[str, float]:
-    tmin = float(rng.uniform(5.0, 16.0))
-    topt = float(rng.uniform(tmin + 2.0, 30.0))
-    tmax = float(rng.uniform(topt + 2.0, 40.0))
+    tmin = float(rng.uniform(PARAM_BOUNDS["tmin"][0], PARAM_BOUNDS["tmin"][1]))
+    topt = float(rng.uniform(tmin + 2.0, PARAM_BOUNDS["topt_max"]))
+    tmax = float(rng.uniform(topt + 2.0, PARAM_BOUNDS["tmax_max"]))
     return {
-        "rho": float(rng.uniform(0.2, 0.99)),
-        "beta_mp": float(rng.uniform(0.1, 4.0)),
-        "beta_rain": float(rng.uniform(0.0, 0.3)),
-        "beta_wind": float(rng.uniform(0.0, 0.3)),
-        "gamma_vpd": float(rng.uniform(0.0, 1.5)),
-        "k_mp": float(rng.uniform(0.03, 1.0)),
+        "rho": float(rng.uniform(PARAM_BOUNDS["rho"][0], PARAM_BOUNDS["rho"][1])),
+        "beta_mp": float(rng.uniform(PARAM_BOUNDS["beta_mp"][0], PARAM_BOUNDS["beta_mp"][1])),
+        "beta_rain": float(rng.uniform(PARAM_BOUNDS["beta_rain"][0], PARAM_BOUNDS["beta_rain"][1])),
+        "beta_wind": float(rng.uniform(PARAM_BOUNDS["beta_wind"][0], PARAM_BOUNDS["beta_wind"][1])),
+        "gamma_vpd": float(rng.uniform(PARAM_BOUNDS["gamma_vpd"][0], PARAM_BOUNDS["gamma_vpd"][1])),
+        "k_mp": float(rng.uniform(PARAM_BOUNDS["k_mp"][0], PARAM_BOUNDS["k_mp"][1])),
         "tmin": tmin,
         "topt": topt,
         "tmax": tmax,
-        "roll_window": int(rng.integers(3, 8)),
-        "baseline_q": float(rng.uniform(0.45, 0.75)),
+        "roll_window": int(rng.integers(PARAM_BOUNDS["roll_window"][0], PARAM_BOUNDS["roll_window"][1] + 1)),
+        "baseline_q": float(rng.uniform(PARAM_BOUNDS["baseline_q"][0], PARAM_BOUNDS["baseline_q"][1])),
     }
 
 
@@ -320,14 +337,110 @@ def _loocv(rows: List, spore_df: pd.DataFrame, n_trials: int, seed: int) -> pd.D
     return pd.DataFrame(out)
 
 
+def _extract_params_from_trial_row(tr: Dict) -> Dict[str, float]:
+    return {
+        "rho": float(tr["rho"]),
+        "beta_mp": float(tr["beta_mp"]),
+        "beta_rain": float(tr["beta_rain"]),
+        "beta_wind": float(tr["beta_wind"]),
+        "gamma_vpd": float(tr["gamma_vpd"]),
+        "k_mp": float(tr["k_mp"]),
+        "tmin": float(tr["tmin"]),
+        "topt": float(tr["topt"]),
+        "tmax": float(tr["tmax"]),
+        "roll_window": int(round(float(tr["roll_window"]))),
+        "baseline_q": float(tr["baseline_q"]),
+    }
+
+
+def _select_from_topk_with_constraint(candidates: List[Dict], topk_frac: float) -> Dict:
+    if not candidates:
+        raise ValueError("No fold candidates to select from.")
+    cand_df = pd.DataFrame(candidates).sort_values(["train_mae", "val_mae"]).reset_index(drop=True)
+    k = max(1, int(np.ceil(len(cand_df) * float(topk_frac))))
+    top = cand_df.head(k).copy()
+    valid = top[top["val_mae"] >= top["train_mae"]]
+    if not valid.empty:
+        pick = valid.sort_values(["val_mae", "train_mae"]).iloc[0].to_dict()
+        pick["constraint_satisfied"] = True
+        pick["topk_pool_size"] = int(k)
+        return pick
+    top["gap_abs"] = (top["val_mae"] - top["train_mae"]).abs()
+    pick = top.sort_values(["gap_abs", "val_mae", "train_mae"]).iloc[0].to_dict()
+    pick["constraint_satisfied"] = False
+    pick["topk_pool_size"] = int(k)
+    return pick
+
+
+def _loocv_train_topk_then_val(
+    rows: List,
+    spore_df: pd.DataFrame,
+    full_cache: Dict[Tuple[str, int], Tuple[pd.DataFrame, pd.DataFrame]],
+    n_trials: int,
+    n_startup: int,
+    seed: int,
+    n_jobs: int,
+    topk_frac: float,
+) -> pd.DataFrame:
+    out = []
+    for i in tqdm(range(len(rows)), desc="Spore LOOCV"):
+        test = rows[i]
+        train_rows = [rows[j] for j in range(len(rows)) if j != i]
+        train_cache = {}
+        for r in train_rows:
+            train_cache[(str(r.plot), int(r.year))] = _prepare_site_year_data(r, spore_df)
+        test_cache = {(str(test.plot), int(test.year)): _prepare_site_year_data(test, spore_df)}
+
+        if optuna is not None:
+            _, _, trial_rows = _parallel_optuna_search(
+                site_year_cache=train_cache,
+                n_trials=int(n_trials),
+                n_startup=max(10, int(n_startup)),
+                seed=int(seed + i),
+                n_jobs=int(n_jobs),
+            )
+        else:
+            _, _, trial_rows = _parallel_random_search(
+                site_year_cache=train_cache,
+                n_trials=int(n_trials),
+                seed=int(seed + i),
+                n_jobs=int(n_jobs),
+            )
+
+        fold_candidates = []
+        for tr in trial_rows:
+            p = _extract_params_from_trial_row(tr)
+            train_mae = float(tr["value"])
+            val_mae, _ = _evaluate_params(test_cache, p)
+            fold_candidates.append({"train_mae": train_mae, "val_mae": float(val_mae), **p})
+
+        best_fold = _select_from_topk_with_constraint(fold_candidates, topk_frac=topk_frac)
+        pbest = _extract_params_from_trial_row(best_fold)
+        fit_mae_full, _ = _evaluate_params(full_cache, pbest)
+        out.append(
+            {
+                "plot": str(test.plot),
+                "year": int(test.year),
+                "fit_train_mae": float(best_fold["train_mae"]),
+                "test_mae": float(best_fold["val_mae"]),
+                "constraint_satisfied": bool(best_fold["constraint_satisfied"]),
+                "topk_pool_size": int(best_fold["topk_pool_size"]),
+                "fit_mae_full": float(fit_mae_full),
+                **pbest,
+            }
+        )
+    return pd.DataFrame(out)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Calibrate standalone weather->spore pressure module.")
-    parser.add_argument("--n-trials", type=int, default=1200)
-    parser.add_argument("--n-startup", type=int, default=300)
+    parser.add_argument("--n-trials", type=int, default=20000)
+    parser.add_argument("--n-startup", type=int, default=6000)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--n-jobs", type=int, default=64)
-    parser.add_argument("--run-loocv", action="store_true")
+    parser.add_argument("--n-jobs", type=int, default=128)
+    parser.add_argument("--run-loocv", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--loocv-trials", type=int, default=200)
+    parser.add_argument("--cv-topk-frac", type=float, default=0.10)
     args = parser.parse_args()
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -341,8 +454,9 @@ def main() -> None:
     ray_used = ray is not None and args.n_jobs > 1
     if ray_used:
         ray.init(num_cpus=max(1, args.n_jobs), include_dashboard=False, logging_level="ERROR")
+    # Keep global trials as reference, but final model selection follows LOOCV train-topk-then-val logic.
     if optuna is not None:
-        best_params, best_loss, trial_rows = _parallel_optuna_search(
+        _, _, trial_rows = _parallel_optuna_search(
             site_year_cache=site_year_cache,
             n_trials=int(args.n_trials),
             n_startup=int(args.n_startup),
@@ -350,37 +464,117 @@ def main() -> None:
             n_jobs=int(args.n_jobs),
         )
     else:
-        best_params, best_loss, trial_rows = _parallel_random_search(
+        _, _, trial_rows = _parallel_random_search(
             site_year_cache=site_year_cache,
             n_trials=int(args.n_trials),
             seed=int(args.seed),
             n_jobs=int(args.n_jobs),
         )
+    pd.DataFrame(trial_rows).sort_values("value").to_csv(OUT_DIR / "spore_proxy_trials.csv", index=False)
+
+    if args.run_loocv:
+        loocv_df = _loocv_train_topk_then_val(
+            rows=rows,
+            spore_df=spore_df,
+            full_cache=site_year_cache,
+            n_trials=int(args.loocv_trials),
+            n_startup=max(20, int(args.loocv_trials) // 4),
+            seed=int(args.seed + 1000),
+            n_jobs=int(args.n_jobs),
+            topk_frac=float(args.cv_topk_frac),
+        )
+        loocv_df.to_csv(OUT_DIR / "spore_proxy_loocv.csv", index=False)
+
+        select_cols = [
+            "rho", "beta_mp", "beta_rain", "beta_wind", "gamma_vpd", "k_mp",
+            "tmin", "topt", "tmax", "roll_window", "baseline_q",
+        ]
+        leaderboard = (
+            loocv_df.groupby(select_cols, dropna=False, as_index=False)
+            .agg(
+                cv_train_mae_mean=("fit_train_mae", "mean"),
+                cv_val_mae_mean=("test_mae", "mean"),
+                cv_train_mae_std=("fit_train_mae", "std"),
+                cv_val_mae_std=("test_mae", "std"),
+                n_selected_folds=("plot", "count"),
+                fit_mae_full=("fit_mae_full", "mean"),
+                constraint_satisfied_rate=("constraint_satisfied", "mean"),
+            )
+            .sort_values(["fit_mae_full", "cv_val_mae_mean", "cv_train_mae_mean"])
+            .reset_index(drop=True)
+        )
+        leaderboard.to_csv(OUT_DIR / "spore_proxy_selection_compare.csv", index=False)
+        best_row = leaderboard.iloc[0].to_dict()
+        best_params = _extract_params_from_trial_row(best_row)
+    else:
+        # Fallback: full-data best by global search if LOOCV disabled.
+        best_trial = pd.DataFrame(trial_rows).sort_values("value").iloc[0].to_dict()
+        best_params = _extract_params_from_trial_row(best_trial)
 
     best_loss, detail = _evaluate_params(site_year_cache, best_params)
-
-    pd.DataFrame(trial_rows).sort_values("value").to_csv(OUT_DIR / "spore_proxy_trials.csv", index=False)
     detail.to_csv(OUT_DIR / "spore_proxy_fit_detail.csv", index=False)
 
     summary = {
         "best_loss_mae": float(best_loss),
         "n_site_year": int(len(site_year_cache)),
         "best_params": {k: (float(v) if isinstance(v, (int, float, np.floating, np.integer)) else v) for k, v in best_params.items()},
+        "cv_topk_frac": float(args.cv_topk_frac),
+        "param_bounds": PARAM_BOUNDS,
     }
+    if args.run_loocv:
+        summary.update(
+            {
+                "cv_train_mae_mean": float(loocv_df["fit_train_mae"].mean()),
+                "cv_val_mae_mean": float(loocv_df["test_mae"].mean()),
+                "cv_train_mae_std": float(loocv_df["fit_train_mae"].std(ddof=0)),
+                "cv_val_mae_std": float(loocv_df["test_mae"].std(ddof=0)),
+                "cv_constraint_satisfied_rate": float(loocv_df["constraint_satisfied"].mean()),
+                "selection_mode": "loocv_train_topk_then_val_then_min_full_fit_mae",
+            }
+        )
+    else:
+        summary.update({"selection_mode": "full_data_search"})
     with open(OUT_DIR / "spore_proxy_best.json", "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
+    # Directly consumable config for historical inversion scripts.
+    inversion_cfg = {
+        "spore_pressure_params": {
+            "rho": float(best_params["rho"]),
+            "beta_mp": float(best_params["beta_mp"]),
+            "beta_rain": float(best_params["beta_rain"]),
+            "beta_wind": float(best_params["beta_wind"]),
+            "gamma_vpd": float(best_params["gamma_vpd"]),
+            "k_mp": float(best_params["k_mp"]),
+            "tmin": float(best_params["tmin"]),
+            "topt": float(best_params["topt"]),
+            "tmax": float(best_params["tmax"]),
+            "roll_window": int(round(best_params["roll_window"])),
+            "baseline_q": float(best_params["baseline_q"]),
+        },
+        "fit_loss_mae": float(best_loss),
+        "n_site_year": int(len(site_year_cache)),
+        "source": "calibrate_spore_pressure_module.py",
+        "files": {
+            "best_summary": "spore_proxy_best.json",
+            "fit_detail": "spore_proxy_fit_detail.csv",
+            "trials": "spore_proxy_trials.csv",
+            "loocv": "spore_proxy_loocv.csv" if args.run_loocv else None,
+            "selection_compare": "spore_proxy_selection_compare.csv" if args.run_loocv else None,
+        },
+    }
+    with open(OUT_DIR / "spore_pressure_params_for_inversion.json", "w", encoding="utf-8") as f:
+        json.dump(inversion_cfg, f, indent=2)
 
-    if args.run_loocv:
-        loocv_df = _loocv(rows, spore_df, n_trials=args.loocv_trials, seed=args.seed + 1000)
-        loocv_df.to_csv(OUT_DIR / "spore_proxy_loocv.csv", index=False)
     if ray_used:
         ray.shutdown()
 
     print(f"Saved: {OUT_DIR / 'spore_proxy_best.json'}")
+    print(f"Saved: {OUT_DIR / 'spore_pressure_params_for_inversion.json'}")
     print(f"Saved: {OUT_DIR / 'spore_proxy_trials.csv'}")
     print(f"Saved: {OUT_DIR / 'spore_proxy_fit_detail.csv'}")
     if args.run_loocv:
         print(f"Saved: {OUT_DIR / 'spore_proxy_loocv.csv'}")
+        print(f"Saved: {OUT_DIR / 'spore_proxy_selection_compare.csv'}")
 
 
 if __name__ == "__main__":
