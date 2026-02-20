@@ -91,7 +91,7 @@ def _site_year_rows() -> List[Tuple]:
     return list(a.itertuples(index=False))
 
 
-def _prepare_site_year_data(r, spore_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def _prepare_site_year_data(r, spore_df: pd.DataFrame) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     rb_path = DATA_DIR / f"{r.plot}_{r.variety}_{int(r.year)}_grape_rb.json"
     if not rb_path.exists():
         raise FileNotFoundError(rb_path)
@@ -105,7 +105,9 @@ def _prepare_site_year_data(r, spore_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd
         obs = obs[obs["date"] <= pd.to_datetime(r.first_infection_date)]
     obs["date"] = obs["date"].dt.normalize()
     obs = obs.sort_values("date").drop_duplicates(subset=["date"], keep="last").reset_index(drop=True)
-    return daily, obs
+    obs_norm = _normalized_obs(obs)
+    obs_dates = obs["date"].values
+    return daily, obs_dates, obs_norm.values.astype(float)
 
 
 def _normalized_obs(obs: pd.DataFrame) -> pd.Series:
@@ -117,11 +119,14 @@ def _normalized_obs(obs: pd.DataFrame) -> pd.Series:
     return pd.Series((np.log1p(obs["spore"].values) / np.log1p(p95)).clip(0.0, 1.0), index=obs["date"].values, dtype=float)
 
 
-def _evaluate_params(site_year_cache: Dict[Tuple[str, int], Tuple[pd.DataFrame, pd.DataFrame]], params: Dict[str, float]) -> Tuple[float, pd.DataFrame]:
+def _evaluate_params(
+    site_year_cache: Dict[Tuple[str, int], Tuple[pd.DataFrame, np.ndarray, np.ndarray]],
+    params: Dict[str, float],
+) -> Tuple[float, pd.DataFrame]:
     rows = []
     losses = []
-    for (plot, year), (daily, obs) in site_year_cache.items():
-        if obs.empty:
+    for (plot, year), (daily, obs_dates, obs_norm_vals) in site_year_cache.items():
+        if obs_dates is None or len(obs_dates) == 0:
             continue
         latent = simulate_latent_spore_state(daily, params)
         pressure = latent_to_pressure(
@@ -130,9 +135,8 @@ def _evaluate_params(site_year_cache: Dict[Tuple[str, int], Tuple[pd.DataFrame, 
             baseline_q=float(params["baseline_q"]),
         )
         pred = pressure.set_index("date")["S_day_roll"]
-        pred = pred.reindex(obs["date"].values).astype(float).fillna(0.0)
-        obs_norm = _normalized_obs(obs)
-        mae = float(np.mean(np.abs(pred.values - obs_norm.values)))
+        pred_vals = pred.reindex(obs_dates).astype(float).fillna(0.0).values
+        mae = float(np.mean(np.abs(pred_vals - obs_norm_vals)))
         losses.append(mae)
         rows.append({"plot": plot, "year": year, "mae": mae})
     if not losses:
@@ -153,6 +157,13 @@ if ray is not None:
         def eval_loss(self, params: Dict[str, float]) -> float:
             loss, _ = _evaluate_params(self.cache, params)
             return float(loss)
+
+        def eval_loss_batch(self, params_batch: List[Dict[str, float]]) -> List[float]:
+            out = []
+            for p in params_batch:
+                loss, _ = _evaluate_params(self.cache, p)
+                out.append(float(loss))
+            return out
 
 
 def _suggest_params(trial: "optuna_typing.trial.Trial") -> Dict[str, float]:
@@ -209,10 +220,11 @@ def _sample_params_rng(rng: np.random.Generator) -> Dict[str, float]:
 
 
 def _parallel_random_search(
-    site_year_cache: Dict[Tuple[str, int], Tuple[pd.DataFrame, pd.DataFrame]],
+    site_year_cache: Dict[Tuple[str, int], Tuple[pd.DataFrame, np.ndarray, np.ndarray]],
     n_trials: int,
     seed: int,
     n_jobs: int,
+    batch_size: int = 8,
 ) -> Tuple[Dict[str, float], float, List[Dict]]:
     if ray is None or n_jobs <= 1:
         rng = np.random.default_rng(seed)
@@ -242,32 +254,35 @@ def _parallel_random_search(
 
     while done < n_trials:
         while submitted < n_trials and available:
-            p = _sample_params_rng(rng)
+            n_submit = min(int(batch_size), int(n_trials - submitted))
+            p_batch = [_sample_params_rng(rng) for _ in range(n_submit)]
             w = available.pop(0)
-            fut = w.eval_loss.remote(p)
-            pending[fut] = (p, w)
-            submitted += 1
+            fut = w.eval_loss_batch.remote(p_batch)
+            pending[fut] = (p_batch, w)
+            submitted += n_submit
         ready, _ = ray.wait(list(pending.keys()), num_returns=1)
         for f in ready:
-            p, w = pending.pop(f)
-            loss = float(ray.get(f))
-            trial_rows.append({"value": loss, **p})
-            if loss < best_loss:
-                best_loss = loss
-                best_params = p
+            p_batch, w = pending.pop(f)
+            loss_batch = [float(x) for x in ray.get(f)]
+            for p, loss in zip(p_batch, loss_batch):
+                trial_rows.append({"value": loss, **p})
+                if loss < best_loss:
+                    best_loss = loss
+                    best_params = p
+                done += 1
+                pbar.update(1)
             available.append(w)
-            done += 1
-            pbar.update(1)
     pbar.close()
     return best_params, best_loss, trial_rows
 
 
 def _parallel_optuna_search(
-    site_year_cache: Dict[Tuple[str, int], Tuple[pd.DataFrame, pd.DataFrame]],
+    site_year_cache: Dict[Tuple[str, int], Tuple[pd.DataFrame, np.ndarray, np.ndarray]],
     n_trials: int,
     n_startup: int,
     seed: int,
     n_jobs: int,
+    batch_size: int = 8,
 ) -> Tuple[Dict[str, float], float, List[Dict]]:
     opt = _require_optuna()
     if ray is None or n_jobs <= 1:
@@ -297,21 +312,28 @@ def _parallel_optuna_search(
 
     while completed < n_trials:
         while submitted < n_trials and available:
-            tr = study.ask()
-            p = _suggest_params(tr)
+            n_submit = min(int(batch_size), int(n_trials - submitted))
+            tr_batch = []
+            p_batch = []
+            for _ in range(n_submit):
+                tr = study.ask()
+                p = _suggest_params(tr)
+                tr_batch.append(tr)
+                p_batch.append(p)
             w = available.pop(0)
-            fut = w.eval_loss.remote(p)
-            pending[fut] = (tr, p, w)
-            submitted += 1
+            fut = w.eval_loss_batch.remote(p_batch)
+            pending[fut] = (tr_batch, p_batch, w)
+            submitted += n_submit
         ready, _ = ray.wait(list(pending.keys()), num_returns=1)
         for f in ready:
-            tr, p, w = pending.pop(f)
-            loss = float(ray.get(f))
-            study.tell(tr, loss)
-            trial_rows.append({"value": loss, **p})
+            tr_batch, p_batch, w = pending.pop(f)
+            loss_batch = [float(x) for x in ray.get(f)]
+            for tr, p, loss in zip(tr_batch, p_batch, loss_batch):
+                study.tell(tr, loss)
+                trial_rows.append({"value": loss, **p})
+                completed += 1
+                pbar.update(1)
             available.append(w)
-            completed += 1
-            pbar.update(1)
     pbar.close()
 
     best_params = _suggest_params(study.best_trial)
@@ -404,7 +426,7 @@ def _select_from_topk_with_constraint(candidates: List[Dict], topk_frac: float) 
 def _loocv_train_topk_then_val(
     rows: List,
     spore_df: pd.DataFrame,
-    full_cache: Dict[Tuple[str, int], Tuple[pd.DataFrame, pd.DataFrame]],
+    full_cache: Dict[Tuple[str, int], Tuple[pd.DataFrame, np.ndarray, np.ndarray]],
     n_trials: int,
     n_startup: int,
     seed: int,
@@ -427,6 +449,7 @@ def _loocv_train_topk_then_val(
                 n_startup=max(10, int(n_startup)),
                 seed=int(seed + i),
                 n_jobs=int(n_jobs),
+                batch_size=8,
             )
         else:
             _, _, trial_rows = _parallel_random_search(
@@ -434,6 +457,7 @@ def _loocv_train_topk_then_val(
                 n_trials=int(n_trials),
                 seed=int(seed + i),
                 n_jobs=int(n_jobs),
+                batch_size=8,
             )
 
         fold_candidates = []
@@ -463,10 +487,11 @@ def _loocv_train_topk_then_val(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Calibrate standalone weather->spore pressure module.")
-    parser.add_argument("--n-trials", type=int, default=20000)
+    parser.add_argument("--n-trials", type=int, default=15000)
     parser.add_argument("--n-startup", type=int, default=6000)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--n-jobs", type=int, default=128)
+    parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--run-loocv", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--loocv-trials", type=int, default=200)
     parser.add_argument("--cv-topk-frac", type=float, default=0.10)
@@ -491,6 +516,7 @@ def main() -> None:
             n_startup=int(args.n_startup),
             seed=int(args.seed),
             n_jobs=int(args.n_jobs),
+            batch_size=int(args.batch_size),
         )
     else:
         _, _, trial_rows = _parallel_random_search(
@@ -498,6 +524,7 @@ def main() -> None:
             n_trials=int(args.n_trials),
             seed=int(args.seed),
             n_jobs=int(args.n_jobs),
+            batch_size=int(args.batch_size),
         )
     pd.DataFrame(trial_rows).sort_values("value").to_csv(OUT_DIR / "spore_proxy_trials.csv", index=False)
 
