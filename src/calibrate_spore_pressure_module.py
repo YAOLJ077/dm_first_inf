@@ -136,7 +136,11 @@ if ray is not None:
     @ray.remote
     class SporeEvalWorker:
         def __init__(self, cache_ref):
-            self.cache = ray.get(cache_ref)
+            # Ray versions/transport may pass either ObjectRef or already-materialized object.
+            if isinstance(cache_ref, dict):
+                self.cache = cache_ref
+            else:
+                self.cache = ray.get(cache_ref)
 
         def eval_loss(self, params: Dict[str, float]) -> float:
             loss, _ = _evaluate_params(self.cache, params)
