@@ -127,7 +127,7 @@ def _window_compare(stats: Dict[str, pd.DataFrame]) -> pd.DataFrame:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--result-dir", type=str, default="result/calibration_spore_infthr_v2")
+    parser.add_argument("--result-dir", type=str, default="result/calibration_spore_infthr")
     parser.add_argument(
         "--compare-dir",
         type=str,

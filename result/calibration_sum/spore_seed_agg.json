@@ -10,7 +10,7 @@
   "val_mae_std_mean": 1.7937326694103053,
   "val_mae_std_std": 1.0650704026223021,
   "val_mae_var_mean": 4.351851851851852,
-  "val_mae_var_std": 4.393535592988716,
+  "val_mae_var_std": 4.393535592988717,
   "train_rmse_mean": 4.455208692779489,
   "train_rmse_std": 0.3704411085357456,
   "val_rmse_mean": 7.055482605735346,

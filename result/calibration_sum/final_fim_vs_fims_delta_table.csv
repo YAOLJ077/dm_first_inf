@@ -1,0 +1,7 @@
+plot,variety,year,obs_first_infection_date,fim_pred_start,fims_pred_start,fim_pred_end,fims_pred_end,fim_error_days,fims_error_days,delta_error_days_fims_minus_fim,fim_abs_error_days,fims_abs_error_days,delta_abs_error_days_fim_minus_fims,improved_by_fims,fim_status,fims_status
+DA,MPT,2022,2022-05-08,2022-05-14,2022-05-13,2022-05-15,2022-05-14,6.0,5.0,-1.0,6.0,5.0,1.0,True,ok,ok
+DA,MPT,2023,2023-05-28,2023-05-28,2023-05-28,2023-05-30,2023-05-29,0.0,0.0,0.0,0.0,0.0,0.0,False,ok,ok
+DA,MPT,2024,2024-04-27,2024-04-25,2024-04-24,2024-04-26,2024-04-25,-1.0,-2.0,-1.0,1.0,2.0,-1.0,False,ok,ok
+GL,WK,2022,2022-05-30,2022-05-15,2022-05-16,2022-05-17,2022-05-17,-13.0,-13.0,0.0,13.0,13.0,0.0,False,ok,ok
+NN,JF,2023,2023-06-10,2023-06-15,2023-06-14,2023-06-16,2023-06-15,5.0,4.0,-1.0,5.0,4.0,1.0,True,ok,ok
+NN,JF,2024,2024-04-22,2024-04-25,2024-04-24,2024-04-26,2024-04-25,3.0,2.0,-1.0,3.0,2.0,1.0,True,ok,ok

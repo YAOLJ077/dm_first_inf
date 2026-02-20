@@ -20,7 +20,7 @@ if PROJECT_ROOT not in sys.path:
 
 DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 ACTUAL_DATA_PATH = os.path.join(DATA_DIR, "actual_data.xlsx")
-RESULT_DIR = os.path.join(PROJECT_ROOT, "result", "calibration_spore_infthr_v2")
+RESULT_DIR = os.path.join(PROJECT_ROOT, "result", "calibration_spore_infthr")
 os.makedirs(RESULT_DIR, exist_ok=True)
 
 from model.crop_season import CropSeasonFirst
