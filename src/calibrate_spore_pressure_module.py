@@ -6,7 +6,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import TYPE_CHECKING, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -23,6 +23,9 @@ try:
     import optuna
 except Exception:  # pragma: no cover
     optuna = None
+
+if TYPE_CHECKING:  # pragma: no cover
+    import optuna as optuna_typing
 
 os.environ.setdefault("RAY_DISABLE_METRICS", "1")
 os.environ.setdefault("RAY_DISABLE_USAGE_STATS", "1")
@@ -76,6 +79,12 @@ def _load_spore_obs() -> pd.DataFrame:
     s["date"] = pd.to_datetime(s["date"], errors="coerce")
     s["spore"] = pd.to_numeric(s["spore"], errors="coerce")
     return s.dropna(subset=["date"]).reset_index(drop=True)
+
+
+def _require_optuna():
+    if optuna is None:
+        raise RuntimeError("optuna is required for this path but is not installed.")
+    return optuna
 
 
 def _site_year_rows() -> List[Tuple]:
@@ -147,7 +156,7 @@ if ray is not None:
             return float(loss)
 
 
-def _suggest_params(trial: optuna.Trial) -> Dict[str, float]:
+def _suggest_params(trial: "optuna_typing.trial.Trial") -> Dict[str, float]:
     tmin = trial.suggest_float("tmin", PARAM_BOUNDS["tmin"][0], PARAM_BOUNDS["tmin"][1])
     topt = trial.suggest_float("topt", tmin + 2.0, PARAM_BOUNDS["topt_max"])
     tmax = trial.suggest_float("tmax", topt + 2.0, PARAM_BOUNDS["tmax_max"])
@@ -246,12 +255,13 @@ def _parallel_optuna_search(
     seed: int,
     n_jobs: int,
 ) -> Tuple[Dict[str, float], float, List[Dict]]:
+    opt = _require_optuna()
     if ray is None or n_jobs <= 1:
-        sampler = optuna.samplers.TPESampler(seed=seed, multivariate=True, n_startup_trials=n_startup)
-        study = optuna.create_study(direction="minimize", sampler=sampler)
+        sampler = opt.samplers.TPESampler(seed=seed, multivariate=True, n_startup_trials=n_startup)
+        study = opt.create_study(direction="minimize", sampler=sampler)
         trial_rows = []
 
-        def objective(trial: optuna.Trial) -> float:
+        def objective(trial: "optuna_typing.trial.Trial") -> float:
             p = _suggest_params(trial)
             loss, _ = _evaluate_params(site_year_cache, p)
             trial_rows.append({"value": float(loss), **p})
@@ -260,8 +270,8 @@ def _parallel_optuna_search(
         study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
         return _suggest_params(study.best_trial), float(study.best_value), trial_rows
 
-    sampler = optuna.samplers.TPESampler(seed=seed, multivariate=True, n_startup_trials=n_startup)
-    study = optuna.create_study(direction="minimize", sampler=sampler)
+    sampler = opt.samplers.TPESampler(seed=seed, multivariate=True, n_startup_trials=n_startup)
+    study = opt.create_study(direction="minimize", sampler=sampler)
     cache_ref = ray.put(site_year_cache)
     workers = [SporeEvalWorker.remote(cache_ref) for _ in range(max(1, n_jobs))]
     available = workers[:]
@@ -304,10 +314,11 @@ def _loocv(rows: List, spore_df: pd.DataFrame, n_trials: int, seed: int) -> pd.D
             train_cache[(str(r.plot), int(r.year))] = _prepare_site_year_data(r, spore_df)
 
         if optuna is not None:
-            sampler = optuna.samplers.TPESampler(seed=seed + i, multivariate=True, n_startup_trials=max(20, n_trials // 4))
-            study = optuna.create_study(direction="minimize", sampler=sampler)
+            opt = _require_optuna()
+            sampler = opt.samplers.TPESampler(seed=seed + i, multivariate=True, n_startup_trials=max(20, n_trials // 4))
+            study = opt.create_study(direction="minimize", sampler=sampler)
 
-            def obj(trial: optuna.Trial) -> float:
+            def obj(trial: "optuna_typing.trial.Trial") -> float:
                 p = _suggest_params(trial)
                 loss, _ = _evaluate_params(train_cache, p)
                 return float(loss)
