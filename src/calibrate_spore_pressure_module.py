@@ -53,17 +53,17 @@ OUT_DIR = PROJECT_ROOT / "result" / "historical_inputs" / "spore_pressure_calibr
 # tightened search bounds (1.5x expansion disabled)
 PARAM_BOUNDS = {
     "rho": (0.08, 0.99),
-    "beta_mp": (0.0, 4.0),
+    "beta_mp": (0.0, 4.5),
     "beta_rain": (0.0, 0.30),
     "beta_wind": (0.0, 0.30),
     "gamma_vpd": (0.0, 1.4),
     "k_mp": (0.01, 1.0),
-    "tmin": (4.0, 17.0),
+    "tmin": (4.0, 18.0),
     # fixed spaces (no dynamic bounds): order is enforced after sampling
     "topt": (6.0, 34.0),
-    "tmax": (8.0, 42.0),
+    "tmax": (8.0, 44.0),
     "roll_window": (2, 10),
-    "baseline_q": (0.40, 0.80),
+    "baseline_q": (0.40, 0.85),
 }
 
 
@@ -122,9 +122,11 @@ def _normalized_obs(obs: pd.DataFrame) -> pd.Series:
 def _evaluate_params(
     site_year_cache: Dict[Tuple[str, int], Tuple[pd.DataFrame, np.ndarray, np.ndarray]],
     params: Dict[str, float],
+    obs_peak_weight_alpha: float = 0.0,
 ) -> Tuple[float, pd.DataFrame]:
     rows = []
     losses = []
+    alpha = float(np.clip(obs_peak_weight_alpha, 0.0, 0.5))
     for (plot, year), (daily, obs_dates, obs_norm_vals) in site_year_cache.items():
         if obs_dates is None or len(obs_dates) == 0:
             continue
@@ -136,7 +138,13 @@ def _evaluate_params(
         )
         pred = pressure.set_index("date")["S_day_roll"]
         pred_vals = pred.reindex(obs_dates).astype(float).fillna(0.0).values
-        mae = float(np.mean(np.abs(pred_vals - obs_norm_vals)))
+        abs_err = np.abs(pred_vals - obs_norm_vals)
+        if alpha > 0.0:
+            # Lightly emphasize high-observed-pressure dates without distorting objective scale.
+            w = 1.0 + alpha * np.clip(obs_norm_vals, 0.0, 1.0)
+            mae = float(np.sum(w * abs_err) / np.sum(w))
+        else:
+            mae = float(np.mean(abs_err))
         losses.append(mae)
         rows.append({"plot": plot, "year": year, "mae": mae})
     if not losses:
@@ -147,21 +155,22 @@ def _evaluate_params(
 if ray is not None:
     @ray.remote
     class SporeEvalWorker:
-        def __init__(self, cache_ref):
+        def __init__(self, cache_ref, obs_peak_weight_alpha: float = 0.0):
             # Ray versions/transport may pass either ObjectRef or already-materialized object.
             if isinstance(cache_ref, dict):
                 self.cache = cache_ref
             else:
                 self.cache = ray.get(cache_ref)
+            self.obs_peak_weight_alpha = float(obs_peak_weight_alpha)
 
         def eval_loss(self, params: Dict[str, float]) -> float:
-            loss, _ = _evaluate_params(self.cache, params)
+            loss, _ = _evaluate_params(self.cache, params, obs_peak_weight_alpha=self.obs_peak_weight_alpha)
             return float(loss)
 
         def eval_loss_batch(self, params_batch: List[Dict[str, float]]) -> List[float]:
             out = []
             for p in params_batch:
-                loss, _ = _evaluate_params(self.cache, p)
+                loss, _ = _evaluate_params(self.cache, p, obs_peak_weight_alpha=self.obs_peak_weight_alpha)
                 out.append(float(loss))
             return out
 
@@ -225,6 +234,7 @@ def _parallel_random_search(
     seed: int,
     n_jobs: int,
     batch_size: int = 8,
+    obs_peak_weight_alpha: float = 0.0,
 ) -> Tuple[Dict[str, float], float, List[Dict]]:
     if ray is None or n_jobs <= 1:
         rng = np.random.default_rng(seed)
@@ -233,7 +243,7 @@ def _parallel_random_search(
         best_params = None
         for _ in tqdm(range(int(n_trials)), desc="Spore random search"):
             p = _sample_params_rng(rng)
-            loss, _ = _evaluate_params(site_year_cache, p)
+            loss, _ = _evaluate_params(site_year_cache, p, obs_peak_weight_alpha=obs_peak_weight_alpha)
             trial_rows.append({"value": float(loss), **p})
             if loss < best_loss:
                 best_loss = float(loss)
@@ -242,7 +252,7 @@ def _parallel_random_search(
 
     rng = np.random.default_rng(seed)
     cache_ref = ray.put(site_year_cache)
-    workers = [SporeEvalWorker.remote(cache_ref) for _ in range(max(1, n_jobs))]
+    workers = [SporeEvalWorker.remote(cache_ref, float(obs_peak_weight_alpha)) for _ in range(max(1, n_jobs))]
     available = workers[:]
     pending = {}
     trial_rows = []
@@ -283,6 +293,7 @@ def _parallel_optuna_search(
     seed: int,
     n_jobs: int,
     batch_size: int = 8,
+    obs_peak_weight_alpha: float = 0.0,
 ) -> Tuple[Dict[str, float], float, List[Dict]]:
     opt = _require_optuna()
     if ray is None or n_jobs <= 1:
@@ -292,7 +303,7 @@ def _parallel_optuna_search(
 
         def objective(trial: "optuna_typing.trial.Trial") -> float:
             p = _suggest_params(trial)
-            loss, _ = _evaluate_params(site_year_cache, p)
+            loss, _ = _evaluate_params(site_year_cache, p, obs_peak_weight_alpha=obs_peak_weight_alpha)
             trial_rows.append({"value": float(loss), **p})
             return float(loss)
 
@@ -302,7 +313,7 @@ def _parallel_optuna_search(
     sampler = opt.samplers.TPESampler(seed=seed, multivariate=True, n_startup_trials=n_startup)
     study = opt.create_study(direction="minimize", sampler=sampler)
     cache_ref = ray.put(site_year_cache)
-    workers = [SporeEvalWorker.remote(cache_ref) for _ in range(max(1, n_jobs))]
+    workers = [SporeEvalWorker.remote(cache_ref, float(obs_peak_weight_alpha)) for _ in range(max(1, n_jobs))]
     available = workers[:]
     pending = {}
     trial_rows = []
@@ -356,7 +367,7 @@ def _loocv(rows: List, spore_df: pd.DataFrame, n_trials: int, seed: int) -> pd.D
 
             def obj(trial: "optuna_typing.trial.Trial") -> float:
                 p = _suggest_params(trial)
-                loss, _ = _evaluate_params(train_cache, p)
+                loss, _ = _evaluate_params(train_cache, p, obs_peak_weight_alpha=0.0)
                 return float(loss)
 
             study.optimize(obj, n_trials=n_trials, show_progress_bar=False)
@@ -368,14 +379,14 @@ def _loocv(rows: List, spore_df: pd.DataFrame, n_trials: int, seed: int) -> pd.D
             pbest = None
             for _ in range(int(n_trials)):
                 p = _sample_params_rng(rng)
-                loss, _ = _evaluate_params(train_cache, p)
+                loss, _ = _evaluate_params(train_cache, p, obs_peak_weight_alpha=0.0)
                 if loss < best_loss:
                     best_loss = loss
                     pbest = p
             fit_train_mae = float(best_loss)
 
         test_cache = {(str(test.plot), int(test.year)): _prepare_site_year_data(test, spore_df)}
-        test_loss, _ = _evaluate_params(test_cache, pbest)
+        test_loss, _ = _evaluate_params(test_cache, pbest, obs_peak_weight_alpha=0.0)
         out.append(
             {
                 "plot": str(test.plot),
@@ -453,6 +464,7 @@ def _loocv_train_topk_then_val(
     n_jobs: int,
     topk_frac: float,
     fold_candidate_frac: float,
+    obs_peak_weight_alpha: float,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     out = []
     pool_out = []
@@ -472,6 +484,7 @@ def _loocv_train_topk_then_val(
                 seed=int(seed + i),
                 n_jobs=int(n_jobs),
                 batch_size=8,
+                obs_peak_weight_alpha=float(obs_peak_weight_alpha),
             )
         else:
             _, _, trial_rows = _parallel_random_search(
@@ -480,13 +493,14 @@ def _loocv_train_topk_then_val(
                 seed=int(seed + i),
                 n_jobs=int(n_jobs),
                 batch_size=8,
+                obs_peak_weight_alpha=float(obs_peak_weight_alpha),
             )
 
         fold_candidates = []
         for tr in trial_rows:
             p = _extract_params_from_trial_row(tr)
             train_mae = float(tr["value"])
-            val_mae, _ = _evaluate_params(test_cache, p)
+            val_mae, _ = _evaluate_params(test_cache, p, obs_peak_weight_alpha=obs_peak_weight_alpha)
             fold_candidates.append({"train_mae": train_mae, "val_mae": float(val_mae), **p})
 
         best_fold = _select_from_topk_with_constraint(fold_candidates, topk_frac=topk_frac)
@@ -500,7 +514,7 @@ def _loocv_train_topk_then_val(
             pool_fold["year"] = int(test.year)
             pool_out.append(pool_fold)
         pbest = _extract_params_from_trial_row(best_fold)
-        fit_mae_full, _ = _evaluate_params(full_cache, pbest)
+        fit_mae_full, _ = _evaluate_params(full_cache, pbest, obs_peak_weight_alpha=obs_peak_weight_alpha)
         out.append(
             {
                 "plot": str(test.plot),
@@ -524,6 +538,7 @@ def _crossfold_score_fixed_params(
     lambda_val_std: float,
     lambda_gap: float,
     lambda_val_max: float,
+    obs_peak_weight_alpha: float,
 ) -> pd.DataFrame:
     keys = [(str(r.plot), int(r.year)) for r in rows]
     folds = []
@@ -538,8 +553,8 @@ def _crossfold_score_fixed_params(
         fold_train = []
         fold_val = []
         for train_cache, test_cache in folds:
-            tr_mae, _ = _evaluate_params(train_cache, p)
-            va_mae, _ = _evaluate_params(test_cache, p)
+            tr_mae, _ = _evaluate_params(train_cache, p, obs_peak_weight_alpha=obs_peak_weight_alpha)
+            va_mae, _ = _evaluate_params(test_cache, p, obs_peak_weight_alpha=obs_peak_weight_alpha)
             fold_train.append(float(tr_mae))
             fold_val.append(float(va_mae))
         cv_train_mean = float(np.mean(fold_train))
@@ -548,7 +563,7 @@ def _crossfold_score_fixed_params(
         cv_val_std = float(np.std(fold_val, ddof=0))
         cv_val_max = float(np.max(fold_val))
         cv_gap_abs = float(abs(cv_val_mean - cv_train_mean))
-        fit_mae_full, _ = _evaluate_params(full_cache, p)
+        fit_mae_full, _ = _evaluate_params(full_cache, p, obs_peak_weight_alpha=obs_peak_weight_alpha)
         score = float(
             cv_val_mean
             + float(lambda_val_std) * cv_val_std
@@ -571,85 +586,51 @@ def _crossfold_score_fixed_params(
     return pd.DataFrame(out)
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Calibrate standalone weather->spore pressure module.")
-    parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--n-jobs", type=int, default=128)
-    parser.add_argument("--batch-size", type=int, default=8)
-    parser.add_argument("--loocv-trials", type=int, default=18000)
-    parser.add_argument("--cv-topk-frac", type=float, default=0.10)
-    parser.add_argument("--min-selected-folds", type=int, default=1)
-    parser.add_argument("--param-round-decimals", type=int, default=4)
-    parser.add_argument("--selector-mode", choices=["crossfold_fixed", "legacy"], default="crossfold_fixed")
-    parser.add_argument("--lambda-val-std", type=float, default=0.8)
-    parser.add_argument("--lambda-gap", type=float, default=0.5)
-    parser.add_argument("--lambda-val-max", type=float, default=0.8)
-    parser.add_argument("--fold-candidate-frac", type=float, default=0.10)
-    parser.add_argument(
-        "--reuse-existing-loocv",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Reuse existing LOOCV outputs in result folder and skip expensive LOOCV recomputation.",
-    )
-    args = parser.parse_args()
-
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    spore_df = _load_spore_obs()
-    rows = _site_year_rows()
+def _run_calibration_once(
+    args: argparse.Namespace,
+    rows: List,
+    spore_df: pd.DataFrame,
+    out_dir: Path,
+    obs_peak_weight_alpha: float,
+    run_label: str,
+) -> Dict[str, float]:
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     site_year_cache = {}
     for r in rows:
         site_year_cache[(str(r.plot), int(r.year))] = _prepare_site_year_data(r, spore_df)
 
-    loocv_path = OUT_DIR / "spore_proxy_loocv.csv"
-    loocv_pool_path = OUT_DIR / "spore_proxy_loocv_pool.csv"
-    required_loocv_cols = {"plot", "year", "fit_train_mae", "test_mae", "fit_mae_full", "constraint_satisfied"}
-    can_reuse_loocv = bool(args.reuse_existing_loocv and loocv_path.exists())
-
-    if can_reuse_loocv:
-        loocv_df = pd.read_csv(loocv_path)
-        if not required_loocv_cols.issubset(set(loocv_df.columns)):
-            print(f"[resume] Existing LOOCV file missing required columns, recomputing: {loocv_path}")
-            can_reuse_loocv = False
-        else:
-            loocv_pool_df = pd.read_csv(loocv_pool_path) if loocv_pool_path.exists() else pd.DataFrame()
-            print(f"[resume] Reusing existing LOOCV results: {loocv_path}")
-            if loocv_pool_path.exists():
-                print(f"[resume] Reusing existing LOOCV pool: {loocv_pool_path}")
-
-    if not can_reuse_loocv:
-        ray_used = ray is not None and args.n_jobs > 1
-        if ray_used:
-            ray.init(num_cpus=max(1, args.n_jobs), include_dashboard=False, logging_level="ERROR")
-        # LOOCV-only calibration flow.
-        loocv_df, loocv_pool_df = _loocv_train_topk_then_val(
-            rows=rows,
-            spore_df=spore_df,
-            full_cache=site_year_cache,
-            n_trials=int(args.loocv_trials),
-            n_startup=max(20, int(args.loocv_trials) // 4),
-            seed=int(args.seed + 1000),
-            n_jobs=int(args.n_jobs),
-            topk_frac=float(args.cv_topk_frac),
-            fold_candidate_frac=float(args.fold_candidate_frac),
-        )
-        loocv_df.to_csv(loocv_path, index=False)
-        if loocv_pool_df is not None and not loocv_pool_df.empty:
-            loocv_pool_df.to_csv(loocv_pool_path, index=False)
-        # Keep this output for compatibility with existing downstream readers.
-        loocv_df.sort_values(["test_mae", "fit_train_mae"]).to_csv(OUT_DIR / "spore_proxy_trials.csv", index=False)
-        if ray_used:
-            ray.shutdown()
-    else:
-        # Ensure compatibility output is refreshed from reused LOOCV.
-        loocv_df.sort_values(["test_mae", "fit_train_mae"]).to_csv(OUT_DIR / "spore_proxy_trials.csv", index=False)
+    loocv_path = out_dir / "spore_proxy_loocv.csv"
+    loocv_pool_path = out_dir / "spore_proxy_loocv_pool.csv"
+    ray_used = ray is not None and args.n_jobs > 1
+    if ray_used:
+        ray.init(num_cpus=max(1, args.n_jobs), include_dashboard=False, logging_level="ERROR")
+    # LOOCV-only calibration flow.
+    loocv_df, loocv_pool_df = _loocv_train_topk_then_val(
+        rows=rows,
+        spore_df=spore_df,
+        full_cache=site_year_cache,
+        n_trials=int(args.loocv_trials),
+        n_startup=max(20, int(args.loocv_trials) // 4),
+        seed=int(args.seed + 1000),
+        n_jobs=int(args.n_jobs),
+        topk_frac=float(args.cv_topk_frac),
+        fold_candidate_frac=float(args.fold_candidate_frac),
+        obs_peak_weight_alpha=float(obs_peak_weight_alpha),
+    )
+    loocv_df.to_csv(loocv_path, index=False)
+    if loocv_pool_df is not None and not loocv_pool_df.empty:
+        loocv_pool_df.to_csv(loocv_pool_path, index=False)
+    # Keep this output for compatibility with existing downstream readers.
+    loocv_df.sort_values(["test_mae", "fit_train_mae"]).to_csv(out_dir / "spore_proxy_trials.csv", index=False)
+    if ray_used:
+        ray.shutdown()
 
     select_cols = [
         "rho", "beta_mp", "beta_rain", "beta_wind", "gamma_vpd", "k_mp",
         "tmin", "topt", "tmax", "roll_window", "baseline_q",
     ]
     loocv_group = loocv_df.copy()
-    # Reduce floating-point fragmentation before grouping fold-selected candidates.
     dec = int(max(0, args.param_round_decimals))
     for c in select_cols:
         if c == "roll_window":
@@ -704,6 +685,7 @@ def main() -> None:
             lambda_val_std=float(args.lambda_val_std),
             lambda_gap=float(args.lambda_gap),
             lambda_val_max=float(args.lambda_val_max),
+            obs_peak_weight_alpha=float(obs_peak_weight_alpha),
         )
         if "n_selected_folds" in leaderboard.columns:
             merge_cols = [c for c in select_cols if c in crossfold_df.columns and c in leaderboard.columns]
@@ -724,15 +706,19 @@ def main() -> None:
         crossfold_df = crossfold_df.sort_values(
             ["score_stability", "cv_val_mae_mean", "cv_val_mae_max", "fit_mae_full", "cv_train_mae_mean"]
         ).reset_index(drop=True)
-        crossfold_df.to_csv(OUT_DIR / "spore_proxy_crossfold_score.csv", index=False)
+        crossfold_df.to_csv(out_dir / "spore_proxy_crossfold_score.csv", index=False)
         best_row = crossfold_df.iloc[0].to_dict()
     else:
         best_row = leaderboard_gate.iloc[0].to_dict()
-    leaderboard.to_csv(OUT_DIR / "spore_proxy_selection_compare.csv", index=False)
+    leaderboard.to_csv(out_dir / "spore_proxy_selection_compare.csv", index=False)
     best_params = _extract_params_from_trial_row(best_row)
 
-    best_loss, detail = _evaluate_params(site_year_cache, best_params)
-    detail.to_csv(OUT_DIR / "spore_proxy_fit_detail.csv", index=False)
+    best_loss, detail = _evaluate_params(
+        site_year_cache,
+        best_params,
+        obs_peak_weight_alpha=float(obs_peak_weight_alpha),
+    )
+    detail.to_csv(out_dir / "spore_proxy_fit_detail.csv", index=False)
 
     selected_n_folds_raw = best_row.get("n_selected_folds", 0)
     selected_n_folds = int(selected_n_folds_raw) if pd.notna(selected_n_folds_raw) else 0
@@ -762,10 +748,11 @@ def main() -> None:
         "lambda_gap": float(args.lambda_gap),
         "lambda_val_max": float(args.lambda_val_max),
         "fold_candidate_frac": float(args.fold_candidate_frac),
+        "obs_peak_weight_alpha": float(obs_peak_weight_alpha),
+        "run_label": str(run_label),
     }
-    with open(OUT_DIR / "spore_proxy_best.json", "w", encoding="utf-8") as f:
+    with open(out_dir / "spore_proxy_best.json", "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
-    # Directly consumable config for historical inversion scripts.
     inversion_cfg = {
         "spore_pressure_params": {
             "rho": float(best_params["rho"]),
@@ -783,6 +770,8 @@ def main() -> None:
         "fit_loss_mae": float(best_loss),
         "n_site_year": int(len(site_year_cache)),
         "source": "calibrate_spore_pressure_module.py",
+        "obs_peak_weight_alpha": float(obs_peak_weight_alpha),
+        "run_label": str(run_label),
         "files": {
             "best_summary": "spore_proxy_best.json",
             "fit_detail": "spore_proxy_fit_detail.csv",
@@ -791,15 +780,85 @@ def main() -> None:
             "selection_compare": "spore_proxy_selection_compare.csv",
         },
     }
-    with open(OUT_DIR / "spore_pressure_params_for_inversion.json", "w", encoding="utf-8") as f:
+    with open(out_dir / "spore_pressure_params_for_inversion.json", "w", encoding="utf-8") as f:
         json.dump(inversion_cfg, f, indent=2)
 
-    print(f"Saved: {OUT_DIR / 'spore_proxy_best.json'}")
-    print(f"Saved: {OUT_DIR / 'spore_pressure_params_for_inversion.json'}")
-    print(f"Saved: {OUT_DIR / 'spore_proxy_trials.csv'}")
-    print(f"Saved: {OUT_DIR / 'spore_proxy_fit_detail.csv'}")
-    print(f"Saved: {OUT_DIR / 'spore_proxy_loocv.csv'}")
-    print(f"Saved: {OUT_DIR / 'spore_proxy_selection_compare.csv'}")
+    print(f"[{run_label}] Saved: {out_dir / 'spore_proxy_best.json'}")
+    print(f"[{run_label}] Saved: {out_dir / 'spore_pressure_params_for_inversion.json'}")
+    print(f"[{run_label}] Saved: {out_dir / 'spore_proxy_trials.csv'}")
+    print(f"[{run_label}] Saved: {out_dir / 'spore_proxy_fit_detail.csv'}")
+    print(f"[{run_label}] Saved: {out_dir / 'spore_proxy_loocv.csv'}")
+    print(f"[{run_label}] Saved: {out_dir / 'spore_proxy_selection_compare.csv'}")
+    return {
+        "run_label": str(run_label),
+        "obs_peak_weight_alpha": float(obs_peak_weight_alpha),
+        "best_loss_mae": float(best_loss),
+        "cv_train_mae_mean": float(summary["cv_train_mae_mean"]),
+        "cv_val_mae_mean": float(summary["cv_val_mae_mean"]),
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Calibrate standalone weather->spore pressure module.")
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--n-jobs", type=int, default=128)
+    parser.add_argument("--batch-size", type=int, default=8)
+    parser.add_argument("--loocv-trials", type=int, default=18000)
+    parser.add_argument("--cv-topk-frac", type=float, default=0.10)
+    parser.add_argument("--min-selected-folds", type=int, default=1)
+    parser.add_argument("--param-round-decimals", type=int, default=3)
+    parser.add_argument("--selector-mode", choices=["crossfold_fixed", "legacy"], default="crossfold_fixed")
+    parser.add_argument("--lambda-val-std", type=float, default=0.5)
+    parser.add_argument("--lambda-gap", type=float, default=0.3)
+    parser.add_argument("--lambda-val-max", type=float, default=0.6)
+    parser.add_argument("--fold-candidate-frac", type=float, default=0.05)
+    parser.add_argument(
+        "--obs-peak-weight-alpha",
+        type=float,
+        default=0.15,
+        help="Light weighting for high observed spore-pressure days in MAE objective (0.0-0.5).",
+    )
+    parser.add_argument(
+        "--ab-auto",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Run A/B automatically: A(alpha=0.0) and B(alpha=obs-peak-weight-alpha).",
+    )
+    args = parser.parse_args()
+
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    spore_df = _load_spore_obs()
+    rows = _site_year_rows()
+
+    run_rows: List[Dict[str, float]] = []
+    if bool(args.ab_auto):
+        alpha_b = float(np.clip(args.obs_peak_weight_alpha, 0.0, 0.5))
+        if alpha_b <= 0.0:
+            alpha_b = 0.15
+        run_specs = [("A_alpha0.00", 0.0), (f"B_alpha{alpha_b:.2f}", alpha_b)]
+    else:
+        alpha_single = float(np.clip(args.obs_peak_weight_alpha, 0.0, 0.5))
+        run_specs = [(f"single_alpha{alpha_single:.2f}", alpha_single)]
+
+    for run_label, alpha in run_specs:
+        run_dir = OUT_DIR / run_label
+        run_rows.append(
+            _run_calibration_once(
+                args=args,
+                rows=rows,
+                spore_df=spore_df,
+                out_dir=run_dir,
+                obs_peak_weight_alpha=float(alpha),
+                run_label=run_label,
+            )
+        )
+
+    compare_df = pd.DataFrame(run_rows).sort_values(["best_loss_mae", "cv_val_mae_mean"]).reset_index(drop=True)
+    compare_df.to_csv(OUT_DIR / "ab_compare_summary.csv", index=False)
+    with open(OUT_DIR / "ab_compare_summary.json", "w", encoding="utf-8") as f:
+        json.dump(compare_df.to_dict(orient="records"), f, indent=2)
+    print(f"Saved: {OUT_DIR / 'ab_compare_summary.csv'}")
+    print(f"Saved: {OUT_DIR / 'ab_compare_summary.json'}")
 
 
 if __name__ == "__main__":
