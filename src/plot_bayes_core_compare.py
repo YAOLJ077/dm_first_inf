@@ -159,8 +159,8 @@ def main() -> None:
 
     axes[0].set_ylabel("Error (days)")
     fig.tight_layout()
-    # out = project_root / "fig" / "bayes_core_bar_1x2.png"
-    # fig.savefig(out, dpi=300)
+    out = project_root / "fig" / "bayes_core_bar_1x2.png"
+    fig.savefig(out, dpi=300)
     plt.show()
 
 

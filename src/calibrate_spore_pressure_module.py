@@ -423,6 +423,26 @@ def _select_from_topk_with_constraint(candidates: List[Dict], topk_frac: float) 
     return pick
 
 
+def _select_pool_from_topk_with_constraint(candidates: List[Dict], topk_frac: float, inner_frac: float) -> pd.DataFrame:
+    if not candidates:
+        return pd.DataFrame()
+    cand_df = pd.DataFrame(candidates).sort_values(["train_mae", "val_mae"]).reset_index(drop=True)
+    k1 = max(1, int(np.ceil(len(cand_df) * float(topk_frac))))
+    top1 = cand_df.head(k1).copy()
+    valid = top1[top1["val_mae"] >= top1["train_mae"]].copy()
+    if valid.empty:
+        valid = top1.copy()
+        valid["gap_abs"] = (valid["val_mae"] - valid["train_mae"]).abs()
+        valid = valid.sort_values(["gap_abs", "val_mae", "train_mae"]).reset_index(drop=True)
+    else:
+        valid = valid.sort_values(["val_mae", "train_mae"]).reset_index(drop=True)
+    k2 = max(1, int(np.ceil(len(valid) * float(inner_frac))))
+    pool = valid.head(k2).copy()
+    pool["topk_pool_size"] = int(k1)
+    pool["inner_pool_size"] = int(k2)
+    return pool
+
+
 def _loocv_train_topk_then_val(
     rows: List,
     spore_df: pd.DataFrame,
@@ -432,8 +452,10 @@ def _loocv_train_topk_then_val(
     seed: int,
     n_jobs: int,
     topk_frac: float,
-) -> pd.DataFrame:
+    fold_candidate_frac: float,
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     out = []
+    pool_out = []
     for i in tqdm(range(len(rows)), desc="Spore LOOCV"):
         test = rows[i]
         train_rows = [rows[j] for j in range(len(rows)) if j != i]
@@ -468,6 +490,15 @@ def _loocv_train_topk_then_val(
             fold_candidates.append({"train_mae": train_mae, "val_mae": float(val_mae), **p})
 
         best_fold = _select_from_topk_with_constraint(fold_candidates, topk_frac=topk_frac)
+        pool_fold = _select_pool_from_topk_with_constraint(
+            fold_candidates,
+            topk_frac=topk_frac,
+            inner_frac=fold_candidate_frac,
+        )
+        if not pool_fold.empty:
+            pool_fold["plot"] = str(test.plot)
+            pool_fold["year"] = int(test.year)
+            pool_out.append(pool_fold)
         pbest = _extract_params_from_trial_row(best_fold)
         fit_mae_full, _ = _evaluate_params(full_cache, pbest)
         out.append(
@@ -482,6 +513,61 @@ def _loocv_train_topk_then_val(
                 **pbest,
             }
         )
+    pool_df = pd.concat(pool_out, ignore_index=True) if pool_out else pd.DataFrame()
+    return pd.DataFrame(out), pool_df
+
+
+def _crossfold_score_fixed_params(
+    rows: List,
+    full_cache: Dict[Tuple[str, int], Tuple[pd.DataFrame, np.ndarray, np.ndarray]],
+    candidate_df: pd.DataFrame,
+    lambda_val_std: float,
+    lambda_gap: float,
+    lambda_val_max: float,
+) -> pd.DataFrame:
+    keys = [(str(r.plot), int(r.year)) for r in rows]
+    folds = []
+    for i, test_key in enumerate(keys):
+        train_cache = {k: full_cache[k] for j, k in enumerate(keys) if j != i}
+        test_cache = {test_key: full_cache[test_key]}
+        folds.append((train_cache, test_cache))
+
+    out = []
+    for _, row in candidate_df.iterrows():
+        p = _extract_params_from_trial_row(row.to_dict())
+        fold_train = []
+        fold_val = []
+        for train_cache, test_cache in folds:
+            tr_mae, _ = _evaluate_params(train_cache, p)
+            va_mae, _ = _evaluate_params(test_cache, p)
+            fold_train.append(float(tr_mae))
+            fold_val.append(float(va_mae))
+        cv_train_mean = float(np.mean(fold_train))
+        cv_val_mean = float(np.mean(fold_val))
+        cv_train_std = float(np.std(fold_train, ddof=0))
+        cv_val_std = float(np.std(fold_val, ddof=0))
+        cv_val_max = float(np.max(fold_val))
+        cv_gap_abs = float(abs(cv_val_mean - cv_train_mean))
+        fit_mae_full, _ = _evaluate_params(full_cache, p)
+        score = float(
+            cv_val_mean
+            + float(lambda_val_std) * cv_val_std
+            + float(lambda_gap) * cv_gap_abs
+            + float(lambda_val_max) * cv_val_max
+        )
+        out.append(
+            {
+                **p,
+                "fit_mae_full": float(fit_mae_full),
+                "cv_train_mae_mean": cv_train_mean,
+                "cv_val_mae_mean": cv_val_mean,
+                "cv_train_mae_std": cv_train_std,
+                "cv_val_mae_std": cv_val_std,
+                "cv_val_mae_max": cv_val_max,
+                "cv_gap_abs": cv_gap_abs,
+                "score_stability": score,
+            }
+        )
     return pd.DataFrame(out)
 
 
@@ -492,8 +578,13 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--loocv-trials", type=int, default=18000)
     parser.add_argument("--cv-topk-frac", type=float, default=0.10)
-    parser.add_argument("--min-selected-folds", type=int, default=2)
+    parser.add_argument("--min-selected-folds", type=int, default=1)
     parser.add_argument("--param-round-decimals", type=int, default=4)
+    parser.add_argument("--selector-mode", choices=["crossfold_fixed", "legacy"], default="crossfold_fixed")
+    parser.add_argument("--lambda-val-std", type=float, default=0.8)
+    parser.add_argument("--lambda-gap", type=float, default=0.5)
+    parser.add_argument("--lambda-val-max", type=float, default=0.8)
+    parser.add_argument("--fold-candidate-frac", type=float, default=0.10)
     args = parser.parse_args()
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -508,7 +599,7 @@ def main() -> None:
     if ray_used:
         ray.init(num_cpus=max(1, args.n_jobs), include_dashboard=False, logging_level="ERROR")
     # LOOCV-only calibration flow.
-    loocv_df = _loocv_train_topk_then_val(
+    loocv_df, loocv_pool_df = _loocv_train_topk_then_val(
         rows=rows,
         spore_df=spore_df,
         full_cache=site_year_cache,
@@ -517,6 +608,7 @@ def main() -> None:
         seed=int(args.seed + 1000),
         n_jobs=int(args.n_jobs),
         topk_frac=float(args.cv_topk_frac),
+        fold_candidate_frac=float(args.fold_candidate_frac),
     )
     loocv_df.to_csv(OUT_DIR / "spore_proxy_loocv.csv", index=False)
     # Keep this output for compatibility with existing downstream readers.
@@ -549,13 +641,64 @@ def main() -> None:
         .reset_index(drop=True)
     )
     min_folds = int(max(1, args.min_selected_folds))
-    leaderboard_gate = leaderboard[leaderboard["n_selected_folds"] >= min_folds].copy()
+    leaderboard_gate = leaderboard[leaderboard["n_selected_folds"] >= min_folds].copy() if min_folds > 1 else leaderboard.copy()
     selection_constraint_relaxed = False
     if leaderboard_gate.empty:
         leaderboard_gate = leaderboard.copy()
         selection_constraint_relaxed = True
+    if str(args.selector_mode) == "crossfold_fixed":
+        if loocv_pool_df.empty:
+            pool_group = leaderboard_gate.copy()
+        else:
+            pool_group = loocv_pool_df.copy()
+            for c in select_cols:
+                if c == "roll_window":
+                    pool_group[c] = pd.to_numeric(pool_group[c], errors="coerce").round().astype("Int64")
+                else:
+                    pool_group[c] = pd.to_numeric(pool_group[c], errors="coerce").round(dec)
+            pool_group = (
+                pool_group.groupby(select_cols, dropna=False, as_index=False)
+                .agg(pool_hit_folds=("plot", "count"))
+                .reset_index(drop=True)
+            )
+            if min_folds > 1:
+                pool_gate = pool_group[pool_group["pool_hit_folds"] >= min_folds].copy()
+                if pool_gate.empty:
+                    pool_gate = pool_group.copy()
+                    selection_constraint_relaxed = True
+                pool_group = pool_gate
+        crossfold_df = _crossfold_score_fixed_params(
+            rows=rows,
+            full_cache=site_year_cache,
+            candidate_df=pool_group,
+            lambda_val_std=float(args.lambda_val_std),
+            lambda_gap=float(args.lambda_gap),
+            lambda_val_max=float(args.lambda_val_max),
+        )
+        if "n_selected_folds" in leaderboard.columns:
+            merge_cols = [c for c in select_cols if c in crossfold_df.columns and c in leaderboard.columns]
+            crossfold_df = crossfold_df.merge(
+                leaderboard[merge_cols + ["n_selected_folds", "constraint_satisfied_rate"]],
+                on=merge_cols,
+                how="left",
+            )
+        if not loocv_pool_df.empty:
+            merge_cols = [c for c in select_cols if c in crossfold_df.columns and c in pool_group.columns]
+            extra_cols = [c for c in ["pool_hit_folds"] if c in pool_group.columns]
+            if extra_cols:
+                crossfold_df = crossfold_df.merge(
+                    pool_group[merge_cols + extra_cols],
+                    on=merge_cols,
+                    how="left",
+                )
+        crossfold_df = crossfold_df.sort_values(
+            ["score_stability", "cv_val_mae_mean", "cv_val_mae_max", "fit_mae_full", "cv_train_mae_mean"]
+        ).reset_index(drop=True)
+        crossfold_df.to_csv(OUT_DIR / "spore_proxy_crossfold_score.csv", index=False)
+        best_row = crossfold_df.iloc[0].to_dict()
+    else:
+        best_row = leaderboard_gate.iloc[0].to_dict()
     leaderboard.to_csv(OUT_DIR / "spore_proxy_selection_compare.csv", index=False)
-    best_row = leaderboard_gate.iloc[0].to_dict()
     best_params = _extract_params_from_trial_row(best_row)
 
     best_loss, detail = _evaluate_params(site_year_cache, best_params)
@@ -567,7 +710,11 @@ def main() -> None:
         "best_params": {k: (float(v) if isinstance(v, (int, float, np.floating, np.integer)) else v) for k, v in best_params.items()},
         "cv_topk_frac": float(args.cv_topk_frac),
         "param_bounds": PARAM_BOUNDS,
-        "selection_mode": "loocv_train_topk_then_val_then_min_full_fit_mae",
+        "selection_mode": (
+            "crossfold_fixed_stability_score"
+            if str(args.selector_mode) == "crossfold_fixed"
+            else "loocv_train_topk_then_val_then_min_full_fit_mae"
+        ),
         "cv_train_mae_mean": float(loocv_df["fit_train_mae"].mean()),
         "cv_val_mae_mean": float(loocv_df["test_mae"].mean()),
         "cv_train_mae_std": float(loocv_df["fit_train_mae"].std(ddof=0)),
@@ -577,6 +724,11 @@ def main() -> None:
         "min_selected_folds": int(min_folds),
         "selection_constraint_relaxed": bool(selection_constraint_relaxed),
         "param_round_decimals": int(dec),
+        "selector_mode": str(args.selector_mode),
+        "lambda_val_std": float(args.lambda_val_std),
+        "lambda_gap": float(args.lambda_gap),
+        "lambda_val_max": float(args.lambda_val_max),
+        "fold_candidate_frac": float(args.fold_candidate_frac),
     }
     with open(OUT_DIR / "spore_proxy_best.json", "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
