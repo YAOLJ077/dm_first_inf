@@ -585,6 +585,12 @@ def main() -> None:
     parser.add_argument("--lambda-gap", type=float, default=0.5)
     parser.add_argument("--lambda-val-max", type=float, default=0.8)
     parser.add_argument("--fold-candidate-frac", type=float, default=0.10)
+    parser.add_argument(
+        "--reuse-existing-loocv",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Reuse existing LOOCV outputs in result folder and skip expensive LOOCV recomputation.",
+    )
     args = parser.parse_args()
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -595,24 +601,48 @@ def main() -> None:
     for r in rows:
         site_year_cache[(str(r.plot), int(r.year))] = _prepare_site_year_data(r, spore_df)
 
-    ray_used = ray is not None and args.n_jobs > 1
-    if ray_used:
-        ray.init(num_cpus=max(1, args.n_jobs), include_dashboard=False, logging_level="ERROR")
-    # LOOCV-only calibration flow.
-    loocv_df, loocv_pool_df = _loocv_train_topk_then_val(
-        rows=rows,
-        spore_df=spore_df,
-        full_cache=site_year_cache,
-        n_trials=int(args.loocv_trials),
-        n_startup=max(20, int(args.loocv_trials) // 4),
-        seed=int(args.seed + 1000),
-        n_jobs=int(args.n_jobs),
-        topk_frac=float(args.cv_topk_frac),
-        fold_candidate_frac=float(args.fold_candidate_frac),
-    )
-    loocv_df.to_csv(OUT_DIR / "spore_proxy_loocv.csv", index=False)
-    # Keep this output for compatibility with existing downstream readers.
-    loocv_df.sort_values(["test_mae", "fit_train_mae"]).to_csv(OUT_DIR / "spore_proxy_trials.csv", index=False)
+    loocv_path = OUT_DIR / "spore_proxy_loocv.csv"
+    loocv_pool_path = OUT_DIR / "spore_proxy_loocv_pool.csv"
+    required_loocv_cols = {"plot", "year", "fit_train_mae", "test_mae", "fit_mae_full", "constraint_satisfied"}
+    can_reuse_loocv = bool(args.reuse_existing_loocv and loocv_path.exists())
+
+    if can_reuse_loocv:
+        loocv_df = pd.read_csv(loocv_path)
+        if not required_loocv_cols.issubset(set(loocv_df.columns)):
+            print(f"[resume] Existing LOOCV file missing required columns, recomputing: {loocv_path}")
+            can_reuse_loocv = False
+        else:
+            loocv_pool_df = pd.read_csv(loocv_pool_path) if loocv_pool_path.exists() else pd.DataFrame()
+            print(f"[resume] Reusing existing LOOCV results: {loocv_path}")
+            if loocv_pool_path.exists():
+                print(f"[resume] Reusing existing LOOCV pool: {loocv_pool_path}")
+
+    if not can_reuse_loocv:
+        ray_used = ray is not None and args.n_jobs > 1
+        if ray_used:
+            ray.init(num_cpus=max(1, args.n_jobs), include_dashboard=False, logging_level="ERROR")
+        # LOOCV-only calibration flow.
+        loocv_df, loocv_pool_df = _loocv_train_topk_then_val(
+            rows=rows,
+            spore_df=spore_df,
+            full_cache=site_year_cache,
+            n_trials=int(args.loocv_trials),
+            n_startup=max(20, int(args.loocv_trials) // 4),
+            seed=int(args.seed + 1000),
+            n_jobs=int(args.n_jobs),
+            topk_frac=float(args.cv_topk_frac),
+            fold_candidate_frac=float(args.fold_candidate_frac),
+        )
+        loocv_df.to_csv(loocv_path, index=False)
+        if loocv_pool_df is not None and not loocv_pool_df.empty:
+            loocv_pool_df.to_csv(loocv_pool_path, index=False)
+        # Keep this output for compatibility with existing downstream readers.
+        loocv_df.sort_values(["test_mae", "fit_train_mae"]).to_csv(OUT_DIR / "spore_proxy_trials.csv", index=False)
+        if ray_used:
+            ray.shutdown()
+    else:
+        # Ensure compatibility output is refreshed from reused LOOCV.
+        loocv_df.sort_values(["test_mae", "fit_train_mae"]).to_csv(OUT_DIR / "spore_proxy_trials.csv", index=False)
 
     select_cols = [
         "rho", "beta_mp", "beta_rain", "beta_wind", "gamma_vpd", "k_mp",
@@ -704,6 +734,9 @@ def main() -> None:
     best_loss, detail = _evaluate_params(site_year_cache, best_params)
     detail.to_csv(OUT_DIR / "spore_proxy_fit_detail.csv", index=False)
 
+    selected_n_folds_raw = best_row.get("n_selected_folds", 0)
+    selected_n_folds = int(selected_n_folds_raw) if pd.notna(selected_n_folds_raw) else 0
+
     summary = {
         "best_loss_mae": float(best_loss),
         "n_site_year": int(len(site_year_cache)),
@@ -720,7 +753,7 @@ def main() -> None:
         "cv_train_mae_std": float(loocv_df["fit_train_mae"].std(ddof=0)),
         "cv_val_mae_std": float(loocv_df["test_mae"].std(ddof=0)),
         "cv_constraint_satisfied_rate": float(loocv_df["constraint_satisfied"].mean()),
-        "selected_n_folds": int(best_row.get("n_selected_folds", 0)),
+        "selected_n_folds": selected_n_folds,
         "min_selected_folds": int(min_folds),
         "selection_constraint_relaxed": bool(selection_constraint_relaxed),
         "param_round_decimals": int(dec),
@@ -760,9 +793,6 @@ def main() -> None:
     }
     with open(OUT_DIR / "spore_pressure_params_for_inversion.json", "w", encoding="utf-8") as f:
         json.dump(inversion_cfg, f, indent=2)
-
-    if ray_used:
-        ray.shutdown()
 
     print(f"Saved: {OUT_DIR / 'spore_proxy_best.json'}")
     print(f"Saved: {OUT_DIR / 'spore_pressure_params_for_inversion.json'}")
