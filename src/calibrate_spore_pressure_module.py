@@ -468,13 +468,14 @@ def _loocv_train_topk_then_val(
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     out = []
     pool_out = []
+    row_keys = [(str(r.plot), int(r.year)) for r in rows]
     for i in tqdm(range(len(rows)), desc="Spore LOOCV"):
         test = rows[i]
-        train_rows = [rows[j] for j in range(len(rows)) if j != i]
-        train_cache = {}
-        for r in train_rows:
-            train_cache[(str(r.plot), int(r.year))] = _prepare_site_year_data(r, spore_df)
-        test_cache = {(str(test.plot), int(test.year)): _prepare_site_year_data(test, spore_df)}
+        print(f"[LOOCV] Fold {i+1}/{len(rows)} start: test=({str(test.plot)}, {int(test.year)})")
+        # Reuse prebuilt full cache instead of re-reading weather/json per fold.
+        test_key = row_keys[i]
+        train_cache = {k: full_cache[k] for j, k in enumerate(row_keys) if j != i}
+        test_cache = {test_key: full_cache[test_key]}
 
         if optuna is not None:
             _, _, trial_rows = _parallel_optuna_search(
@@ -526,6 +527,11 @@ def _loocv_train_topk_then_val(
                 "fit_mae_full": float(fit_mae_full),
                 **pbest,
             }
+        )
+        print(
+            f"[LOOCV] Fold {i+1}/{len(rows)} done: "
+            f"train_mae={float(best_fold['train_mae']):.6f}, "
+            f"val_mae={float(best_fold['val_mae']):.6f}"
         )
     pool_df = pd.concat(pool_out, ignore_index=True) if pool_out else pd.DataFrame()
     return pd.DataFrame(out), pool_df
@@ -819,10 +825,10 @@ def main() -> None:
         help="Light weighting for high observed spore-pressure days in MAE objective (0.0-0.5).",
     )
     parser.add_argument(
-        "--ab-auto",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Run A/B automatically: A(alpha=0.0) and B(alpha=obs-peak-weight-alpha).",
+        "--run-mode",
+        choices=["A", "B", "AB"],
+        default="A",
+        help="Run mode: A(alpha=0.0), B(alpha=obs-peak-weight-alpha), or AB(both).",
     )
     args = parser.parse_args()
 
@@ -831,14 +837,15 @@ def main() -> None:
     rows = _site_year_rows()
 
     run_rows: List[Dict[str, float]] = []
-    if bool(args.ab_auto):
-        alpha_b = float(np.clip(args.obs_peak_weight_alpha, 0.0, 0.5))
-        if alpha_b <= 0.0:
-            alpha_b = 0.15
-        run_specs = [("A_alpha0.00", 0.0), (f"B_alpha{alpha_b:.2f}", alpha_b)]
+    alpha_b = float(np.clip(args.obs_peak_weight_alpha, 0.0, 0.5))
+    if alpha_b <= 0.0:
+        alpha_b = 0.15
+    if str(args.run_mode) == "A":
+        run_specs = [("A_alpha0.00", 0.0)]
+    elif str(args.run_mode) == "B":
+        run_specs = [(f"B_alpha{alpha_b:.2f}", alpha_b)]
     else:
-        alpha_single = float(np.clip(args.obs_peak_weight_alpha, 0.0, 0.5))
-        run_specs = [(f"single_alpha{alpha_single:.2f}", alpha_single)]
+        run_specs = [("A_alpha0.00", 0.0), (f"B_alpha{alpha_b:.2f}", alpha_b)]
 
     for run_label, alpha in run_specs:
         run_dir = OUT_DIR / run_label
