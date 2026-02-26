@@ -328,7 +328,8 @@ def main() -> None:
     pos_l = axes_maps[0].get_position()
     pos_r = axes_maps[-1].get_position()
     pos_hist = ax_hist.get_position()
-    ax_hist.set_position([pos_l.x0, pos_hist.y0, pos_r.x1 - pos_l.x0, pos_hist.height])
+    hist_shift_up = 0.025
+    ax_hist.set_position([pos_l.x0, pos_hist.y0 + hist_shift_up, pos_r.x1 - pos_l.x0, pos_hist.height])
 
     # Then shift histogram panel right so y-label "Count" left edge aligns with maps' left edge.
     fig.canvas.draw()
