@@ -348,7 +348,7 @@ def main() -> None:
     cbar_h = 0.018
     gap = max(0.004, map_bottom - hist_top)
     # Keep colorbar below the first-row maps with a visible gap from the map frame.
-    cbar_y_target = map_bottom - cbar_h - 0.008
+    cbar_y_target = map_bottom - cbar_h - 0.025
     cbar_y = max(hist_top + 0.001, cbar_y_target)
     cbar_ax = fig.add_axes([pos_l.x0, cbar_y, pos_r.x1 - pos_l.x0, cbar_h])
     cbar = fig.colorbar(last_img, cax=cbar_ax, orientation="horizontal")
