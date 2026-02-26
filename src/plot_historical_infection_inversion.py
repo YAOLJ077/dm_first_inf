@@ -157,8 +157,7 @@ def _plot_map(
         )
         stat_text = (
             f"Mean = {np.nanmean(agg['mean_doy']):.1f}\n"
-            f"Median = {np.nanmedian(agg['mean_doy']):.1f}\n"
-            f"Event = {np.nanmean(agg['event_rate']) * 100.0:.1f}%"
+            f"Median = {np.nanmedian(agg['mean_doy']):.1f}"
         )
     else:
         img = None
@@ -175,7 +174,7 @@ def _plot_map(
             0.02,
             stat_text,
             transform=ax.transAxes,
-            fontsize=12,
+            fontsize=10,
             color="black",
             ha="left",
             va="bottom",
@@ -273,7 +272,7 @@ def main() -> None:
 
     bins = np.arange(150, 251, 10)
     centers = (bins[:-1] + bins[1:]) / 2
-    width_group = 6.0
+    width_group = 4.8
     width_single = width_group / 3.5
 
     for i, variety in enumerate(VARIETY_ORDER):
@@ -294,11 +293,11 @@ def main() -> None:
     ax_hist.set_xlim(150, 250)
     ax_hist.set_xlabel("Day of Year (DOY)", fontsize=12)
     ax_hist.set_ylabel("Count", fontsize=12)
-    ax_hist.tick_params(axis="x", direction="in", labelsize=12, pad=2)
+    ax_hist.tick_params(axis="x", direction="in", labelsize=10, pad=2)
     ax_hist.tick_params(axis="y", direction="in", labelsize=12)
     ax_hist.grid(axis="y", linestyle="--", alpha=0.35)
     ax_hist.set_xticks(centers)
-    ax_hist.set_xticklabels([f"{int(bins[i])}-{int(bins[i+1])}" for i in range(len(bins) - 1)], fontsize=12)
+    ax_hist.set_xticklabels([f"{int(bins[i])}-{int(bins[i+1])}" for i in range(len(bins) - 1)], fontsize=10)
 
     ax_hist.legend(
         title="Variety",
@@ -321,6 +320,23 @@ def main() -> None:
         fontsize=12,
         bbox=dict(facecolor="white", alpha=0.8, edgecolor="none", boxstyle="round,pad=0.2"),
     )
+
+    # Align histogram plotting area left edge with top-row subplot left edge,
+    # while keeping y-axis label/ticks visible outside.
+    fig.canvas.draw()
+    pos_map = axes_maps[0].get_position()
+    pos_hist = ax_hist.get_position()
+    renderer = fig.canvas.get_renderer()
+    y_label_width = 0.0
+    if ax_hist.yaxis.get_label().get_visible():
+        bbox_label = ax_hist.yaxis.get_label().get_window_extent(renderer=renderer)
+        y_label_width += bbox_label.width / fig.bbox.width
+    tick_bboxes = [t.get_window_extent(renderer=renderer) for t in ax_hist.yaxis.get_ticklabels() if t.get_visible()]
+    if tick_bboxes:
+        y_label_width += max(b.width for b in tick_bboxes) / fig.bbox.width
+    new_x0 = pos_map.x0 + y_label_width * 1.1
+    new_width = pos_hist.x1 - new_x0
+    ax_hist.set_position([new_x0, pos_hist.y0, new_width, pos_hist.height])
 
     # out_png = out_dir / f"{args.out_name}.png"
     # out_pdf = out_dir / f"{args.out_name}.pdf"
