@@ -130,6 +130,7 @@ def _plot_map(
     gx.boundary.plot(ax=ax, edgecolor="black", linewidth=1.0, zorder=4)
     cities.boundary.plot(ax=ax, color="gray", linewidth=0.55, linestyle="--", zorder=3)
 
+    stat_text = None
     if agg is not None and not agg.empty:
         lon_u = np.sort(agg["longitude"].unique())
         lat_u = np.sort(agg["latitude"].unique())
@@ -159,24 +160,28 @@ def _plot_map(
             f"Median = {np.nanmedian(agg['mean_doy']):.1f}\n"
             f"Event = {np.nanmean(agg['event_rate']) * 100.0:.1f}%"
         )
+    else:
+        img = None
+        ax.text(0.5, 0.5, "No data", transform=ax.transAxes, ha="center", va="center", fontsize=12)
+
+    if non_gx is not None and not non_gx.empty:
+        non_gx.plot(ax=ax, facecolor="white", edgecolor="none", zorder=5)
+    gx.boundary.plot(ax=ax, edgecolor="black", linewidth=1.0, zorder=6)
+
+    # Draw stats after masking so the label is always readable.
+    if stat_text is not None:
         ax.text(
             0.03,
             0.02,
             stat_text,
             transform=ax.transAxes,
-            fontsize=10,
-            color="white",
+            fontsize=12,
+            color="black",
             ha="left",
             va="bottom",
-            bbox=dict(facecolor="black", alpha=0.78, edgecolor="none", boxstyle="round,pad=0.2"),
+            zorder=20,
+            bbox=dict(facecolor="none", alpha=0.0, edgecolor="none", boxstyle="round,pad=0.2"),
         )
-    else:
-        img = None
-        ax.text(0.5, 0.5, "No data", transform=ax.transAxes, ha="center", va="center", fontsize=11)
-
-    if non_gx is not None and not non_gx.empty:
-        non_gx.plot(ax=ax, facecolor="white", edgecolor="none", zorder=5)
-    gx.boundary.plot(ax=ax, edgecolor="black", linewidth=1.0, zorder=6)
 
     minx, miny, maxx, maxy = gx.total_bounds
     ax.set_xlim(minx - 0.2, maxx + 0.2)
@@ -191,7 +196,7 @@ def _plot_map(
         transform=ax.transAxes,
         ha="left",
         va="top",
-        fontsize=11,
+        fontsize=12,
         bbox=dict(facecolor="white", alpha=0.8, edgecolor="none", boxstyle="round,pad=0.2"),
     )
     ax.text(
@@ -201,7 +206,7 @@ def _plot_map(
         transform=ax.transAxes,
         ha="left",
         va="top",
-        fontsize=11,
+        fontsize=12,
         bbox=dict(facecolor="white", alpha=0.0, edgecolor="none"),
     )
     return img
@@ -236,7 +241,7 @@ def main() -> None:
     if vmax <= vmin:
         vmin, vmax = float(np.nanmin(event_doy)), float(np.nanmax(event_doy))
 
-    fig = plt.figure(figsize=(7.8, 6.2))
+    fig = plt.figure(figsize=(7.2, 5.8))
     gs = gridspec.GridSpec(2, 3, height_ratios=[3.0, 1.25], hspace=0.15, wspace=0.02)
     axes_maps = [fig.add_subplot(gs[0, i]) for i in range(3)]
     ax_hist = fig.add_subplot(gs[1, :])
@@ -263,8 +268,8 @@ def main() -> None:
     pos_r = axes_maps[-1].get_position()
     cbar_ax = fig.add_axes([pos_l.x0, 0.43, pos_r.x1 - pos_l.x0, 0.02])
     cbar = fig.colorbar(last_img, cax=cbar_ax, orientation="horizontal")
-    cbar.set_label("Primary Infection Date (DOY)", fontsize=11, labelpad=4)
-    cbar.ax.tick_params(labelsize=10, direction="in", top=True, bottom=True)
+    cbar.set_label("Primary Infection Date (DOY)", fontsize=12, labelpad=4)
+    cbar.ax.tick_params(labelsize=12, direction="in", top=True, bottom=True)
 
     bins = np.arange(150, 251, 10)
     centers = (bins[:-1] + bins[1:]) / 2
@@ -287,13 +292,13 @@ def main() -> None:
         )
 
     ax_hist.set_xlim(150, 250)
-    ax_hist.set_xlabel("Day of Year (DOY)", fontsize=11)
-    ax_hist.set_ylabel("Count", fontsize=11)
-    ax_hist.tick_params(axis="x", direction="in", labelsize=10, pad=2)
-    ax_hist.tick_params(axis="y", direction="in", labelsize=10)
+    ax_hist.set_xlabel("Day of Year (DOY)", fontsize=12)
+    ax_hist.set_ylabel("Count", fontsize=12)
+    ax_hist.tick_params(axis="x", direction="in", labelsize=12, pad=2)
+    ax_hist.tick_params(axis="y", direction="in", labelsize=12)
     ax_hist.grid(axis="y", linestyle="--", alpha=0.35)
     ax_hist.set_xticks(centers)
-    ax_hist.set_xticklabels([f"{int(bins[i])}-{int(bins[i+1])}" for i in range(len(bins) - 1)], fontsize=9)
+    ax_hist.set_xticklabels([f"{int(bins[i])}-{int(bins[i+1])}" for i in range(len(bins) - 1)], fontsize=12)
 
     ax_hist.legend(
         title="Variety",
@@ -301,8 +306,8 @@ def main() -> None:
         bbox_to_anchor=(0.99, 0.98),
         frameon=True,
         edgecolor="black",
-        fontsize=9,
-        title_fontsize=9,
+        fontsize=12,
+        title_fontsize=12,
         ncol=3,
         columnspacing=1.2,
     )
@@ -313,7 +318,7 @@ def main() -> None:
         transform=ax_hist.transAxes,
         ha="left",
         va="top",
-        fontsize=11,
+        fontsize=12,
         bbox=dict(facecolor="white", alpha=0.8, edgecolor="none", boxstyle="round,pad=0.2"),
     )
 
