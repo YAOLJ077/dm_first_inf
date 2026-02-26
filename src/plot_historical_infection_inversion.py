@@ -284,7 +284,7 @@ def main() -> None:
             f"{variety}",
         )
 
-    bins = np.arange(150, 251, 10)
+    bins = np.arange(160, 251, 10)
     centers = (bins[:-1] + bins[1:]) / 2
     width_group = 4.8
     width_single = width_group / 3.5
