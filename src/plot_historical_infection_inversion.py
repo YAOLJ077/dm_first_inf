@@ -191,7 +191,7 @@ def _plot_map(
     ax.tick_params(left=False, bottom=False)
     ax.text(
         0.02,
-        0.97,
+        0.96,
         panel_label,
         transform=ax.transAxes,
         ha="left",
@@ -320,7 +320,7 @@ def main() -> None:
     ax_hist.legend(
         title="Variety",
         loc="upper right",
-        bbox_to_anchor=(0.998, 0.98),
+        bbox_to_anchor=(0.999, 0.98),
         frameon=True,
         edgecolor="black",
         fontsize=11,
