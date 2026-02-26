@@ -1,0 +1,9 @@
+[
+  {
+    "run_label": "A_alpha0.00",
+    "obs_peak_weight_alpha": 0.0,
+    "best_loss_mae": 0.172743951920264,
+    "cv_train_mae_mean": 0.17520379036660957,
+    "cv_val_mae_mean": 0.19391333465468977
+  }
+]

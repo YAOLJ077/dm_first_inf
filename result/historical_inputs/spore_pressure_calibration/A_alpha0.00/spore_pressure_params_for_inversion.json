@@ -1,0 +1,27 @@
+{
+  "spore_pressure_params": {
+    "rho": 0.59,
+    "beta_mp": 4.384,
+    "beta_rain": 0.053,
+    "beta_wind": 0.048,
+    "gamma_vpd": 0.503,
+    "k_mp": 0.891,
+    "tmin": 17.32,
+    "topt": 23.65,
+    "tmax": 40.577,
+    "roll_window": 4,
+    "baseline_q": 0.496
+  },
+  "fit_loss_mae": 0.172743951920264,
+  "n_site_year": 6,
+  "source": "calibrate_spore_pressure_module.py",
+  "obs_peak_weight_alpha": 0.0,
+  "run_label": "A_alpha0.00",
+  "files": {
+    "best_summary": "spore_proxy_best.json",
+    "fit_detail": "spore_proxy_fit_detail.csv",
+    "trials": "spore_proxy_trials.csv",
+    "loocv": "spore_proxy_loocv.csv",
+    "selection_compare": "spore_proxy_selection_compare.csv"
+  }
+}
