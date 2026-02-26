@@ -313,6 +313,7 @@ def main() -> None:
     # fixed integer bins starting from 2.
     bmin = 2
     bmax = int(np.ceil(np.nanmax(all_vals)))
+    bmax = min(bmax, 6)
     if bmax <= bmin:
         bmax = bmin + 1
     bins = np.arange(bmin - 0.5, bmax + 1.5, 1.0)  # integer-centered bins
@@ -337,6 +338,8 @@ def main() -> None:
     ax_hist.set_ylabel("Count", fontsize=12)
     ax_hist.tick_params(axis="x", direction="in", labelsize=11, pad=2)
     ax_hist.tick_params(axis="y", direction="in", labelsize=12)
+    ax_hist.set_ylim(0, 200)
+    ax_hist.set_yticks([0, 50, 100, 150, 200])
     ax_hist.grid(axis="y", linestyle="--", alpha=0.35)
     ax_hist.set_xticks(centers)
     ax_hist.set_xticklabels([f"{int(x)}" for x in centers], fontsize=11)
