@@ -30,8 +30,8 @@ def _parse_args() -> argparse.Namespace:
         type=str,
         default="../infection_date_2000_2024/infection_inversion_all_varieties_2000_2024.csv",
     )
-    p.add_argument("--gx-shp", type=str, default="../data/shapefile/广西壮族自治区.shp")
-    p.add_argument("--city-shp", type=str, default="../data/shapefile/广西壮族自治区_市.shp")
+    p.add_argument("--gx-shp", type=str, default="data/shapefile/广西壮族自治区.shp")
+    p.add_argument("--city-shp", type=str, default="data/shapefile/广西壮族自治区_市.shp")
     p.add_argument("--out-dir", type=str, default="../fig")
     p.add_argument("--out-name", type=str, default="historical_infection_inversion_gx")
     p.add_argument("--dpi", type=int, default=300)
