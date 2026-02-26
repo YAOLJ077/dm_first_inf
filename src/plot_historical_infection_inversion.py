@@ -208,6 +208,11 @@ def _plot_map(
         fontsize=12,
         bbox=dict(facecolor="white", alpha=0.0, edgecolor="none"),
     )
+    # Ensure full thin black frame on all four sides.
+    for side in ["left", "right", "top", "bottom"]:
+        ax.spines[side].set_visible(True)
+        ax.spines[side].set_linewidth(0.8)
+        ax.spines[side].set_color("black")
     return img
 
 
@@ -225,30 +230,39 @@ def main() -> None:
     gx, cities = _load_boundaries(gx_shp, city_shp)
     non_gx = _build_non_gx_polygon(gx, float(args.bbox_buffer))
 
-    event_doy = df.loc[df["has_event"] & df["doy"].notna(), "doy"].values
-    if len(event_doy) == 0:
-        raise ValueError("No valid event DOY found in input data.")
+    map_data: Dict[str, pd.DataFrame] = {v: _aggregate_grid(df, v) for v in VARIETY_ORDER}
+    mean_doy_all = np.concatenate(
+        [
+            pd.to_numeric(map_data[v].get("mean_doy", pd.Series(dtype=float)), errors="coerce")
+            .dropna()
+            .to_numpy()
+            for v in VARIETY_ORDER
+            if v in map_data and map_data[v] is not None and not map_data[v].empty
+        ]
+    ) if any(v in map_data and map_data[v] is not None and not map_data[v].empty for v in VARIETY_ORDER) else np.array([])
+    if mean_doy_all.size == 0:
+        raise ValueError("No valid grid-mean DOY found in input data.")
 
     if np.isfinite(args.doy_min):
         vmin = float(args.doy_min)
     else:
-        vmin = float(np.nanpercentile(event_doy, 2))
+        vmin = float(np.nanpercentile(mean_doy_all, 2))
     if np.isfinite(args.doy_max):
         vmax = float(args.doy_max)
     else:
-        vmax = float(np.nanpercentile(event_doy, 98))
+        vmax = float(np.nanpercentile(mean_doy_all, 98))
     if vmax <= vmin:
-        vmin, vmax = float(np.nanmin(event_doy)), float(np.nanmax(event_doy))
+        vmin, vmax = float(np.nanmin(mean_doy_all)), float(np.nanmax(mean_doy_all))
 
-    fig = plt.figure(figsize=(7.2, 5.8))
-    gs = gridspec.GridSpec(2, 3, height_ratios=[3.0, 1.25], hspace=0.15, wspace=0.02)
+    fig = plt.figure(figsize=(7.2, 5.5))
+    gs = gridspec.GridSpec(2, 3, height_ratios=[3.05, 1.2], hspace=0.12, wspace=0.02)
     axes_maps = [fig.add_subplot(gs[0, i]) for i in range(3)]
     ax_hist = fig.add_subplot(gs[1, :])
 
     cmap = cm.get_cmap("viridis").reversed()
     last_img = None
     for i, variety in enumerate(VARIETY_ORDER):
-        agg = _aggregate_grid(df, variety)
+        agg = map_data.get(variety, pd.DataFrame())
         last_img = _plot_map(
             axes_maps[i],
             agg,
@@ -265,7 +279,7 @@ def main() -> None:
     fig.canvas.draw()
     pos_l = axes_maps[0].get_position()
     pos_r = axes_maps[-1].get_position()
-    cbar_ax = fig.add_axes([pos_l.x0, 0.43, pos_r.x1 - pos_l.x0, 0.02])
+    cbar_ax = fig.add_axes([pos_l.x0, 0.435, pos_r.x1 - pos_l.x0, 0.018])
     cbar = fig.colorbar(last_img, cax=cbar_ax, orientation="horizontal")
     cbar.set_label("Primary Infection Date (DOY)", fontsize=12, labelpad=4)
     cbar.ax.tick_params(labelsize=12, direction="in", top=True, bottom=True)
@@ -276,10 +290,12 @@ def main() -> None:
     width_single = width_group / 3.5
 
     for i, variety in enumerate(VARIETY_ORDER):
-        vals = df.loc[
-            (df["variety"] == variety) & (df["has_event"]) & (df["doy"].notna()),
-            "doy",
-        ].values
+        agg = map_data.get(variety, pd.DataFrame())
+        vals = (
+            pd.to_numeric(agg.get("mean_doy", pd.Series(dtype=float)), errors="coerce")
+            .dropna()
+            .to_numpy()
+        )
         counts, _ = np.histogram(vals, bins=bins)
         ax_hist.bar(
             centers + (i - 1) * width_single,
@@ -337,6 +353,7 @@ def main() -> None:
     new_x0 = pos_map.x0 + y_label_width * 1.1
     new_width = pos_hist.x1 - new_x0
     ax_hist.set_position([new_x0, pos_hist.y0, new_width, pos_hist.height])
+    fig.subplots_adjust(left=0.065, right=0.985, top=0.965, bottom=0.09)
 
     # out_png = out_dir / f"{args.out_name}.png"
     # out_pdf = out_dir / f"{args.out_name}.pdf"
