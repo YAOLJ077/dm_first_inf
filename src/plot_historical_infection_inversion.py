@@ -126,7 +126,6 @@ def _plot_map(
     vmin: float,
     vmax: float,
     panel_label: str,
-    title: str,
 ):
     gx.boundary.plot(ax=ax, edgecolor="black", linewidth=1.0, zorder=4)
     cities.boundary.plot(ax=ax, color="gray", linewidth=0.55, linestyle="--", zorder=3)
@@ -199,16 +198,6 @@ def _plot_map(
         fontsize=12,
         bbox=dict(facecolor="white", alpha=0.8, edgecolor="none", boxstyle="round,pad=0.2"),
     )
-    ax.text(
-        0.12,
-        0.94,
-        title,
-        transform=ax.transAxes,
-        ha="left",
-        va="top",
-        fontsize=12,
-        bbox=dict(facecolor="white", alpha=0.0, edgecolor="none"),
-    )
     # Ensure full thin black frame on all four sides.
     for side in ["left", "right", "top", "bottom"]:
         ax.spines[side].set_visible(True)
@@ -276,8 +265,7 @@ def main() -> None:
             cmap,
             vmin,
             vmax,
-            f"({chr(ord('a') + i)})",
-            f"{variety}",
+            f"({chr(ord('a') + i)}) {variety}",
         )
 
     bins = np.arange(150, 251, 10)
@@ -308,7 +296,7 @@ def main() -> None:
     ax_hist.tick_params(axis="x", direction="in", labelsize=10, pad=2)
     ax_hist.tick_params(axis="y", direction="in", labelsize=12)
     ax_hist.set_ylim(0, 250)
-    ax_hist.set_yticks([0, 50, 100, 200, 250])
+    ax_hist.set_yticks([0, 50, 100, 150, 200, 250])
     ax_hist.grid(axis="y", linestyle="--", alpha=0.35)
     ax_hist.set_xticks(centers)
     ax_hist.set_xticklabels([f"{int(bins[i])}-{int(bins[i+1])}" for i in range(len(bins) - 1)], fontsize=10)
@@ -359,7 +347,8 @@ def main() -> None:
     hist_top = pos_hist.y1
     cbar_h = 0.018
     gap = max(0.004, map_bottom - hist_top)
-    cbar_y = hist_top + (gap - cbar_h) / 2.0 if gap > cbar_h else hist_top + 0.001
+    # Move colorbar closer to the first-row map panels.
+    cbar_y = max(hist_top + 0.001, map_bottom - cbar_h - 0.002)
     cbar_ax = fig.add_axes([pos_l.x0, cbar_y, pos_r.x1 - pos_l.x0, cbar_h])
     cbar = fig.colorbar(last_img, cax=cbar_ax, orientation="horizontal")
     cbar.set_label("First Infection Date (DOY)", fontsize=12, labelpad=4)
