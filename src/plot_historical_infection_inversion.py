@@ -196,6 +196,8 @@ def _plot_map(
         ha="left",
         va="top",
         fontsize=12,
+        zorder=40,
+        clip_on=False,
         bbox=dict(facecolor="white", alpha=0.8, edgecolor="none", boxstyle="round,pad=0.2"),
     )
     # Ensure full thin black frame on all four sides.
@@ -328,7 +330,7 @@ def main() -> None:
     pos_l = axes_maps[0].get_position()
     pos_r = axes_maps[-1].get_position()
     pos_hist = ax_hist.get_position()
-    hist_shift_up = 0.025
+    hist_shift_up = 0.05
     ax_hist.set_position([pos_l.x0, pos_hist.y0 + hist_shift_up, pos_r.x1 - pos_l.x0, pos_hist.height])
 
     # Then shift histogram panel right so y-label "Count" left edge aligns with maps' left edge.
