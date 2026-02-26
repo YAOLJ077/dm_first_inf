@@ -104,6 +104,17 @@ def _aggregate_grid(df: pd.DataFrame, variety: str) -> pd.DataFrame:
     return agg
 
 
+def _make_edges(values: np.ndarray) -> np.ndarray:
+    vals = np.sort(np.unique(values.astype(float)))
+    if vals.size == 1:
+        d = 0.1
+        return np.array([vals[0] - d, vals[0] + d], dtype=float)
+    mids = (vals[:-1] + vals[1:]) / 2.0
+    first = vals[0] - (mids[0] - vals[0])
+    last = vals[-1] + (vals[-1] - mids[-1])
+    return np.concatenate([[first], mids, [last]])
+
+
 def _plot_map(
     ax,
     agg: pd.DataFrame,
@@ -120,16 +131,27 @@ def _plot_map(
     cities.boundary.plot(ax=ax, color="gray", linewidth=0.55, linestyle="--", zorder=3)
 
     if agg is not None and not agg.empty:
-        img = ax.scatter(
-            agg["longitude"],
-            agg["latitude"],
-            c=agg["mean_doy"],
+        lon_u = np.sort(agg["longitude"].unique())
+        lat_u = np.sort(agg["latitude"].unique())
+        lon_edges = _make_edges(lon_u)
+        lat_edges = _make_edges(lat_u)
+        grid = (
+            agg.pivot(index="latitude", columns="longitude", values="mean_doy")
+            .reindex(index=lat_u, columns=lon_u)
+            .to_numpy()
+        )
+        # pcolormesh renders contiguous cells and avoids visible white seams.
+        img = ax.pcolormesh(
+            lon_edges,
+            lat_edges,
+            grid,
             cmap=cmap,
             vmin=vmin,
             vmax=vmax,
-            s=16,
-            marker="s",
-            linewidths=0.0,
+            shading="auto",
+            edgecolors="none",
+            linewidth=0.0,
+            antialiased=False,
             zorder=2,
         )
         stat_text = (
@@ -143,9 +165,10 @@ def _plot_map(
             stat_text,
             transform=ax.transAxes,
             fontsize=10,
+            color="white",
             ha="left",
             va="bottom",
-            bbox=dict(facecolor="white", alpha=0.75, edgecolor="none", boxstyle="round,pad=0.2"),
+            bbox=dict(facecolor="black", alpha=0.78, edgecolor="none", boxstyle="round,pad=0.2"),
         )
     else:
         img = None
@@ -235,14 +258,15 @@ def main() -> None:
             f"{variety}",
         )
 
-    cbar_ax = fig.add_axes([0.075, 0.43, 0.85, 0.02])
+    fig.canvas.draw()
+    pos_l = axes_maps[0].get_position()
+    pos_r = axes_maps[-1].get_position()
+    cbar_ax = fig.add_axes([pos_l.x0, 0.43, pos_r.x1 - pos_l.x0, 0.02])
     cbar = fig.colorbar(last_img, cax=cbar_ax, orientation="horizontal")
     cbar.set_label("Primary Infection Date (DOY)", fontsize=11, labelpad=4)
     cbar.ax.tick_params(labelsize=10, direction="in", top=True, bottom=True)
 
-    bins = np.arange(int(np.floor(vmin / 10.0) * 10), int(np.ceil(vmax / 10.0) * 10) + 10, 10)
-    if len(bins) < 3:
-        bins = np.arange(60, 241, 10)
+    bins = np.arange(150, 251, 10)
     centers = (bins[:-1] + bins[1:]) / 2
     width_group = 6.0
     width_single = width_group / 3.5
@@ -262,7 +286,7 @@ def main() -> None:
             label=variety,
         )
 
-    ax_hist.set_xlim(centers[0] - 10, centers[-1] + 10)
+    ax_hist.set_xlim(150, 250)
     ax_hist.set_xlabel("Day of Year (DOY)", fontsize=11)
     ax_hist.set_ylabel("Count", fontsize=11)
     ax_hist.tick_params(axis="x", direction="in", labelsize=10, pad=2)
@@ -271,29 +295,10 @@ def main() -> None:
     ax_hist.set_xticks(centers)
     ax_hist.set_xticklabels([f"{int(bins[i])}-{int(bins[i+1])}" for i in range(len(bins) - 1)], fontsize=9)
 
-    no_event = (
-        df.groupby("variety", as_index=False)
-        .agg(n_total=("has_event", "count"), n_event=("has_event", "sum"))
-        .assign(no_event_rate=lambda x: (1.0 - x["n_event"] / x["n_total"]) * 100.0)
-    )
-    txt = "\n".join(
-        [f"{r.variety}: no-event {r.no_event_rate:.1f}%" for r in no_event.itertuples(index=False)]
-    )
-    ax_hist.text(
-        0.985,
-        0.95,
-        txt,
-        transform=ax_hist.transAxes,
-        ha="right",
-        va="top",
-        fontsize=9,
-        bbox=dict(facecolor="white", edgecolor="black", alpha=0.85, boxstyle="round,pad=0.25"),
-    )
-
     ax_hist.legend(
         title="Variety",
-        loc="upper left",
-        bbox_to_anchor=(0.01, 0.98),
+        loc="upper right",
+        bbox_to_anchor=(0.99, 0.98),
         frameon=True,
         edgecolor="black",
         fontsize=9,
