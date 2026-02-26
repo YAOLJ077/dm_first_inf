@@ -307,6 +307,8 @@ def main() -> None:
     ax_hist.set_ylabel("Count", fontsize=12)
     ax_hist.tick_params(axis="x", direction="in", labelsize=10, pad=2)
     ax_hist.tick_params(axis="y", direction="in", labelsize=12)
+    ax_hist.set_ylim(0, 250)
+    ax_hist.set_yticks([0, 50, 100, 200, 250])
     ax_hist.grid(axis="y", linestyle="--", alpha=0.35)
     ax_hist.set_xticks(centers)
     ax_hist.set_xticklabels([f"{int(bins[i])}-{int(bins[i+1])}" for i in range(len(bins) - 1)], fontsize=10)
@@ -333,12 +335,22 @@ def main() -> None:
         bbox=dict(facecolor="white", alpha=0.8, edgecolor="none", boxstyle="round,pad=0.2"),
     )
 
-    # Align histogram panel width with full top-row map width.
+    # Align histogram panel with full top-row width first.
     fig.canvas.draw()
     pos_l = axes_maps[0].get_position()
     pos_r = axes_maps[-1].get_position()
     pos_hist = ax_hist.get_position()
     ax_hist.set_position([pos_l.x0, pos_hist.y0, pos_r.x1 - pos_l.x0, pos_hist.height])
+
+    # Then shift histogram panel right so y-label "Count" left edge aligns with maps' left edge.
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    label_bbox = ax_hist.yaxis.get_label().get_window_extent(renderer=renderer)
+    label_left = label_bbox.x0 / fig.bbox.width
+    dx = pos_l.x0 - label_left
+    if dx > 0:
+        pos_hist = ax_hist.get_position()
+        ax_hist.set_position([pos_hist.x0 + dx, pos_hist.y0, pos_hist.width - dx, pos_hist.height])
 
     # Colorbar aligned to the same combined top-row width.
     fig.canvas.draw()
@@ -350,7 +362,7 @@ def main() -> None:
     cbar_y = hist_top + (gap - cbar_h) / 2.0 if gap > cbar_h else hist_top + 0.001
     cbar_ax = fig.add_axes([pos_l.x0, cbar_y, pos_r.x1 - pos_l.x0, cbar_h])
     cbar = fig.colorbar(last_img, cax=cbar_ax, orientation="horizontal")
-    cbar.set_label("Primary Infection Date (DOY)", fontsize=12, labelpad=4)
+    cbar.set_label("First Infection Date (DOY)", fontsize=12, labelpad=4)
     cbar.ax.tick_params(labelsize=12, direction="in", top=True, bottom=True)
 
     # out_png = out_dir / f"{args.out_name}.png"
