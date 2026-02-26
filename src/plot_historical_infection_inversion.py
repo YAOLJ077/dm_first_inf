@@ -347,8 +347,9 @@ def main() -> None:
     hist_top = pos_hist.y1
     cbar_h = 0.018
     gap = max(0.004, map_bottom - hist_top)
-    # Move colorbar closer to the first-row map panels.
-    cbar_y = max(hist_top + 0.001, map_bottom - cbar_h - 0.002)
+    # Keep colorbar below the first-row maps with a visible gap from the map frame.
+    cbar_y_target = map_bottom - cbar_h - 0.008
+    cbar_y = max(hist_top + 0.001, cbar_y_target)
     cbar_ax = fig.add_axes([pos_l.x0, cbar_y, pos_r.x1 - pos_l.x0, cbar_h])
     cbar = fig.colorbar(last_img, cax=cbar_ax, orientation="horizontal")
     cbar.set_label("First Infection Date (DOY)", fontsize=12, labelpad=4)
