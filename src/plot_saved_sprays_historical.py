@@ -315,8 +315,8 @@ def main() -> None:
     bmax = int(np.ceil(np.nanmax(all_vals)))
     if bmax <= bmin:
         bmax = bmin + 1
-    bins = np.arange(bmin, bmax + 2, 1)  # edges: [2, 3, ..., bmax+1]
-    centers = (bins[:-1] + bins[1:]) / 2.0
+    bins = np.arange(bmin - 0.5, bmax + 1.5, 1.0)  # integer-centered bins
+    centers = np.arange(bmin, bmax + 1, 1.0)
     width_group = 0.75
     width_single = width_group / 3.5
 
@@ -332,14 +332,14 @@ def main() -> None:
             label=variety,
         )
 
-    ax_hist.set_xlim(float(bins[0]), float(bins[-1]))
+    ax_hist.set_xlim(float(bmin - 0.5), float(bmax + 0.5))
     ax_hist.set_xlabel("Number of Sprays Saved", fontsize=12)
     ax_hist.set_ylabel("Count", fontsize=12)
     ax_hist.tick_params(axis="x", direction="in", labelsize=11, pad=2)
     ax_hist.tick_params(axis="y", direction="in", labelsize=12)
     ax_hist.grid(axis="y", linestyle="--", alpha=0.35)
     ax_hist.set_xticks(centers)
-    ax_hist.set_xticklabels([f"{int(bins[i])}-{int(bins[i+1])}" for i in range(len(bins) - 1)], fontsize=11)
+    ax_hist.set_xticklabels([f"{int(x)}" for x in centers], fontsize=11)
     for lbl in ax_hist.get_xticklabels():
         lbl.set_fontsize(11)
         lbl.set_fontname("Times New Roman")
@@ -387,7 +387,7 @@ def main() -> None:
     map_bottom = pos_l.y0
     hist_top = pos_hist.y1
     cbar_h = 0.018
-    cbar_y_target = map_bottom - cbar_h - 0.008
+    cbar_y_target = map_bottom - cbar_h - 0.025
     cbar_y = max(hist_top + 0.001, cbar_y_target)
     cbar_ax = fig.add_axes([pos_l.x0, cbar_y, pos_r.x1 - pos_l.x0, cbar_h])
     cbar = fig.colorbar(last_img, cax=cbar_ax, orientation="horizontal")
