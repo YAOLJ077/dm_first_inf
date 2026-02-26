@@ -126,6 +126,7 @@ def _plot_map(
     vmin: float,
     vmax: float,
     panel_label: str,
+    panel_title: str,
 ):
     gx.boundary.plot(ax=ax, edgecolor="black", linewidth=1.0, zorder=4)
     cities.boundary.plot(ax=ax, color="gray", linewidth=0.55, linestyle="--", zorder=3)
@@ -200,6 +201,18 @@ def _plot_map(
         clip_on=False,
         bbox=dict(facecolor="white", alpha=0.8, edgecolor="none", boxstyle="round,pad=0.2"),
     )
+    ax.text(
+        0.12,
+        0.94,
+        panel_title,
+        transform=ax.transAxes,
+        ha="left",
+        va="top",
+        fontsize=12,
+        zorder=40,
+        clip_on=False,
+        bbox=dict(facecolor="white", alpha=0.0, edgecolor="none"),
+    )
     # Ensure full thin black frame on all four sides.
     for side in ["left", "right", "top", "bottom"]:
         ax.spines[side].set_visible(True)
@@ -267,7 +280,8 @@ def main() -> None:
             cmap,
             vmin,
             vmax,
-            f"({chr(ord('a') + i)}) {variety}",
+            f"({chr(ord('a') + i)})",
+            f"{variety}",
         )
 
     bins = np.arange(150, 251, 10)
@@ -306,7 +320,7 @@ def main() -> None:
     ax_hist.legend(
         title="Variety",
         loc="upper right",
-        bbox_to_anchor=(0.997, 0.98),
+        bbox_to_anchor=(0.998, 0.98),
         frameon=True,
         edgecolor="black",
         fontsize=11,
