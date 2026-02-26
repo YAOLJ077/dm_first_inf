@@ -375,11 +375,11 @@ def main() -> None:
     cbar.set_label("First Infection Date (DOY)", fontsize=12, labelpad=4)
     cbar.ax.tick_params(labelsize=12, direction="in", top=True, bottom=True)
 
-    # out_png = out_dir / f"{args.out_name}.png"
-    # out_pdf = out_dir / f"{args.out_name}.pdf"
-    # plt.savefig(out_png, dpi=int(args.dpi), bbox_inches="tight")
-    # plt.savefig(out_pdf, dpi=int(args.dpi), bbox_inches="tight")
-    # print(f"[OK] Saved:\n - {out_png}\n - {out_pdf}")
+    out_png = out_dir / f"{args.out_name}.png"
+    out_pdf = out_dir / f"{args.out_name}.pdf"
+    plt.savefig(out_png, dpi=int(args.dpi), bbox_inches="tight")
+    plt.savefig(out_pdf, dpi=int(args.dpi), bbox_inches="tight")
+    print(f"[OK] Saved:\n - {out_png}\n - {out_pdf}")
     plt.show()
 
 
