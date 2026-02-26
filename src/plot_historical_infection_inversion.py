@@ -191,7 +191,7 @@ def _plot_map(
     ax.tick_params(left=False, bottom=False)
     ax.text(
         0.02,
-        0.96,
+        0.955,
         panel_label,
         transform=ax.transAxes,
         ha="left",
@@ -309,13 +309,16 @@ def main() -> None:
     ax_hist.set_xlim(150, 250)
     ax_hist.set_xlabel("Day of Year (DOY)", fontsize=12)
     ax_hist.set_ylabel("Count", fontsize=12)
-    ax_hist.tick_params(axis="x", direction="in", labelsize=11, pad=2)
+    ax_hist.tick_params(axis="x", direction="in", labelsize=12, pad=2)
     ax_hist.tick_params(axis="y", direction="in", labelsize=12)
     ax_hist.set_ylim(0, 250)
     ax_hist.set_yticks([0, 50, 100, 150, 200, 250])
     ax_hist.grid(axis="y", linestyle="--", alpha=0.35)
     ax_hist.set_xticks(centers)
-    ax_hist.set_xticklabels([f"{int(bins[i])}-{int(bins[i+1])}" for i in range(len(bins) - 1)], fontsize=11)
+    ax_hist.set_xticklabels([f"{int(bins[i])}-{int(bins[i+1])}" for i in range(len(bins) - 1)], fontsize=12)
+    for lbl in ax_hist.get_xticklabels():
+        lbl.set_fontsize(12)
+        lbl.set_fontname("Times New Roman")
 
     ax_hist.legend(
         title="Variety",
