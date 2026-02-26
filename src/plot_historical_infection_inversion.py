@@ -295,13 +295,13 @@ def main() -> None:
     ax_hist.set_xlim(150, 250)
     ax_hist.set_xlabel("Day of Year (DOY)", fontsize=12)
     ax_hist.set_ylabel("Count", fontsize=12)
-    ax_hist.tick_params(axis="x", direction="in", labelsize=10, pad=2)
+    ax_hist.tick_params(axis="x", direction="in", labelsize=11, pad=2)
     ax_hist.tick_params(axis="y", direction="in", labelsize=12)
     ax_hist.set_ylim(0, 250)
     ax_hist.set_yticks([0, 50, 100, 150, 200, 250])
     ax_hist.grid(axis="y", linestyle="--", alpha=0.35)
     ax_hist.set_xticks(centers)
-    ax_hist.set_xticklabels([f"{int(bins[i])}-{int(bins[i+1])}" for i in range(len(bins) - 1)], fontsize=10)
+    ax_hist.set_xticklabels([f"{int(bins[i])}-{int(bins[i+1])}" for i in range(len(bins) - 1)], fontsize=11)
 
     ax_hist.legend(
         title="Variety",
@@ -309,8 +309,8 @@ def main() -> None:
         bbox_to_anchor=(0.99, 0.98),
         frameon=True,
         edgecolor="black",
-        fontsize=12,
-        title_fontsize=12,
+        fontsize=11,
+        title_fontsize=11,
         ncol=3,
         columnspacing=1.2,
     )
