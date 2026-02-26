@@ -306,7 +306,7 @@ def main() -> None:
             label=variety,
         )
 
-    ax_hist.set_xlim(150, 250)
+    ax_hist.set_xlim(160, 250)
     ax_hist.set_xlabel("Day of Year (DOY)", fontsize=12)
     ax_hist.set_ylabel("Count", fontsize=12)
     ax_hist.tick_params(axis="x", direction="in", labelsize=12, pad=2)
