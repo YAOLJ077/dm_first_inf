@@ -13,7 +13,8 @@ import pandas as pd
 from matplotlib import cm, gridspec
 from shapely.geometry import box
 
-plt.rcParams["font.family"] = "Times New Roman"
+plt.rcParams["font.family"] = "serif"
+plt.rcParams["font.serif"] = ["Times New Roman", "Times", "DejaVu Serif"]
 plt.rcParams["axes.unicode_minus"] = False
 
 
@@ -213,6 +214,8 @@ def _plot_map(
         ax.spines[side].set_visible(True)
         ax.spines[side].set_linewidth(0.8)
         ax.spines[side].set_color("black")
+        ax.spines[side].set_zorder(30)
+    ax.set_frame_on(True)
     return img
 
 
@@ -258,6 +261,7 @@ def main() -> None:
     gs = gridspec.GridSpec(2, 3, height_ratios=[3.05, 1.2], hspace=0.12, wspace=0.02)
     axes_maps = [fig.add_subplot(gs[0, i]) for i in range(3)]
     ax_hist = fig.add_subplot(gs[1, :])
+    fig.subplots_adjust(left=0.065, right=0.985, top=0.965, bottom=0.09)
 
     cmap = cm.get_cmap("viridis").reversed()
     last_img = None
@@ -275,14 +279,6 @@ def main() -> None:
             f"({chr(ord('a') + i)})",
             f"{variety}",
         )
-
-    fig.canvas.draw()
-    pos_l = axes_maps[0].get_position()
-    pos_r = axes_maps[-1].get_position()
-    cbar_ax = fig.add_axes([pos_l.x0, 0.435, pos_r.x1 - pos_l.x0, 0.018])
-    cbar = fig.colorbar(last_img, cax=cbar_ax, orientation="horizontal")
-    cbar.set_label("Primary Infection Date (DOY)", fontsize=12, labelpad=4)
-    cbar.ax.tick_params(labelsize=12, direction="in", top=True, bottom=True)
 
     bins = np.arange(150, 251, 10)
     centers = (bins[:-1] + bins[1:]) / 2
@@ -337,23 +333,25 @@ def main() -> None:
         bbox=dict(facecolor="white", alpha=0.8, edgecolor="none", boxstyle="round,pad=0.2"),
     )
 
-    # Align histogram plotting area left edge with top-row subplot left edge,
-    # while keeping y-axis label/ticks visible outside.
+    # Align histogram panel width with full top-row map width.
     fig.canvas.draw()
-    pos_map = axes_maps[0].get_position()
+    pos_l = axes_maps[0].get_position()
+    pos_r = axes_maps[-1].get_position()
     pos_hist = ax_hist.get_position()
-    renderer = fig.canvas.get_renderer()
-    y_label_width = 0.0
-    if ax_hist.yaxis.get_label().get_visible():
-        bbox_label = ax_hist.yaxis.get_label().get_window_extent(renderer=renderer)
-        y_label_width += bbox_label.width / fig.bbox.width
-    tick_bboxes = [t.get_window_extent(renderer=renderer) for t in ax_hist.yaxis.get_ticklabels() if t.get_visible()]
-    if tick_bboxes:
-        y_label_width += max(b.width for b in tick_bboxes) / fig.bbox.width
-    new_x0 = pos_map.x0 + y_label_width * 1.1
-    new_width = pos_hist.x1 - new_x0
-    ax_hist.set_position([new_x0, pos_hist.y0, new_width, pos_hist.height])
-    fig.subplots_adjust(left=0.065, right=0.985, top=0.965, bottom=0.09)
+    ax_hist.set_position([pos_l.x0, pos_hist.y0, pos_r.x1 - pos_l.x0, pos_hist.height])
+
+    # Colorbar aligned to the same combined top-row width.
+    fig.canvas.draw()
+    pos_hist = ax_hist.get_position()
+    map_bottom = pos_l.y0
+    hist_top = pos_hist.y1
+    cbar_h = 0.018
+    gap = max(0.004, map_bottom - hist_top)
+    cbar_y = hist_top + (gap - cbar_h) / 2.0 if gap > cbar_h else hist_top + 0.001
+    cbar_ax = fig.add_axes([pos_l.x0, cbar_y, pos_r.x1 - pos_l.x0, cbar_h])
+    cbar = fig.colorbar(last_img, cax=cbar_ax, orientation="horizontal")
+    cbar.set_label("Primary Infection Date (DOY)", fontsize=12, labelpad=4)
+    cbar.ax.tick_params(labelsize=12, direction="in", top=True, bottom=True)
 
     # out_png = out_dir / f"{args.out_name}.png"
     # out_pdf = out_dir / f"{args.out_name}.pdf"
