@@ -306,7 +306,7 @@ def main() -> None:
     ax_hist.legend(
         title="Variety",
         loc="upper right",
-        bbox_to_anchor=(1.04, 0.98),
+        bbox_to_anchor=(0.995, 0.98),
         frameon=True,
         edgecolor="black",
         fontsize=11,
