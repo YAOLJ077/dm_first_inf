@@ -82,21 +82,22 @@ def _plot_panel(
     )
 
     ax.set_xticks(x)
-    ax.set_xticklabels(["FIM", "FIM-S"])
+    ax.set_xticklabels(["FSIM", "FSIM-S"])
     ax.tick_params(axis="both", direction="in")
     ax.grid(axis="y", color="#DDDDDD", linewidth=0.6, linestyle="--")
     ax.text(0.05, 0.96, panel_tag, transform=ax.transAxes, ha="left", va="top")
     # value labels in bar center
     all_bars = list(bars_mae) + list(bars_rmse)
-    for i, b in enumerate(all_bars):
+    for b in all_bars:
         h = b.get_height()
-        y_pos = h * 0.5
-        if panel_tag == "(a)" and i == 0:
-            y_pos += 1.0
+
+        # 更稳健的“柱内居中”（直接用 bar 的 bbox）
+        y_pos = b.get_y() + h / 2
+
         ax.text(
             b.get_x() + b.get_width() / 2,
             y_pos,
-            f"{h:.2f}",
+            f"{h:.1f}",   # ✅ 保留1位小数（自动四舍五入）
             ha="center",
             va="center",
             fontsize=12,
