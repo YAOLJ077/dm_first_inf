@@ -1,0 +1,13 @@
+{
+  "status": "complete",
+  "backend": "joblib-loky",
+  "workers": 64,
+  "started_utc": "2026-09-15T02:24:41.711219+00:00",
+  "unique_grid_model_tasks": 205,
+  "cached_at_start": 205,
+  "completed_new_model_tasks": 0,
+  "model_seconds_sum": 0.0,
+  "note": "One global task stream; no per-fold candidate limit. Fold selection follows cached model computation.",
+  "elapsed_seconds": 0.008985990658402443,
+  "worker_pids_observed": []
+}

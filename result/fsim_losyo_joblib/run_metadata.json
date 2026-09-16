@@ -1,0 +1,81 @@
+{
+  "jobs": {
+    "losyo/2p_grid/seed_20260914/folds/DA_MPT_2022": {
+      "status": "complete",
+      "n_trials": 99,
+      "candidate_cap": 1024,
+      "stopping_reason": "refinement_round_limit_or_no_new_candidates"
+    },
+    "losyo/2p_grid/seed_20260914/folds/DA_MPT_2023": {
+      "status": "complete",
+      "n_trials": 106,
+      "candidate_cap": 1024,
+      "stopping_reason": "refinement_round_limit_or_no_new_candidates"
+    },
+    "losyo/2p_grid/seed_20260914/folds/DA_MPT_2024": {
+      "status": "complete",
+      "n_trials": 99,
+      "candidate_cap": 1024,
+      "stopping_reason": "refinement_round_limit_or_no_new_candidates"
+    },
+    "losyo/2p_grid/seed_20260914/folds/GL_WK_2022": {
+      "status": "complete",
+      "n_trials": 99,
+      "candidate_cap": 1024,
+      "stopping_reason": "refinement_round_limit_or_no_new_candidates"
+    },
+    "losyo/2p_grid/seed_20260914/folds/NN_JF_2023": {
+      "status": "complete",
+      "n_trials": 121,
+      "candidate_cap": 1024,
+      "stopping_reason": "refinement_round_limit_or_no_new_candidates"
+    },
+    "losyo/2p_grid/seed_20260914/folds/NN_JF_2024": {
+      "status": "complete",
+      "n_trials": 99,
+      "candidate_cap": 1024,
+      "stopping_reason": "refinement_round_limit_or_no_new_candidates"
+    }
+  },
+  "sessions": [
+    {
+      "started_utc": "2026-09-15T02:11:15.421795+00:00",
+      "workers": 64,
+      "resumed": false
+    },
+    {
+      "started_utc": "2026-09-15T02:24:41.575291+00:00",
+      "workers": 64,
+      "resumed": true
+    }
+  ],
+  "status": "interrupted",
+  "smoke": false,
+  "budget": {
+    "workers": 64,
+    "backend": "joblib-loky",
+    "order": [
+      "2p_grid",
+      "2p_tpe",
+      "3p_grid",
+      "3p_tpe",
+      "4p_grid",
+      "4p_tpe"
+    ],
+    "n_fold_jobs": 36,
+    "grid_candidate_cap": 1024,
+    "tpe_trials": 1024,
+    "startup_trials": 128,
+    "coarse_candidates": {
+      "2p": 30,
+      "3p": 270,
+      "4p": 480
+    },
+    "maximum_training_trials": 36864
+  },
+  "active_stage": "2p_tpe",
+  "unique_model_evaluations": {
+    "2p": 1861
+  },
+  "error": "Received signal 2; retaining checkpoints"
+}

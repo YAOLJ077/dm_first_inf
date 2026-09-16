@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+# LEGACY / 旧版：不属于当前 FSIM 分析入口。
+# Status: legacy_analysis; see config/project_registry.json and config/README.md.
+# Retained for historical traceability; current results require separate validation.
 """
 Baseline calibration (Bayes + TPE + k-fold, single-stage).
 
@@ -61,11 +64,6 @@ TOPK_PCT = 5.0
 
 # Base ranges (global)
 BASE_RANGES = {
-    "mp_tmp__rh_wet_night": (85, 95),
-    "sporulation__MP_min": (3, 6),
-    "sporulation__Tmin": (8, 15),
-    "sporulation__Topt": (18, 24),
-    "sporulation__Tmax": (25, 35),
     "dispersal__rain_min": (6.0, 12.0),
     "dispersal__wind_min": (4.0, 12.0),
     "deposition__rain_min": (4.0, 12.0),
@@ -73,30 +71,9 @@ BASE_RANGES = {
     "zoospore_alive__vpd": (1.5, 4.0),
     "infection__infection_condition": (50, 150),
     "incubation__spl_end": (1.0, 1.5),
-    "thresholds__min_spores": (0.05, 0.30),
     "spore__alpha_pos": (0.3, 2.5),
     "spore__alpha_neg": (0.0, 1.4)
 }
-# BASE_RANGES = {
-#     "mp_tmp__rh_wet_night": (85, 95),
-#     "sporulation__MP_min": (3, 6),
-#     "sporulation__Tmin": (8, 15),
-#     "sporulation__Topt": (18, 24),
-#     "sporulation__Tmax": (25, 35),
-#     "dispersal__rain_min": (4.0, 10.0),
-#     "dispersal__wind_min": (2.0, 10.0),
-#     "deposition__rain_min": (4.0, 10.0),
-#     "zoospore_alive__rain": (2.0, 8.0),
-#     "zoospore_alive__vpd": (1.5, 4.0),
-#     "infection__infection_condition": (50, 150),
-#     "incubation__spl_end": (1.0, 1.5),
-#     "thresholds__min_spores": (0.01, 0.30),
-#     "spore__alpha_pos": (0.3, 3.0),
-#     "spore__alpha_neg": (0.0, 1.5)
-# }
-
-
-
 def expand_range_1p5(lo: float, hi: float) -> Tuple[float, float]:
     center = (lo + hi) / 2.0
     half = (hi - lo) / 2.0

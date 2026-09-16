@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+# LEGACY / 旧版：不属于当前 FSIM 分析入口。
+# Status: legacy_analysis; see config/project_registry.json and config/README.md.
+# Retained for historical traceability; current results require separate validation.
 
 import os
 import sys

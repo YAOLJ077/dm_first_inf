@@ -1,0 +1,19 @@
+{
+  "held_out": "DA_MPT_2024",
+  "training_keys": [
+    "DA_MPT_2022",
+    "DA_MPT_2023",
+    "GL_WK_2022",
+    "NN_JF_2023",
+    "NN_JF_2024"
+  ],
+  "calibration_status": "selected",
+  "RH_sp": 80.0,
+  "VPD_w": 1.375,
+  "I_req": 228.75,
+  "selected_sample_id": "M0_x6_y151",
+  "selected_training_MAE_days": 10.825,
+  "n_tied_best": 12,
+  "tie_rule": "closest_RH_to_80_then_lowest_RH_then_lowest_VPD_w_then_lowest_I_req",
+  "n_candidates": 2876
+}

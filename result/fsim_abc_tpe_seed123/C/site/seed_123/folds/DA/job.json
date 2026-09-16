@@ -1,0 +1,18 @@
+{
+  "id": "C/site/seed_123/folds/DA",
+  "plan": "C",
+  "arm": "C",
+  "scheme": "site",
+  "held_out": "DA",
+  "seed": 123,
+  "train": [
+    "GL_WK_2022",
+    "NN_JF_2023",
+    "NN_JF_2024"
+  ],
+  "test": [
+    "DA_MPT_2022",
+    "DA_MPT_2023",
+    "DA_MPT_2024"
+  ]
+}

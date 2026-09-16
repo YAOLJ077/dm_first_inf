@@ -1,0 +1,24 @@
+{
+  "training_keys": [
+    "DA_MPT_2022",
+    "DA_MPT_2023",
+    "GL_WK_2022",
+    "NN_JF_2023",
+    "NN_JF_2024"
+  ],
+  "test_keys": [
+    "DA_MPT_2024"
+  ],
+  "n_trials": 1024,
+  "selection_rule": "minimum_training_MAE",
+  "selection_uses_test_data": false,
+  "evaluation_role": "training_selected_baseline",
+  "calibration_status": "selected",
+  "I_req": 252.74497490638603,
+  "MP_sp": 3,
+  "RH_sp": 80,
+  "VPD_w": 1.6025288466167944,
+  "u_tr": 0.0,
+  "selected_trial": 386,
+  "training_MAE_days": 10.825000000000001
+}

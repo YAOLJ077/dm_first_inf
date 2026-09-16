@@ -1,0 +1,6 @@
+completed_trials,best_training_MAE_days,n_feasible
+128,15.2,71
+256,11.025,191
+512,11.025,419
+768,11.025,638
+1024,11.025,887

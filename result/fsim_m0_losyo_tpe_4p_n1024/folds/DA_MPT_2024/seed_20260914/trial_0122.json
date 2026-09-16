@@ -1,0 +1,126 @@
+{
+  "number": 122,
+  "seed": 20260914,
+  "params": {
+    "VPD_w": 1.4406681964965664,
+    "I_req": 379.798096320684,
+    "RH_sp": 85.96548760362758,
+    "MP_sp": 3
+  },
+  "training_keys": [
+    "DA_MPT_2022",
+    "DA_MPT_2023",
+    "GL_WK_2022",
+    "NN_JF_2023",
+    "NN_JF_2024"
+  ],
+  "predictions": [
+    {
+      "model": "M0",
+      "sample_id": "tpe",
+      "VPD_w": 1.4406681964965664,
+      "I_req": 379.798096320684,
+      "RH_sp": 85.96548760362758,
+      "MP_sp": 3,
+      "input_key": "DA_MPT_2022",
+      "observed_L": "2022-05-05 00:00:00",
+      "observed_U": "2022-05-08 00:00:00",
+      "status": "no_prediction",
+      "overlap": false,
+      "weather_policy": "original",
+      "n_windows": 0
+    },
+    {
+      "model": "M0",
+      "sample_id": "tpe",
+      "VPD_w": 1.4406681964965664,
+      "I_req": 379.798096320684,
+      "RH_sp": 85.96548760362758,
+      "MP_sp": 3,
+      "input_key": "DA_MPT_2023",
+      "observed_L": "2023-05-25 00:00:00",
+      "observed_U": "2023-05-28 00:00:00",
+      "status": "no_prediction",
+      "overlap": false,
+      "weather_policy": "original",
+      "n_windows": 0
+    },
+    {
+      "model": "M0",
+      "sample_id": "tpe",
+      "VPD_w": 1.4406681964965664,
+      "I_req": 379.798096320684,
+      "RH_sp": 85.96548760362758,
+      "MP_sp": 3,
+      "input_key": "GL_WK_2022",
+      "observed_L": "2022-05-27 00:00:00",
+      "observed_U": "2022-05-30 00:00:00",
+      "status": "predicted",
+      "overlap": true,
+      "weather_policy": "original",
+      "n_windows": 2,
+      "predicted_start": "2022-05-29T01:00:00",
+      "predicted_end": "2022-05-30T07:00:00",
+      "predicted_midpoint_doy": 149.66666666666666,
+      "window_width_days": 1.25,
+      "signed_interval_error_days": 0.0,
+      "interval_distance_days": 0.0,
+      "abs_midpoint_error_days": 1.1666666666666667,
+      "first_positive_distance_days": 0.0
+    },
+    {
+      "model": "M0",
+      "sample_id": "tpe",
+      "VPD_w": 1.4406681964965664,
+      "I_req": 379.798096320684,
+      "RH_sp": 85.96548760362758,
+      "MP_sp": 3,
+      "input_key": "NN_JF_2023",
+      "observed_L": "2023-06-07 00:00:00",
+      "observed_U": "2023-06-10 00:00:00",
+      "status": "no_prediction",
+      "overlap": false,
+      "weather_policy": "original",
+      "n_windows": 0
+    },
+    {
+      "model": "M0",
+      "sample_id": "tpe",
+      "VPD_w": 1.4406681964965664,
+      "I_req": 379.798096320684,
+      "RH_sp": 85.96548760362758,
+      "MP_sp": 3,
+      "input_key": "NN_JF_2024",
+      "observed_L": "2024-04-19 00:00:00",
+      "observed_U": "2024-04-22 00:00:00",
+      "status": "no_prediction",
+      "overlap": false,
+      "weather_policy": "keep_last",
+      "n_windows": 0
+    }
+  ],
+  "duplicate_predictions": [
+    {
+      "model": "M0",
+      "sample_id": "tpe",
+      "VPD_w": 1.4406681964965664,
+      "I_req": 379.798096320684,
+      "RH_sp": 85.96548760362758,
+      "MP_sp": 3,
+      "input_key": "NN_JF_2024",
+      "observed_L": "2024-04-19 00:00:00",
+      "observed_U": "2024-04-22 00:00:00",
+      "status": "no_prediction",
+      "overlap": false,
+      "weather_policy": "keep_first",
+      "n_windows": 0
+    }
+  ],
+  "metrics": {
+    "feasible": false,
+    "n_no_prediction": 4,
+    "training_MAE_days": null,
+    "training_RMSE_days": null,
+    "optimizer_value": 0.0
+  }
+}

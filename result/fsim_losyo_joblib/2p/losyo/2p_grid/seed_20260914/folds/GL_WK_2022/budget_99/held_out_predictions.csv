@@ -1,0 +1,2 @@
+I_req,MP_sp,RH_sp,VPD_w,abs_midpoint_error_days,first_positive_distance_days,input_key,interval_distance_days,model,n_windows,observed_L,observed_U,overlap,predicted_end,predicted_midpoint_doy,predicted_start,sample_id,signed_interval_error_days,status,weather_policy,window_width_days
+287.5,3,80.0,4.0,34.0625,34.875,GL_WK_2022,31.875,M0,25,2022-05-27 00:00:00,2022-05-30 00:00:00,False,2022-04-25T03:00:00,114.4375,2022-04-23T18:00:00,tpe,-31.875,predicted,original,1.375

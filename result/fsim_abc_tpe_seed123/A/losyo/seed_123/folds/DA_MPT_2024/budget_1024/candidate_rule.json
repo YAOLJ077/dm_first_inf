@@ -1,0 +1,7 @@
+{
+  "rule": "fixed_training_MAE_tolerance",
+  "tolerance_days": 1.0,
+  "training_predictions_must_be_complete": true,
+  "minimum_training_MAE_days": 10.825000000000001,
+  "n_unique_candidates": 69
+}

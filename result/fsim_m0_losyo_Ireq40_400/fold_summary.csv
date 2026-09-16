@@ -1,0 +1,7 @@
+held_out,stopping_reason,n_candidates,best_training_MAE_days,n_tied_best,calibration_status,VPD_w,I_req,selected_sample_id,selected_training_MAE_days
+DA_MPT_2022,round_limit,608,16.150000000000002,8,selected,3.875,282.5,M0_x23_y97,16.150000000000002
+DA_MPT_2023,round_limit,608,12.216666666666667,9,selected,3.875,275.0,M0_x23_y94,12.216666666666667
+DA_MPT_2024,round_limit,629,10.825000000000001,1,selected,1.5,252.5,M0_x4_y85,10.825000000000001
+GL_WK_2022,round_limit,608,11.891666666666667,8,selected,3.875,282.5,M0_x23_y97,11.891666666666667
+NN_JF_2023,round_limit,654,9.674999999999999,1,selected,1.625,142.5,M0_x5_y41,9.674999999999999
+NN_JF_2024,round_limit,708,16.483333333333334,7,selected,4.125,285.0,M0_x25_y98,16.483333333333334

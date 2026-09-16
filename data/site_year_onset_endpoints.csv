@@ -1,0 +1,7 @@
+﻿Place,place_code,Year,Plot,Variety,model_variety,L,L_DOY,U,U_DOY,interval_width_days,L_status,U_status,onset_censoring
+Duan,DA,2022,CK,MPT,MPT,2022-05-05,125,2022-05-08,128,3,observed-last-negative,observed-first-positive,interval-censored
+Duan,DA,2023,CK,MPT,MPT,2023-05-25,145,2023-05-28,148,3,observed-last-negative,observed-first-positive,interval-censored
+Duan,DA,2024,CK,MPT,MPT,2024-04-24,115,2024-04-27,118,3,observed-last-negative,observed-first-positive,interval-censored
+Guilin,GL,2022,CK,WK,WK,2022-05-27,147,2022-05-30,150,3,observed-last-negative,observed-first-positive,interval-censored
+Mingyang,NN,2023,CK,JF,JF,2023-06-07,158,2023-06-10,161,3,observed-last-negative,observed-first-positive,interval-censored
+Mingyang,NN,2024,CK,JF,JF,2024-04-19,110,2024-04-22,113,3,observed-last-negative,observed-first-positive,interval-censored

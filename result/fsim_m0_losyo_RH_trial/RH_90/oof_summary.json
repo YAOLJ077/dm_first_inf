@@ -1,0 +1,13 @@
+{
+  "n_folds": 6,
+  "n_calibration_failures": 0,
+  "n_predictions": 6,
+  "n_no_predictions": 0,
+  "prediction_rate_fixed_six": 1.0,
+  "MAE_days": 37.36805555555556,
+  "RMSE_days": 42.480254808688606,
+  "conditional_MAE_days": 37.36805555555556,
+  "conditional_RMSE_days": 42.480254808688606,
+  "accurate_prediction_rate_7d_fixed_six": 0.16666666666666666,
+  "accurate_prediction_rate_10d_fixed_six": 0.16666666666666666
+}

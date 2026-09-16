@@ -1,0 +1,801 @@
+{
+  "format_version": 1,
+  "algorithm": "prefetched-startup-fixed-pair-TPE-constant-liar",
+  "settings": {
+    "manifest": "result/fsim_inputs_seed123_exploration/site_year_manifest.csv",
+    "parameter_table": "src/tpe_m0_reference/config/fsim_m0_losyo_parameters.csv",
+    "schemes": [
+      "losyo",
+      "site",
+      "year"
+    ],
+    "order": [
+      "A",
+      "B",
+      "C"
+    ],
+    "seed": 123,
+    "n_startup_trials": 128,
+    "batch_size": 2,
+    "fixed_parameters": {
+      "RH_sp": 80,
+      "MP_sp": 3
+    },
+    "initial_point": {
+      "VPD_w": 2,
+      "I_req": 200,
+      "u_tr": 0
+    },
+    "plans": {
+      "A": {
+        "wind_gate": false,
+        "search_space": {
+          "VPD_w": [
+            1,
+            4.5
+          ],
+          "I_req": [
+            120,
+            350
+          ]
+        }
+      },
+      "B": {
+        "wind_gate": false,
+        "search_space": {
+          "VPD_w": [
+            1,
+            6
+          ],
+          "I_req": [
+            100,
+            600
+          ]
+        }
+      },
+      "C": {
+        "wind_gate": true,
+        "search_space": {
+          "VPD_w": [
+            1,
+            6
+          ],
+          "I_req": [
+            100,
+            600
+          ],
+          "u_tr": [
+            0,
+            6
+          ]
+        }
+      }
+    },
+    "training_checkpoints": [
+      128,
+      256,
+      512,
+      768,
+      1024,
+      1536,
+      2048
+    ],
+    "check_duplicate_policy": true,
+    "tie_atol_days": 1e-09,
+    "selection_tolerance_days": 1.0,
+    "selection_rule": "training_tolerance_then_test_MAE",
+    "near_optimal_tolerances_days": [
+      0.5,
+      1.0
+    ],
+    "accuracy_tolerances_days": [
+      7,
+      10
+    ],
+    "required_versions": {
+      "python": "3.12.7",
+      "numpy": "2.4.0",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3",
+      "optuna": "4.7.0",
+      "tqdm": "4.67.1",
+      "joblib": "1.5.3"
+    }
+  },
+  "jobs": [
+    {
+      "id": "A/losyo/seed_123/folds/DA_MPT_2022",
+      "plan": "A",
+      "arm": "A",
+      "scheme": "losyo",
+      "held_out": "DA_MPT_2022",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2023",
+        "DA_MPT_2024",
+        "GL_WK_2022",
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "DA_MPT_2022"
+      ]
+    },
+    {
+      "id": "A/losyo/seed_123/folds/DA_MPT_2023",
+      "plan": "A",
+      "arm": "A",
+      "scheme": "losyo",
+      "held_out": "DA_MPT_2023",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2024",
+        "GL_WK_2022",
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "DA_MPT_2023"
+      ]
+    },
+    {
+      "id": "A/losyo/seed_123/folds/DA_MPT_2024",
+      "plan": "A",
+      "arm": "A",
+      "scheme": "losyo",
+      "held_out": "DA_MPT_2024",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "GL_WK_2022",
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "DA_MPT_2024"
+      ]
+    },
+    {
+      "id": "A/losyo/seed_123/folds/GL_WK_2022",
+      "plan": "A",
+      "arm": "A",
+      "scheme": "losyo",
+      "held_out": "GL_WK_2022",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "DA_MPT_2024",
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "GL_WK_2022"
+      ]
+    },
+    {
+      "id": "A/losyo/seed_123/folds/NN_JF_2023",
+      "plan": "A",
+      "arm": "A",
+      "scheme": "losyo",
+      "held_out": "NN_JF_2023",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "DA_MPT_2024",
+        "GL_WK_2022",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "NN_JF_2023"
+      ]
+    },
+    {
+      "id": "A/losyo/seed_123/folds/NN_JF_2024",
+      "plan": "A",
+      "arm": "A",
+      "scheme": "losyo",
+      "held_out": "NN_JF_2024",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "DA_MPT_2024",
+        "GL_WK_2022",
+        "NN_JF_2023"
+      ],
+      "test": [
+        "NN_JF_2024"
+      ]
+    },
+    {
+      "id": "A/site/seed_123/folds/DA",
+      "plan": "A",
+      "arm": "A",
+      "scheme": "site",
+      "held_out": "DA",
+      "seed": 123,
+      "train": [
+        "GL_WK_2022",
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "DA_MPT_2024"
+      ]
+    },
+    {
+      "id": "A/site/seed_123/folds/GL",
+      "plan": "A",
+      "arm": "A",
+      "scheme": "site",
+      "held_out": "GL",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "DA_MPT_2024",
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "GL_WK_2022"
+      ]
+    },
+    {
+      "id": "A/site/seed_123/folds/NN",
+      "plan": "A",
+      "arm": "A",
+      "scheme": "site",
+      "held_out": "NN",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "DA_MPT_2024",
+        "GL_WK_2022"
+      ],
+      "test": [
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ]
+    },
+    {
+      "id": "A/year/seed_123/folds/2022",
+      "plan": "A",
+      "arm": "A",
+      "scheme": "year",
+      "held_out": "2022",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2023",
+        "DA_MPT_2024",
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "DA_MPT_2022",
+        "GL_WK_2022"
+      ]
+    },
+    {
+      "id": "A/year/seed_123/folds/2023",
+      "plan": "A",
+      "arm": "A",
+      "scheme": "year",
+      "held_out": "2023",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2024",
+        "GL_WK_2022",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "DA_MPT_2023",
+        "NN_JF_2023"
+      ]
+    },
+    {
+      "id": "A/year/seed_123/folds/2024",
+      "plan": "A",
+      "arm": "A",
+      "scheme": "year",
+      "held_out": "2024",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "GL_WK_2022",
+        "NN_JF_2023"
+      ],
+      "test": [
+        "DA_MPT_2024",
+        "NN_JF_2024"
+      ]
+    },
+    {
+      "id": "B/losyo/seed_123/folds/DA_MPT_2022",
+      "plan": "B",
+      "arm": "B",
+      "scheme": "losyo",
+      "held_out": "DA_MPT_2022",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2023",
+        "DA_MPT_2024",
+        "GL_WK_2022",
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "DA_MPT_2022"
+      ]
+    },
+    {
+      "id": "B/losyo/seed_123/folds/DA_MPT_2023",
+      "plan": "B",
+      "arm": "B",
+      "scheme": "losyo",
+      "held_out": "DA_MPT_2023",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2024",
+        "GL_WK_2022",
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "DA_MPT_2023"
+      ]
+    },
+    {
+      "id": "B/losyo/seed_123/folds/DA_MPT_2024",
+      "plan": "B",
+      "arm": "B",
+      "scheme": "losyo",
+      "held_out": "DA_MPT_2024",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "GL_WK_2022",
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "DA_MPT_2024"
+      ]
+    },
+    {
+      "id": "B/losyo/seed_123/folds/GL_WK_2022",
+      "plan": "B",
+      "arm": "B",
+      "scheme": "losyo",
+      "held_out": "GL_WK_2022",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "DA_MPT_2024",
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "GL_WK_2022"
+      ]
+    },
+    {
+      "id": "B/losyo/seed_123/folds/NN_JF_2023",
+      "plan": "B",
+      "arm": "B",
+      "scheme": "losyo",
+      "held_out": "NN_JF_2023",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "DA_MPT_2024",
+        "GL_WK_2022",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "NN_JF_2023"
+      ]
+    },
+    {
+      "id": "B/losyo/seed_123/folds/NN_JF_2024",
+      "plan": "B",
+      "arm": "B",
+      "scheme": "losyo",
+      "held_out": "NN_JF_2024",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "DA_MPT_2024",
+        "GL_WK_2022",
+        "NN_JF_2023"
+      ],
+      "test": [
+        "NN_JF_2024"
+      ]
+    },
+    {
+      "id": "B/site/seed_123/folds/DA",
+      "plan": "B",
+      "arm": "B",
+      "scheme": "site",
+      "held_out": "DA",
+      "seed": 123,
+      "train": [
+        "GL_WK_2022",
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "DA_MPT_2024"
+      ]
+    },
+    {
+      "id": "B/site/seed_123/folds/GL",
+      "plan": "B",
+      "arm": "B",
+      "scheme": "site",
+      "held_out": "GL",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "DA_MPT_2024",
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "GL_WK_2022"
+      ]
+    },
+    {
+      "id": "B/site/seed_123/folds/NN",
+      "plan": "B",
+      "arm": "B",
+      "scheme": "site",
+      "held_out": "NN",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "DA_MPT_2024",
+        "GL_WK_2022"
+      ],
+      "test": [
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ]
+    },
+    {
+      "id": "B/year/seed_123/folds/2022",
+      "plan": "B",
+      "arm": "B",
+      "scheme": "year",
+      "held_out": "2022",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2023",
+        "DA_MPT_2024",
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "DA_MPT_2022",
+        "GL_WK_2022"
+      ]
+    },
+    {
+      "id": "B/year/seed_123/folds/2023",
+      "plan": "B",
+      "arm": "B",
+      "scheme": "year",
+      "held_out": "2023",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2024",
+        "GL_WK_2022",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "DA_MPT_2023",
+        "NN_JF_2023"
+      ]
+    },
+    {
+      "id": "B/year/seed_123/folds/2024",
+      "plan": "B",
+      "arm": "B",
+      "scheme": "year",
+      "held_out": "2024",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "GL_WK_2022",
+        "NN_JF_2023"
+      ],
+      "test": [
+        "DA_MPT_2024",
+        "NN_JF_2024"
+      ]
+    },
+    {
+      "id": "C/losyo/seed_123/folds/DA_MPT_2022",
+      "plan": "C",
+      "arm": "C",
+      "scheme": "losyo",
+      "held_out": "DA_MPT_2022",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2023",
+        "DA_MPT_2024",
+        "GL_WK_2022",
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "DA_MPT_2022"
+      ]
+    },
+    {
+      "id": "C/losyo/seed_123/folds/DA_MPT_2023",
+      "plan": "C",
+      "arm": "C",
+      "scheme": "losyo",
+      "held_out": "DA_MPT_2023",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2024",
+        "GL_WK_2022",
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "DA_MPT_2023"
+      ]
+    },
+    {
+      "id": "C/losyo/seed_123/folds/DA_MPT_2024",
+      "plan": "C",
+      "arm": "C",
+      "scheme": "losyo",
+      "held_out": "DA_MPT_2024",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "GL_WK_2022",
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "DA_MPT_2024"
+      ]
+    },
+    {
+      "id": "C/losyo/seed_123/folds/GL_WK_2022",
+      "plan": "C",
+      "arm": "C",
+      "scheme": "losyo",
+      "held_out": "GL_WK_2022",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "DA_MPT_2024",
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "GL_WK_2022"
+      ]
+    },
+    {
+      "id": "C/losyo/seed_123/folds/NN_JF_2023",
+      "plan": "C",
+      "arm": "C",
+      "scheme": "losyo",
+      "held_out": "NN_JF_2023",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "DA_MPT_2024",
+        "GL_WK_2022",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "NN_JF_2023"
+      ]
+    },
+    {
+      "id": "C/losyo/seed_123/folds/NN_JF_2024",
+      "plan": "C",
+      "arm": "C",
+      "scheme": "losyo",
+      "held_out": "NN_JF_2024",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "DA_MPT_2024",
+        "GL_WK_2022",
+        "NN_JF_2023"
+      ],
+      "test": [
+        "NN_JF_2024"
+      ]
+    },
+    {
+      "id": "C/site/seed_123/folds/DA",
+      "plan": "C",
+      "arm": "C",
+      "scheme": "site",
+      "held_out": "DA",
+      "seed": 123,
+      "train": [
+        "GL_WK_2022",
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "DA_MPT_2024"
+      ]
+    },
+    {
+      "id": "C/site/seed_123/folds/GL",
+      "plan": "C",
+      "arm": "C",
+      "scheme": "site",
+      "held_out": "GL",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "DA_MPT_2024",
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "GL_WK_2022"
+      ]
+    },
+    {
+      "id": "C/site/seed_123/folds/NN",
+      "plan": "C",
+      "arm": "C",
+      "scheme": "site",
+      "held_out": "NN",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "DA_MPT_2024",
+        "GL_WK_2022"
+      ],
+      "test": [
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ]
+    },
+    {
+      "id": "C/year/seed_123/folds/2022",
+      "plan": "C",
+      "arm": "C",
+      "scheme": "year",
+      "held_out": "2022",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2023",
+        "DA_MPT_2024",
+        "NN_JF_2023",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "DA_MPT_2022",
+        "GL_WK_2022"
+      ]
+    },
+    {
+      "id": "C/year/seed_123/folds/2023",
+      "plan": "C",
+      "arm": "C",
+      "scheme": "year",
+      "held_out": "2023",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2024",
+        "GL_WK_2022",
+        "NN_JF_2024"
+      ],
+      "test": [
+        "DA_MPT_2023",
+        "NN_JF_2023"
+      ]
+    },
+    {
+      "id": "C/year/seed_123/folds/2024",
+      "plan": "C",
+      "arm": "C",
+      "scheme": "year",
+      "held_out": "2024",
+      "seed": 123,
+      "train": [
+        "DA_MPT_2022",
+        "DA_MPT_2023",
+        "GL_WK_2022",
+        "NN_JF_2023"
+      ],
+      "test": [
+        "DA_MPT_2024",
+        "NN_JF_2024"
+      ]
+    }
+  ],
+  "versions": {
+    "python": "3.12.7",
+    "numpy": "2.4.0",
+    "pandas": "2.3.3",
+    "scipy": "1.16.3",
+    "optuna": "4.7.0",
+    "tqdm": "4.67.1",
+    "joblib": "1.5.3"
+  },
+  "source_sha256": {
+    "src/calibrate_fsim_abc_tpe.py": "a778dfb8ec606cd89ddc64100e48f9711021f00a6d7a50de17b05133284c1340",
+    "src/calibrate_fsim_joblib_local.py": "f79a2ae2309669999a95ff2af8f291bd0f4c4ac5dd4ce79bbc73e6a645b3b327",
+    "src/calibrate_m0_grouped_tpe.py": "4bfd97989bbd880cb80051144e182de1c72f9537b6f39a9c7423e79c810f7eaa",
+    "src/fsim_joblib_pool.py": "ab3bd7002b4c0f2e25e0649ed8443ca71e209f0d3540506314f43eb004c16c49",
+    "src/tpe_m0_reference/config/fsim_m0_losyo_parameters.csv": "cf44892acf44c57d8fa796e56b651d1463271b0d69ca7f10e4490a714f8fcb66",
+    "src/tpe_m0_reference/config/fsim_m0_losyo_tpe.json": "5af7a17017817e5ffba18e00deeb99bd3c5e38f738979d47e95cb572caabf6c8",
+    "src/tpe_m0_reference/config/fsim_runtime_parameters.csv": "d62eecb3f37393d750c1696fa532e9c199c59665b41f7826e74a68dbf36fc1ee",
+    "src/tpe_m0_reference/model/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/tpe_m0_reference/model/config.py": "9f68eb3de1a5ff8b40f0d131dade3cbf1b79cb69b9e4f30534cee16ad6311cc4",
+    "src/tpe_m0_reference/model/crop_season.py": "4084d1f6fa5d3cae587d6f2feb9f1e2bec8340b1750d54e3556165383b7fcddd",
+    "src/tpe_m0_reference/model/crop_season_spore_infthr.py": "33ae4dd8e70c3723325b1b87dc4f6a7b42ede003e7a943298f719faa5dbc4260",
+    "src/tpe_m0_reference/model/first_infection.py": "05a2ddd2f5157f14ebfca78cc41c48ec1be670d3caf571a8c428b7b013eb12f4",
+    "src/tpe_m0_reference/model/first_infection_spore_infthr.py": "b1f6ba0bbf50f5359f6361fc7a0a90d5b95f68e302bb048e14a059259749e218",
+    "src/tpe_m0_reference/model/parameter_table.py": "83f9e45a5bf929c08906ca362d2fbf752cc880174de14c79cd9a74e68cc96eb5",
+    "src/tpe_m0_reference/model/process_rules.py": "7fc1a9e92c23a4414349646b407ca6fe84d4e1d0b8c5345ee66642188007d252",
+    "src/tpe_m0_reference/model/sporulation_timing.py": "ca392f7f23d0bd0bafc3b80a3f85566b26d0dfcb99981b688fb12a0c2f410a3d",
+    "src/tpe_m0_reference/snapshot_manifest.json": "9f04718e941b7c08625d98ed2d581b9511fb49f1c79fba9020dfec777d0382d3",
+    "src/tpe_m0_reference/src/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/tpe_m0_reference/src/analyze_fsim_parameters.py": "8603f8b2ac177b18145b73a961095dcbe6e5e49f3ec87f51736dfbd91aa22058",
+    "src/tpe_m0_reference/src/calibrate_m0_losyo.py": "b2229d7bcf42c9b818d956f32bff7eead4034888924ce0ca4a32eae7b44a73bb"
+  },
+  "input_sha256": {
+    "data/DA_MPT_2022_grape_rb.json": "3ead8103c1579f18ca30353babd8b242869c04b082c4a7f9c992e04244cb0228",
+    "data/DA_MPT_2023_grape_rb.json": "9c45a8c18f2a1e4782a435aa913cc7bab32ed2a17941634d7bef3ee39be7ac13",
+    "data/DA_MPT_2024_grape_rb.json": "c0765f2ba249ada50edef44413e3d7a5d4c681dde176749531b44f50bd99f884",
+    "data/GL_WK_2022_grape_rb.json": "dfab4ddfa8771e4a7111d00f2f7edeb7d6896d20ee9b76eead17000965154a5e",
+    "data/NN_JF_2023_grape_rb.json": "507b332d212e631dc9ad5af8e6173e232b5fadb44b0e0b0e3eee3e37c8d8853a",
+    "data/NN_JF_2024_grape_rb.json": "dbec78f460aa698ea598b6751089ab585ee53b5c198a98c498bc0ba0bae8bbc2",
+    "result/fsim_inputs_seed123_exploration/observations/DA_MPT_2022_observations.csv": "03127fb1716d780da6d165358035c864cb822d20b68e656a640adf7560da70e7",
+    "result/fsim_inputs_seed123_exploration/observations/DA_MPT_2023_observations.csv": "257d6cb98bbce1dcb93df2cd3927fdb25fccfd3d2744688ac27f140e83a8ac80",
+    "result/fsim_inputs_seed123_exploration/observations/DA_MPT_2024_observations.csv": "4d497969f5cce8232192dd3edc0231a4112f05c728cc8cf9f324a36cb56653de",
+    "result/fsim_inputs_seed123_exploration/observations/GL_WK_2022_observations.csv": "cf1875bbce1611ecd4db5454ddab3673b4ed004b10e99da85322ddb34d46939d",
+    "result/fsim_inputs_seed123_exploration/observations/NN_JF_2023_observations.csv": "0a17ba979fc2f975ce9777112563c43ade5fb85a0b42423ad8d1a597838d9116",
+    "result/fsim_inputs_seed123_exploration/observations/NN_JF_2024_observations.csv": "9da205ba67e7c8d7b04629a7c61d2ee90f511eff94a5095d7b981826919273ac",
+    "result/fsim_inputs_seed123_exploration/site_year_manifest.csv": "20afc237e479e635256ec220d1606bc198df4392744ed78862de7167a7de1713"
+  }
+}

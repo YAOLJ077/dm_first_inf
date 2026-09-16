@@ -1,0 +1,650 @@
+[
+  {
+    "id": "A/losyo/seed_123/folds/DA_MPT_2022",
+    "plan": "A",
+    "arm": "A",
+    "scheme": "losyo",
+    "held_out": "DA_MPT_2022",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2023",
+      "DA_MPT_2024",
+      "GL_WK_2022",
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "DA_MPT_2022"
+    ]
+  },
+  {
+    "id": "A/losyo/seed_123/folds/DA_MPT_2023",
+    "plan": "A",
+    "arm": "A",
+    "scheme": "losyo",
+    "held_out": "DA_MPT_2023",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2024",
+      "GL_WK_2022",
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "DA_MPT_2023"
+    ]
+  },
+  {
+    "id": "A/losyo/seed_123/folds/DA_MPT_2024",
+    "plan": "A",
+    "arm": "A",
+    "scheme": "losyo",
+    "held_out": "DA_MPT_2024",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "GL_WK_2022",
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "DA_MPT_2024"
+    ]
+  },
+  {
+    "id": "A/losyo/seed_123/folds/GL_WK_2022",
+    "plan": "A",
+    "arm": "A",
+    "scheme": "losyo",
+    "held_out": "GL_WK_2022",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "DA_MPT_2024",
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "GL_WK_2022"
+    ]
+  },
+  {
+    "id": "A/losyo/seed_123/folds/NN_JF_2023",
+    "plan": "A",
+    "arm": "A",
+    "scheme": "losyo",
+    "held_out": "NN_JF_2023",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "DA_MPT_2024",
+      "GL_WK_2022",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "NN_JF_2023"
+    ]
+  },
+  {
+    "id": "A/losyo/seed_123/folds/NN_JF_2024",
+    "plan": "A",
+    "arm": "A",
+    "scheme": "losyo",
+    "held_out": "NN_JF_2024",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "DA_MPT_2024",
+      "GL_WK_2022",
+      "NN_JF_2023"
+    ],
+    "test": [
+      "NN_JF_2024"
+    ]
+  },
+  {
+    "id": "A/site/seed_123/folds/DA",
+    "plan": "A",
+    "arm": "A",
+    "scheme": "site",
+    "held_out": "DA",
+    "seed": 123,
+    "train": [
+      "GL_WK_2022",
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "DA_MPT_2024"
+    ]
+  },
+  {
+    "id": "A/site/seed_123/folds/GL",
+    "plan": "A",
+    "arm": "A",
+    "scheme": "site",
+    "held_out": "GL",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "DA_MPT_2024",
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "GL_WK_2022"
+    ]
+  },
+  {
+    "id": "A/site/seed_123/folds/NN",
+    "plan": "A",
+    "arm": "A",
+    "scheme": "site",
+    "held_out": "NN",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "DA_MPT_2024",
+      "GL_WK_2022"
+    ],
+    "test": [
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ]
+  },
+  {
+    "id": "A/year/seed_123/folds/2022",
+    "plan": "A",
+    "arm": "A",
+    "scheme": "year",
+    "held_out": "2022",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2023",
+      "DA_MPT_2024",
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "DA_MPT_2022",
+      "GL_WK_2022"
+    ]
+  },
+  {
+    "id": "A/year/seed_123/folds/2023",
+    "plan": "A",
+    "arm": "A",
+    "scheme": "year",
+    "held_out": "2023",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2024",
+      "GL_WK_2022",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "DA_MPT_2023",
+      "NN_JF_2023"
+    ]
+  },
+  {
+    "id": "A/year/seed_123/folds/2024",
+    "plan": "A",
+    "arm": "A",
+    "scheme": "year",
+    "held_out": "2024",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "GL_WK_2022",
+      "NN_JF_2023"
+    ],
+    "test": [
+      "DA_MPT_2024",
+      "NN_JF_2024"
+    ]
+  },
+  {
+    "id": "B/losyo/seed_123/folds/DA_MPT_2022",
+    "plan": "B",
+    "arm": "B",
+    "scheme": "losyo",
+    "held_out": "DA_MPT_2022",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2023",
+      "DA_MPT_2024",
+      "GL_WK_2022",
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "DA_MPT_2022"
+    ]
+  },
+  {
+    "id": "B/losyo/seed_123/folds/DA_MPT_2023",
+    "plan": "B",
+    "arm": "B",
+    "scheme": "losyo",
+    "held_out": "DA_MPT_2023",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2024",
+      "GL_WK_2022",
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "DA_MPT_2023"
+    ]
+  },
+  {
+    "id": "B/losyo/seed_123/folds/DA_MPT_2024",
+    "plan": "B",
+    "arm": "B",
+    "scheme": "losyo",
+    "held_out": "DA_MPT_2024",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "GL_WK_2022",
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "DA_MPT_2024"
+    ]
+  },
+  {
+    "id": "B/losyo/seed_123/folds/GL_WK_2022",
+    "plan": "B",
+    "arm": "B",
+    "scheme": "losyo",
+    "held_out": "GL_WK_2022",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "DA_MPT_2024",
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "GL_WK_2022"
+    ]
+  },
+  {
+    "id": "B/losyo/seed_123/folds/NN_JF_2023",
+    "plan": "B",
+    "arm": "B",
+    "scheme": "losyo",
+    "held_out": "NN_JF_2023",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "DA_MPT_2024",
+      "GL_WK_2022",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "NN_JF_2023"
+    ]
+  },
+  {
+    "id": "B/losyo/seed_123/folds/NN_JF_2024",
+    "plan": "B",
+    "arm": "B",
+    "scheme": "losyo",
+    "held_out": "NN_JF_2024",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "DA_MPT_2024",
+      "GL_WK_2022",
+      "NN_JF_2023"
+    ],
+    "test": [
+      "NN_JF_2024"
+    ]
+  },
+  {
+    "id": "B/site/seed_123/folds/DA",
+    "plan": "B",
+    "arm": "B",
+    "scheme": "site",
+    "held_out": "DA",
+    "seed": 123,
+    "train": [
+      "GL_WK_2022",
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "DA_MPT_2024"
+    ]
+  },
+  {
+    "id": "B/site/seed_123/folds/GL",
+    "plan": "B",
+    "arm": "B",
+    "scheme": "site",
+    "held_out": "GL",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "DA_MPT_2024",
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "GL_WK_2022"
+    ]
+  },
+  {
+    "id": "B/site/seed_123/folds/NN",
+    "plan": "B",
+    "arm": "B",
+    "scheme": "site",
+    "held_out": "NN",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "DA_MPT_2024",
+      "GL_WK_2022"
+    ],
+    "test": [
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ]
+  },
+  {
+    "id": "B/year/seed_123/folds/2022",
+    "plan": "B",
+    "arm": "B",
+    "scheme": "year",
+    "held_out": "2022",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2023",
+      "DA_MPT_2024",
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "DA_MPT_2022",
+      "GL_WK_2022"
+    ]
+  },
+  {
+    "id": "B/year/seed_123/folds/2023",
+    "plan": "B",
+    "arm": "B",
+    "scheme": "year",
+    "held_out": "2023",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2024",
+      "GL_WK_2022",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "DA_MPT_2023",
+      "NN_JF_2023"
+    ]
+  },
+  {
+    "id": "B/year/seed_123/folds/2024",
+    "plan": "B",
+    "arm": "B",
+    "scheme": "year",
+    "held_out": "2024",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "GL_WK_2022",
+      "NN_JF_2023"
+    ],
+    "test": [
+      "DA_MPT_2024",
+      "NN_JF_2024"
+    ]
+  },
+  {
+    "id": "C/losyo/seed_123/folds/DA_MPT_2022",
+    "plan": "C",
+    "arm": "C",
+    "scheme": "losyo",
+    "held_out": "DA_MPT_2022",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2023",
+      "DA_MPT_2024",
+      "GL_WK_2022",
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "DA_MPT_2022"
+    ]
+  },
+  {
+    "id": "C/losyo/seed_123/folds/DA_MPT_2023",
+    "plan": "C",
+    "arm": "C",
+    "scheme": "losyo",
+    "held_out": "DA_MPT_2023",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2024",
+      "GL_WK_2022",
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "DA_MPT_2023"
+    ]
+  },
+  {
+    "id": "C/losyo/seed_123/folds/DA_MPT_2024",
+    "plan": "C",
+    "arm": "C",
+    "scheme": "losyo",
+    "held_out": "DA_MPT_2024",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "GL_WK_2022",
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "DA_MPT_2024"
+    ]
+  },
+  {
+    "id": "C/losyo/seed_123/folds/GL_WK_2022",
+    "plan": "C",
+    "arm": "C",
+    "scheme": "losyo",
+    "held_out": "GL_WK_2022",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "DA_MPT_2024",
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "GL_WK_2022"
+    ]
+  },
+  {
+    "id": "C/losyo/seed_123/folds/NN_JF_2023",
+    "plan": "C",
+    "arm": "C",
+    "scheme": "losyo",
+    "held_out": "NN_JF_2023",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "DA_MPT_2024",
+      "GL_WK_2022",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "NN_JF_2023"
+    ]
+  },
+  {
+    "id": "C/losyo/seed_123/folds/NN_JF_2024",
+    "plan": "C",
+    "arm": "C",
+    "scheme": "losyo",
+    "held_out": "NN_JF_2024",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "DA_MPT_2024",
+      "GL_WK_2022",
+      "NN_JF_2023"
+    ],
+    "test": [
+      "NN_JF_2024"
+    ]
+  },
+  {
+    "id": "C/site/seed_123/folds/DA",
+    "plan": "C",
+    "arm": "C",
+    "scheme": "site",
+    "held_out": "DA",
+    "seed": 123,
+    "train": [
+      "GL_WK_2022",
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "DA_MPT_2024"
+    ]
+  },
+  {
+    "id": "C/site/seed_123/folds/GL",
+    "plan": "C",
+    "arm": "C",
+    "scheme": "site",
+    "held_out": "GL",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "DA_MPT_2024",
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "GL_WK_2022"
+    ]
+  },
+  {
+    "id": "C/site/seed_123/folds/NN",
+    "plan": "C",
+    "arm": "C",
+    "scheme": "site",
+    "held_out": "NN",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "DA_MPT_2024",
+      "GL_WK_2022"
+    ],
+    "test": [
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ]
+  },
+  {
+    "id": "C/year/seed_123/folds/2022",
+    "plan": "C",
+    "arm": "C",
+    "scheme": "year",
+    "held_out": "2022",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2023",
+      "DA_MPT_2024",
+      "NN_JF_2023",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "DA_MPT_2022",
+      "GL_WK_2022"
+    ]
+  },
+  {
+    "id": "C/year/seed_123/folds/2023",
+    "plan": "C",
+    "arm": "C",
+    "scheme": "year",
+    "held_out": "2023",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2024",
+      "GL_WK_2022",
+      "NN_JF_2024"
+    ],
+    "test": [
+      "DA_MPT_2023",
+      "NN_JF_2023"
+    ]
+  },
+  {
+    "id": "C/year/seed_123/folds/2024",
+    "plan": "C",
+    "arm": "C",
+    "scheme": "year",
+    "held_out": "2024",
+    "seed": 123,
+    "train": [
+      "DA_MPT_2022",
+      "DA_MPT_2023",
+      "GL_WK_2022",
+      "NN_JF_2023"
+    ],
+    "test": [
+      "DA_MPT_2024",
+      "NN_JF_2024"
+    ]
+  }
+]

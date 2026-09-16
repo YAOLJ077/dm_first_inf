@@ -5,9 +5,9 @@
     "crop_eppo_code": "VITVI",
     "time_zone": "asia/beijing",
     "cultivation_method": "open field",
-    "year":2023,
-    "host_group":"EA",
-    "HHCH_53":"2023-03-28",
+    "year": 2023,
+    "host_group": "EA",
+    "HHCH_53": "2023-03-28",
     "growth_stage": [
         {
             "Date": "2023-01-01",
@@ -72682,5 +72682,6 @@
             "air_temp": 19.1,
             "wind_speed": 3.17
         }
-    ]
+    ],
+    "BBCH_15": "2023-03-28"
 }

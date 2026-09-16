@@ -1,0 +1,15 @@
+{
+  "sha256": {
+    "attached_inventory.csv": "68c54e358c3edc2c8e272236b6440dcc159d32e0b74852503285fa350a293577",
+    "dispersal_cohorts.csv": "5d1fd08e0c566fd926cbfc8a57a376ca6137fc68cf5ffb7211dd0f62ebd1d683",
+    "deposition.csv": "b20f281741e00bd2649f66aaf8012163da9a9a21fa5cd21ba06a0c24bb9072b4",
+    "detached_survival.csv": "33db8fcb2164b300a68152e664a881e92080dca06109dc6df71732daddd6eae8",
+    "primary_chain.csv": "b4fdf267d38b69acde356b8356b8c9d0dddd33db22b823c8b20d3aa9f53b660c",
+    "primary_chain_gated.csv": "b4fdf267d38b69acde356b8356b8c9d0dddd33db22b823c8b20d3aa9f53b660c",
+    "primary_chain_unique.csv": "28d0264577d34c29ce71efe8e69928f674b1af379de801f41ca3db9af758ac2f",
+    "cohort_outcomes.csv": "5331e094907da093a8af46cd63a4ef11c342f3b55186c46eba6b680b10be3a9c",
+    "prediction.json": "194b7e0a64517e5106204d67d3e96a0e61f438bc9e873e203696525c46cb81ab",
+    "selection.json": "edfc59ceac9936f230124defa19a413f12a0550939370fd6d12c95c0d78ba181",
+    "effective_runtime_config.json": "783fb886630555fbf74de7fabd445bd45d9c8f0231fddfa7bfe636795d81f87f"
+  }
+}

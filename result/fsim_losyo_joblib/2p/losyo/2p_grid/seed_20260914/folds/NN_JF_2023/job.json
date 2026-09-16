@@ -1,0 +1,18 @@
+{
+  "id": "losyo/2p_grid/seed_20260914/folds/NN_JF_2023",
+  "scheme": "losyo",
+  "arm": "2p_grid",
+  "seed": 20260914,
+  "held_out": "NN_JF_2023",
+  "train": [
+    "DA_MPT_2022",
+    "DA_MPT_2023",
+    "DA_MPT_2024",
+    "GL_WK_2022",
+    "NN_JF_2024"
+  ],
+  "test": [
+    "NN_JF_2023"
+  ],
+  "n_trials": 1024
+}

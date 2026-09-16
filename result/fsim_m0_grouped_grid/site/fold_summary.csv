@@ -1,0 +1,4 @@
+held_out,stopping_reason,n_candidates,best_training_MAE_days,n_tied_best,calibration_status,VPD_w,I_req,selected_sample_id,selected_training_MAE_days
+DA,round_limit,872,4.458333333333333,1,selected,1.375,228.75,M0_x6_y151,4.458333333333333
+GL,round_limit,704,11.891666666666667,21,selected,3.875,282.5,M0_x46_y194,11.891666666666667
+NN,round_limit,677,11.677083333333332,6,selected,1.5625,141.25,M0_x9_y81,11.677083333333332

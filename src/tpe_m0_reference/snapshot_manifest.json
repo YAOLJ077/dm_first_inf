@@ -1,0 +1,20 @@
+{
+  "reference_run": "result/fsim_m0_losyo_tpe_4p_n1024",
+  "sha256": {
+    "config/fsim_runtime_parameters.csv": "d62eecb3f37393d750c1696fa532e9c199c59665b41f7826e74a68dbf36fc1ee",
+    "config/fsim_m0_losyo_tpe.json": "5af7a17017817e5ffba18e00deeb99bd3c5e38f738979d47e95cb572caabf6c8",
+    "config/fsim_m0_losyo_parameters.csv": "cf44892acf44c57d8fa796e56b651d1463271b0d69ca7f10e4490a714f8fcb66",
+    "model/crop_season_spore_infthr.py": "33ae4dd8e70c3723325b1b87dc4f6a7b42ede003e7a943298f719faa5dbc4260",
+    "model/first_infection.py": "05a2ddd2f5157f14ebfca78cc41c48ec1be670d3caf571a8c428b7b013eb12f4",
+    "model/sporulation_timing.py": "ca392f7f23d0bd0bafc3b80a3f85566b26d0dfcb99981b688fb12a0c2f410a3d",
+    "model/first_infection_spore_infthr.py": "b1f6ba0bbf50f5359f6361fc7a0a90d5b95f68e302bb048e14a059259749e218",
+    "model/config.py": "9f68eb3de1a5ff8b40f0d131dade3cbf1b79cb69b9e4f30534cee16ad6311cc4",
+    "model/process_rules.py": "7fc1a9e92c23a4414349646b407ca6fe84d4e1d0b8c5345ee66642188007d252",
+    "model/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "model/parameter_table.py": "83f9e45a5bf929c08906ca362d2fbf752cc880174de14c79cd9a74e68cc96eb5",
+    "model/crop_season.py": "4084d1f6fa5d3cae587d6f2feb9f1e2bec8340b1750d54e3556165383b7fcddd",
+    "src/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/analyze_fsim_parameters.py": "8603f8b2ac177b18145b73a961095dcbe6e5e49f3ec87f51736dfbd91aa22058",
+    "src/calibrate_m0_losyo.py": "b2229d7bcf42c9b818d956f32bff7eead4034888924ce0ca4a32eae7b44a73bb"
+  }
+}

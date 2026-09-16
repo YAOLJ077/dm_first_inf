@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-"""
-KFold evaluation of obs-gated FIRST infection model
-===================================================
-- Parameters fixed to grid-optimal values
-- Same KFold split as grid calibration
-- Strict baseline vs obs-gated comparison
+# LEGACY / 旧版：不属于当前 FSIM 分析入口。
+# Status: legacy_analysis; see config/project_registry.json and config/README.md.
+# Retained for historical traceability; current results require separate validation.
+"""Legacy fixed-parameter FSIM evaluation.
+
+The former observation-gated branch is not part of the current model API.
+Use ``run_fsim_diagnostic.py`` for the current site-year workflow.
 """
 
 import os
@@ -28,7 +29,6 @@ if PROJECT_ROOT not in sys.path:
 
 DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 ACTUAL_DATA_PATH = os.path.join(DATA_DIR, "actual_data.xlsx")
-SPORANGIA_OBS_PATH = os.path.join(DATA_DIR, "sporangia_obs.xlsx")
 GRID_PARAM_PATH = os.path.join(
     PROJECT_ROOT, "result", "grid", "recommended_params_FIRST_GRID.json"
 )
@@ -38,7 +38,6 @@ GRID_PARAM_PATH = os.path.join(
 # ======================================================
 from model.crop_season import CropSeasonFirst
 from model.config import config as BASE_CONFIG
-from observation.sporangia_observation import SporangiaObservation
 
 # ======================================================
 # GLOBAL SETTINGS
@@ -54,11 +53,6 @@ def load_actual() -> pd.DataFrame:
     df = pd.read_excel(ACTUAL_DATA_PATH)
     df["first_infection_date"] = pd.to_datetime(df["first_infection_date"])
     return df.reset_index(drop=True)
-
-def load_sporangia_obs() -> pd.DataFrame:
-    df = pd.read_excel(SPORANGIA_OBS_PATH)
-    df["Date"] = pd.to_datetime(df["Date"])
-    return df
 
 def load_best_params() -> Dict[str, float]:
     with open(GRID_PARAM_PATH) as f:
@@ -121,7 +115,6 @@ def load_rb_cached(path: str) -> dict:
 def main():
 
     actual_df = load_actual()
-    sp_obs_df = load_sporangia_obs()
     best_params = load_best_params()
 
     cfg_fixed = apply_params(BASE_CONFIG, best_params)
@@ -139,7 +132,6 @@ def main():
         val_df = actual_df.iloc[val_idx].reset_index(drop=True)
 
         abs_err_baseline = []
-        abs_err_obs = []
 
         print(f"\n=== Fold {fold_i} ===")
 
@@ -154,54 +146,31 @@ def main():
 
             # ---------- BASELINE ----------
             cs0 = CropSeasonFirst(csrb=rb, config=cfg_fixed)
-            cs0.simulate(use_obs_gate=False)
+            cs0.simulate()
 
             e0 = calc_error(row.first_infection_date, cs0.primary_chain_unique)
             if np.isfinite(e0):
                 abs_err_baseline.append(abs(e0))
 
-            # ---------- OBS-GATED ----------
-            obs_gate = SporangiaObservation(
-                obs_df=sp_obs_df,
-                place=cs0.place,
-                year=cs0.year,
-                start_date=cs0.bbch_53_datetime,
-                end_date=row.first_infection_date,
-            )
-
-            cs1 = CropSeasonFirst(csrb=rb, config=cfg_fixed)
-            cs1.simulate(use_obs_gate=True, obs_gate=obs_gate)
-
-            e1 = calc_error(row.first_infection_date, cs1.primary_chain_unique)
-            if np.isfinite(e1):
-                abs_err_obs.append(abs(e1))
-
         fold_results.append({
             "fold": fold_i,
             "baseline_mae": float(np.mean(abs_err_baseline)) if abs_err_baseline else PENALTY_DAYS,
-            "obs_gated_mae": float(np.mean(abs_err_obs)) if abs_err_obs else PENALTY_DAYS,
             "n_baseline": len(abs_err_baseline),
-            "n_obs": len(abs_err_obs),
         })
 
-        print(f"Fold {fold_i} | baseline MAE = {fold_results[-1]['baseline_mae']:.2f} "
-              f"| obs-gated MAE = {fold_results[-1]['obs_gated_mae']:.2f}")
+        print(f"Fold {fold_i} | FSIM MAE = {fold_results[-1]['baseline_mae']:.2f}")
 
     # ==================================================
     # SUMMARY
     # ==================================================
     df = pd.DataFrame(fold_results)
-    df["delta_mae"] = df["baseline_mae"] - df["obs_gated_mae"]
-
     print("\n=== KFold SUMMARY ===")
     print(df)
 
-    print("\nMean baseline MAE :", df["baseline_mae"].mean())
-    print("Mean obs-gated MAE:", df["obs_gated_mae"].mean())
-    print("Mean ΔMAE         :", df["delta_mae"].mean())
+    print("\nMean FSIM MAE:", df["baseline_mae"].mean())
 
     out_path = os.path.join(
-        PROJECT_ROOT, "result", "obs_gated_kfold_summary.csv"
+        PROJECT_ROOT, "result", "fsim_legacy_kfold_summary.csv"
     )
     df.to_csv(out_path, index=False)
     print(f"\nSaved summary to: {out_path}")

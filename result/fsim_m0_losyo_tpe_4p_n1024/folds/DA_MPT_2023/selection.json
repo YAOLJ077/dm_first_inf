@@ -1,0 +1,18 @@
+{
+  "held_out": "DA_MPT_2023",
+  "training_keys": [
+    "DA_MPT_2022",
+    "DA_MPT_2024",
+    "GL_WK_2022",
+    "NN_JF_2023",
+    "NN_JF_2024"
+  ],
+  "calibration_status": "selected",
+  "VPD_w": 2.790777536096095,
+  "I_req": 206.6248436864483,
+  "RH_sp": 91.22949130058858,
+  "MP_sp": 7,
+  "seed": 20260914,
+  "trial": 840,
+  "selected_training_MAE_days": 5.991666666666667
+}

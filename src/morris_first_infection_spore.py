@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+# LEGACY / 旧版：不属于当前 FSIM 分析入口。
+# Status: legacy_analysis; see config/project_registry.json and config/README.md.
+# Retained for historical traceability; current results require separate validation.
 """
 Morris sensitivity analysis for FIRST infection model (ONLY architecture)
 =========================================================================
@@ -59,11 +62,6 @@ OPT_TRAJ = None  # set int to optimize trajectories
 # PARAMETER SPACE
 # ======================================================
 PARAM_RANGES = {
-    "mp_tmp__rh_wet_night": (85, 95),
-    "sporulation__MP_min": (3, 6),
-    "sporulation__Tmin": (8, 15),
-    "sporulation__Topt": (18, 24),
-    "sporulation__Tmax": (25, 35),
     "dispersal__rain_min": (6.0, 12.0),
     "dispersal__wind_min": (4.0, 12.0),
     "deposition__rain_min": (4.0, 12.0),
@@ -71,7 +69,6 @@ PARAM_RANGES = {
     "zoospore_alive__vpd": (1.5, 4.0),
     "infection__infection_condition": (50, 150),
     "incubation__spl_end": (1.0, 1.5),
-    "thresholds__min_spores": (0.05, 0.25),
     "spore__alpha_air": (-2.0, 0.6),
     "spore__alpha_dep": (-1.5, 1.0),
 }

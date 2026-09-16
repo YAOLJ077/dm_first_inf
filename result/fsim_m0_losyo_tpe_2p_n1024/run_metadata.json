@@ -1,0 +1,59 @@
+{
+  "status": "running",
+  "model": "M0",
+  "started_utc": "2026-09-14T02:01:01.309134+00:00",
+  "resumed": false,
+  "budget": {
+    "parameter_trials": 6144,
+    "main_training_evaluations": 30720,
+    "duplicate_training_evaluations": 10240,
+    "maximum_held_out_evaluations": 8,
+    "workers": 4
+  },
+  "settings": {
+    "parameter_table": "src/tpe_m0_reference/config/fsim_m0_losyo_parameters.csv",
+    "manifest": "result/fsim_inputs/site_year_manifest.csv",
+    "anchor_run": "result/fsim_m0_losyo_Ireq40_400_refine3",
+    "search_space": {
+      "VPD_w": {
+        "low": 1.0,
+        "high": 8.0,
+        "type": "float"
+      },
+      "I_req": {
+        "low": 40.0,
+        "high": 450.0,
+        "type": "float"
+      }
+    },
+    "n_trials": 1024,
+    "n_startup_trials": 128,
+    "seeds": [
+      20260914
+    ],
+    "workers": 4,
+    "objective": "training_interval_MAE_days",
+    "require_all_training_predictions": true,
+    "check_duplicate_policy": true,
+    "accuracy_tolerances_days": [
+      7,
+      10
+    ],
+    "near_optimal_tolerances_days": [
+      0.5,
+      1.0
+    ],
+    "tie_atol_days": 1e-09,
+    "checkpoints": [
+      128,
+      256,
+      512,
+      1024
+    ],
+    "fixed_parameters": {
+      "RH_sp": 80.0,
+      "MP_sp": 3
+    },
+    "reference_run": "result/fsim_m0_losyo_tpe_4p_n1024"
+  }
+}

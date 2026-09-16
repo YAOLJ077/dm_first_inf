@@ -1,0 +1,10 @@
+scheme,view,left_arm,right_arm,left_seed,right_seed,n_site_years,n_paired_predictions,n_predictions_left,n_predictions_right,n_trials_left,n_trials_right,min_trials_left,max_trials_left,min_trials_right,max_trials_right,same_candidate_budget,mean_delta_days,conditional_mean_delta_days,n_improved,n_worsened,selection_uses_test_data,evaluation_role
+losyo,budget_1024,A,B,123,123,6,6,6,6,1024,1024,1024,1024,1024,1024,True,-11.472222222222223,-11.472222222222223,2,1,False,training_selected_baseline
+losyo,budget_1024,A,C,123,123,6,6,6,6,1024,1024,1024,1024,1024,1024,True,-5.090277777777779,-5.090277777777779,2,2,False,training_selected_baseline
+losyo,budget_1024,B,C,123,123,6,6,6,6,1024,1024,1024,1024,1024,1024,True,6.381944444444444,6.381944444444444,1,1,False,training_selected_baseline
+site,budget_1024,A,B,123,123,6,5,6,5,1024,1024,1024,1024,1024,1024,True,,0.008333333333332327,1,1,False,training_selected_baseline
+site,budget_1024,A,C,123,123,6,6,6,6,1024,1024,1024,1024,1024,1024,True,3.611111111111111,3.611111111111111,1,1,False,training_selected_baseline
+site,budget_1024,B,C,123,123,6,5,5,6,1024,1024,1024,1024,1024,1024,True,,4.325000000000001,2,2,False,training_selected_baseline
+year,budget_1024,A,B,123,123,6,6,6,6,1024,1024,1024,1024,1024,1024,True,6.458333333333332,6.458333333333332,0,1,False,training_selected_baseline
+year,budget_1024,A,C,123,123,6,6,6,6,1024,1024,1024,1024,1024,1024,True,0.13888888888888573,0.13888888888888573,4,2,False,training_selected_baseline
+year,budget_1024,B,C,123,123,6,6,6,6,1024,1024,1024,1024,1024,1024,True,-6.3194444444444455,-6.3194444444444455,4,2,False,training_selected_baseline

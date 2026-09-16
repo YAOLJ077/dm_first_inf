@@ -1,0 +1,16 @@
+{
+  "observations_source": "data/grape_experiment_CK_site_years.xlsx",
+  "endpoints_source": "data/site_year_onset_endpoints.csv",
+  "place_map": {
+    "Duan": "DA",
+    "Guilin": "GL",
+    "Mingyang": "NN"
+  },
+  "variety_map": {
+    "MPT": "MPT",
+    "WK": "WK",
+    "JF": "JF"
+  },
+  "n_site_years": 6,
+  "endpoint_definition": "(L, U] with observed last-negative L and first-positive U"
+}

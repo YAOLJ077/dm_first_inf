@@ -1,0 +1,18 @@
+{
+  "id": "A/losyo/seed_123/folds/DA_MPT_2024",
+  "plan": "A",
+  "arm": "A",
+  "scheme": "losyo",
+  "held_out": "DA_MPT_2024",
+  "seed": 123,
+  "train": [
+    "DA_MPT_2022",
+    "DA_MPT_2023",
+    "GL_WK_2022",
+    "NN_JF_2023",
+    "NN_JF_2024"
+  ],
+  "test": [
+    "DA_MPT_2024"
+  ]
+}

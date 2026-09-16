@@ -1,0 +1,82 @@
+{
+  "sporulation": {},
+  "zoospore_alive": {
+    "vpd": 3.818813851723788
+  },
+  "infection": {
+    "infection_condition": 284.1946922079412
+  },
+  "dispersal": {
+    "wind_min": 0.0,
+    "use_wind_gate": false,
+    "rain_min": 10.785794005538701
+  },
+  "mp_tmp": {
+    "rh_wet_night": 80
+  },
+  "fixed": {
+    "min_moist_hours": 3,
+    "temperature_bounds": [
+      10.0,
+      30.0
+    ],
+    "production": {
+      "asymptote": [
+        -873164.0,
+        114369.0,
+        -2828.0
+      ],
+      "offset": 50000.0,
+      "intercept": [
+        -8.96,
+        1.16,
+        -0.029
+      ],
+      "duration": [
+        1.51,
+        -0.2,
+        0.0049
+      ],
+      "shape": 0.5,
+      "reference_temperature": 20.0,
+      "reference_hours": 24.0
+    },
+    "attached_mortality": {
+      "a0": 9.27,
+      "a1": 1.12,
+      "a2": 0.04
+    },
+    "detached_mortality": {
+      "b0": 5.67,
+      "b1": 0.47,
+      "b2": 0.02
+    },
+    "release": {
+      "offset": 1.022,
+      "temperature_coefficient": 19.634
+    },
+    "incubation": {
+      "a1": 45.1,
+      "b1": 3.45,
+      "c1": 0.073,
+      "a2": 59.9,
+      "b2": 4.55,
+      "c2": 0.095
+    },
+    "night": {
+      "start": 20,
+      "end_exclusive": 8,
+      "available": 8
+    }
+  },
+  "incubation": {
+    "spl_end": 1.0
+  },
+  "conventions": {
+    "bbch_min": 15,
+    "initialization": "01-01"
+  },
+  "deposition": {
+    "rain_min": 6.451824922258265
+  }
+}

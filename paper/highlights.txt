@@ -1,0 +1,5 @@
+Three-year field data captured downy mildew onset in subtropical vineyards.
+Spore pressure improved first-infection timing predictions.
+FSIM-S reduced validation MAE from 9.3 to 6.3 days.
+Regional simulations identified a stable DOY 180-210 risk window.
+Model-guided timing could save 2-5 fungicide sprays per season.

@@ -1,0 +1,249 @@
+{
+  "jobs": {
+    "A/site/seed_123/folds/NN": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 15.208333333333334
+    },
+    "A/year/seed_123/folds/2024": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 19.697916666666668
+    },
+    "A/site/seed_123/folds/DA": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 4.458333333333333
+    },
+    "A/year/seed_123/folds/2023": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 9.322916666666666
+    },
+    "A/losyo/seed_123/folds/NN_JF_2024": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 16.150000000000002
+    },
+    "A/losyo/seed_123/folds/DA_MPT_2023": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 11.025
+    },
+    "A/losyo/seed_123/folds/NN_JF_2023": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 9.674999999999999
+    },
+    "A/year/seed_123/folds/2022": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 12.21875
+    },
+    "A/losyo/seed_123/folds/DA_MPT_2024": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 10.825000000000001
+    },
+    "A/losyo/seed_123/folds/GL_WK_2022": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 11.891666666666667
+    },
+    "A/site/seed_123/folds/GL": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 11.891666666666667
+    },
+    "A/losyo/seed_123/folds/DA_MPT_2022": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 16.150000000000002
+    },
+    "B/site/seed_123/folds/NN": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 15.208333333333332
+    },
+    "B/year/seed_123/folds/2024": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 19.697916666666668
+    },
+    "B/site/seed_123/folds/DA": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 4.472222222222222
+    },
+    "B/year/seed_123/folds/2023": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 9.322916666666666
+    },
+    "B/losyo/seed_123/folds/NN_JF_2024": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 16.483333333333334
+    },
+    "B/losyo/seed_123/folds/NN_JF_2023": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 15.39166666666667
+    },
+    "B/year/seed_123/folds/2022": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 12.21875
+    },
+    "B/losyo/seed_123/folds/DA_MPT_2024": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 10.825000000000001
+    },
+    "B/losyo/seed_123/folds/DA_MPT_2022": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 16.150000000000002
+    },
+    "B/losyo/seed_123/folds/DA_MPT_2023": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 11.025
+    },
+    "B/losyo/seed_123/folds/GL_WK_2022": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 11.891666666666667
+    },
+    "B/site/seed_123/folds/GL": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 11.891666666666667
+    },
+    "C/year/seed_123/folds/2023": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 7.75
+    },
+    "C/site/seed_123/folds/NN": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 9.614583333333334
+    },
+    "C/losyo/seed_123/folds/NN_JF_2023": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 7.916666666666667
+    },
+    "C/year/seed_123/folds/2022": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 5.229166666666667
+    },
+    "C/year/seed_123/folds/2024": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 13.197916666666668
+    },
+    "C/losyo/seed_123/folds/GL_WK_2022": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 6.316666666666667
+    },
+    "C/site/seed_123/folds/GL": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 6.316666666666667
+    },
+    "C/losyo/seed_123/folds/DA_MPT_2022": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 10.549999999999999
+    },
+    "C/site/seed_123/folds/DA": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 4.472222222222222
+    },
+    "C/losyo/seed_123/folds/NN_JF_2024": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 16.483333333333334
+    },
+    "C/losyo/seed_123/folds/DA_MPT_2024": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 10.825000000000001
+    },
+    "C/losyo/seed_123/folds/DA_MPT_2023": {
+      "status": "complete",
+      "n_trials": 1024,
+      "training_MAE_days": 11.466666666666667
+    }
+  },
+  "sessions": [
+    {
+      "started_utc": "2026-09-15T04:07:20.505693+00:00",
+      "workers": 64,
+      "queue_capacity": 256,
+      "target_trials": 1024
+    },
+    {
+      "started_utc": "2026-09-15T04:19:53.169906+00:00",
+      "workers": 64,
+      "queue_capacity": 256,
+      "target_trials": 1024
+    },
+    {
+      "started_utc": "2026-09-15T04:20:45.498143+00:00",
+      "workers": 64,
+      "queue_capacity": 256,
+      "target_trials": 1024
+    }
+  ],
+  "stage_history": [
+    {
+      "plan": "A",
+      "started_utc": "2026-09-15T04:07:20.510373+00:00",
+      "target_trials": 1024
+    },
+    {
+      "plan": "A",
+      "started_utc": "2026-09-15T04:19:53.171929+00:00",
+      "target_trials": 1024
+    },
+    {
+      "plan": "A",
+      "started_utc": "2026-09-15T04:20:45.500145+00:00",
+      "target_trials": 1024
+    },
+    {
+      "plan": "B",
+      "started_utc": "2026-09-15T06:49:17.213932+00:00",
+      "target_trials": 1024
+    },
+    {
+      "plan": "C",
+      "started_utc": "2026-09-15T09:19:07.405361+00:00",
+      "target_trials": 1024
+    }
+  ],
+  "status": "complete",
+  "smoke": false,
+  "target_trials": 1024,
+  "selection_rule": "training_tolerance_then_test_MAE",
+  "selection_tolerance_days": 1.0,
+  "active_plan": null,
+  "last_session_scheduler": {
+    "requests": 226723,
+    "cache_hits": 20171,
+    "inflight_shares": 29920,
+    "submitted": 176632,
+    "completed": 176632,
+    "model_seconds": 1644183.1691314932,
+    "queue_wait_seconds": 1149825.484307061,
+    "peak_inflight": 256
+  },
+  "unique_model_evaluations": 179121,
+  "completed_utc": "2026-09-15T11:40:38.582660+00:00"
+}

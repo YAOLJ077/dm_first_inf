@@ -1,0 +1,2 @@
+I_req,MP_sp,RH_sp,VPD_w,abs_midpoint_error_days,first_positive_distance_days,input_key,interval_distance_days,model,n_windows,observed_L,observed_U,overlap,predicted_end,predicted_midpoint_doy,predicted_start,sample_id,signed_interval_error_days,status,u_tr,weather_policy,window_width_days
+319.1488254097509,3,80,3.102444987417565,41.8125,39.708333333333336,NN_JF_2024,39.708333333333336,M0,10,2024-04-19 00:00:00,2024-04-22 00:00:00,False,2024-06-01T22:00:00,153.3125,2024-05-31T17:00:00,abc_tpe,39.708333333333336,predicted,0.0,keep_last,1.2083333333333333

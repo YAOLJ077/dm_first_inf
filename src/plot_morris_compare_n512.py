@@ -1,3 +1,6 @@
+# LEGACY / 旧版：不属于当前 FSIM 分析入口。
+# Status: legacy_result_processing; see config/project_registry.json and config/README.md.
+# Retained for historical traceability; current results require separate validation.
 import os
 
 import matplotlib.pyplot as plt
@@ -18,7 +21,6 @@ PARAM_ABBR = {
     "sporulation__Tmin": "STMI",
     "incubation__spl_end": "ISED",
     "zoospore_alive__rain": "ZARA",
-    "thresholds__min_spores": "TMSO",
     "spore__alpha_pos": "SAP",
     "spore__alpha_neg": "SAN",
 }

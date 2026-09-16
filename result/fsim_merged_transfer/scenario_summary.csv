@@ -1,0 +1,3 @@
+scenario,n_site_years,n_predictions,n_overlaps,mean_interval_distance_days,mean_absolute_midpoint_error_days,mean_signed_midpoint_error_days,mean_dispersal_cohorts,mean_deposited_cohorts,mean_post_gate_candidate_windows
+M0_merged_transfer,6,6,0,32.05555555555556,34.24652777777778,-34.24652777777778,252.0,252.0,73.33333333333333
+M1_merged_transfer_wind_gate,6,6,0,29.8125,32.06250000000001,-19.770833333333332,61.666666666666664,61.666666666666664,7.833333333333333

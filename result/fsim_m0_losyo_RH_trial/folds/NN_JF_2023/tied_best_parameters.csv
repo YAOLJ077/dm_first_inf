@@ -1,0 +1,6 @@
+sample_id,grid_x,grid_y,VPD_w,I_req,n_training_predictions,feasible,training_MAE_days,training_RMSE_days,first_stage,RH_sp,distance_to_reference_RH
+M0_x9_y79,9,79,1.5625,138.75,5,True,9.3,13.289537447012805,3,90,10
+M0_x9_y80,9,80,1.5625,140.0,5,True,9.3,13.289537447012805,3,90,10
+M0_x9_y81,9,81,1.5625,141.25,5,True,9.3,13.289537447012805,3,90,10
+M0_x9_y82,9,82,1.5625,142.5,5,True,9.3,13.289537447012805,3,90,10
+M0_x9_y83,9,83,1.5625,143.75,5,True,9.3,13.289537447012805,3,90,10

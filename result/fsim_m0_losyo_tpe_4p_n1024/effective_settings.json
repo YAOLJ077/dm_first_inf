@@ -1,0 +1,52 @@
+{
+  "parameter_table": "config/fsim_m0_losyo_parameters.csv",
+  "manifest": "result/fsim_inputs/site_year_manifest.csv",
+  "anchor_run": "result/fsim_m0_losyo_Ireq40_400_refine3",
+  "search_space": {
+    "VPD_w": {
+      "low": 1.0,
+      "high": 8.0,
+      "type": "float"
+    },
+    "I_req": {
+      "low": 40.0,
+      "high": 450.0,
+      "type": "float"
+    },
+    "RH_sp": {
+      "low": 75.0,
+      "high": 95.0,
+      "type": "float"
+    },
+    "MP_sp": {
+      "low": 3,
+      "high": 7,
+      "type": "int",
+      "step": 1
+    }
+  },
+  "n_trials": 1024,
+  "n_startup_trials": 128,
+  "seeds": [
+    20260914
+  ],
+  "workers": 4,
+  "objective": "training_interval_MAE_days",
+  "require_all_training_predictions": true,
+  "check_duplicate_policy": true,
+  "accuracy_tolerances_days": [
+    7,
+    10
+  ],
+  "near_optimal_tolerances_days": [
+    0.5,
+    1.0
+  ],
+  "tie_atol_days": 1e-09,
+  "checkpoints": [
+    128,
+    256,
+    512,
+    1024
+  ]
+}

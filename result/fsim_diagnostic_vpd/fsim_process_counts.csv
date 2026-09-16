@@ -1,0 +1,7 @@
+﻿input_key,Place,place_code,Year,model_variety,status,error_stage,error_type,error_message,weather_rows,attached_inventory_days,dispersal_cohorts,deposition_cohorts,surviving_sporangia_cohorts,primary_chain_events,bbch15_gated_events,use_wind_gate,unique_infection_events
+DA_MPT_2022,Duan,DA,2022,MPT,ok,,,,8760,365,46,46,46,22,22,True,6
+DA_MPT_2023,Duan,DA,2023,MPT,ok,,,,8760,365,85,85,85,30,30,True,10
+DA_MPT_2024,Duan,DA,2024,MPT,ok,,,,8808,366,79,79,79,29,29,True,8
+GL_WK_2022,Guilin,GL,2022,WK,ok,,,,8760,365,12,12,12,5,5,True,1
+NN_JF_2023,Mingyang,NN,2023,JF,ok,,,,8760,365,79,79,79,48,48,True,14
+NN_JF_2024,Mingyang,NN,2024,JF,ok,,,,8808,366,73,73,73,38,38,True,10

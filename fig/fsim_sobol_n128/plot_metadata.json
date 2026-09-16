@@ -1,0 +1,51 @@
+{
+  "input_directory": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/result/fsim_sobol_n128",
+  "settings": {
+    "parameter_table": "config/fsim_sobol_parameters.csv",
+    "manifest": "result/fsim_inputs/site_year_manifest.csv",
+    "models": [
+      "M0",
+      "M1"
+    ],
+    "distribution": "independent_uniform",
+    "base_n": 128,
+    "checkpoints": [
+      32,
+      64,
+      128
+    ],
+    "sampling_seeds": [
+      20260913,
+      20260914
+    ],
+    "second_order": true,
+    "bootstrap_resamples": 500,
+    "confidence_level": 0.95,
+    "workers": 4,
+    "chunk_size": 32,
+    "check_duplicate_policy": true,
+    "stability_absolute_tolerance": 0.05,
+    "primary_response": "RMSE_days",
+    "notes": "Fixed six-site-year denominator; incomplete timing responses are not analyzed. No optimization, parameter ranking-based selection, or calibration."
+  },
+  "n_main_evaluations": 21504,
+  "n_duplicate_evaluations": 7168,
+  "runtime_errors": 0,
+  "duplicate_policy_differences": 0,
+  "extreme_interval_display_threshold": 1000000.0,
+  "input_sha256": {
+    "seed_stability.csv": "e1d80511401bdb97f8179e21bf86af53bbfe2ba130b766755bcc1a41f56fe82a",
+    "duplicate_policy_predictions.csv": "53c5b38965b2f45103c4112785d0ecb18d029f6240f6914eb89ac557aa5ad12a",
+    "duplicate_policy_differences.csv": "5020383069607cbb586bcb28a0951cdb417ab82d05b56a88a7ba571f99b82a27",
+    "predictions.csv": "ed42805ef327f1dd0b9ddb0438091f1f7898e22bd8ee1918762dd1f6ac163e92",
+    "response_vectors.csv": "4955f1d4ef65783b060e1e0a85e95b6bb2bfa94c50108aecb9048fe5b80d7b10",
+    "convergence.csv": "e874a89c7df6338a2945256e63dfc78c38ebe5c6e29c9b037d06099acb1947c8",
+    "sobol_design.csv": "a31799a3b64e35fe322f064e1b7f4fc4c567eef594f158b827b8e95ea5f78173",
+    "sobol_indices.csv": "f898ca015757162835bed1ef61943c5b435165a68a53e3fd3d490cc69d9a9d01",
+    "response_diagnostics.csv": "55cbe2af2311cb7cb0d661340072d64bdacf61e19a80f959390b6b6269ab16c1",
+    "weather_duplicate_audit.csv": "7fa960ef5fd1d6435c90613afe28890b53c9e7eb4f8f2c7ed200a44e2e9cab15",
+    "parameter_table.csv": "b93ba5598ef9650a09187578b4efaa4000d869716dcf218b4dfe63f3df590f59",
+    "site_year_manifest.csv": "00bceeaab6ae5dae27d0aca90af67c27058b6225ffa0aac9ca30777af0de42a5"
+  },
+  "script_sha256": "cd7c5b7b24ab3e4e8df49d0f927362bf0f02d09ef0467fa8015f7127bfded98e"
+}

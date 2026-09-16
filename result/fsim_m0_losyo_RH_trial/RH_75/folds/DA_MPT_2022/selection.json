@@ -1,0 +1,27 @@
+{
+  "held_out": "DA_MPT_2022",
+  "training_keys": [
+    "DA_MPT_2023",
+    "DA_MPT_2024",
+    "GL_WK_2022",
+    "NN_JF_2023",
+    "NN_JF_2024"
+  ],
+  "stopping_reason": "round_limit",
+  "n_candidates": 691,
+  "best_training_MAE_days": 15.349999999999998,
+  "n_tied_best": 7,
+  "calibration_status": "selected",
+  "VPD_w": 4.125,
+  "I_req": 285.0,
+  "selected_sample_id": "M0_x50_y196",
+  "selected_training_MAE_days": 15.349999999999998,
+  "near_optimal_touches_boundary": {
+    "VPD_w": false,
+    "I_req": false
+  },
+  "selected_touches_boundary": {
+    "VPD_w": false,
+    "I_req": false
+  }
+}

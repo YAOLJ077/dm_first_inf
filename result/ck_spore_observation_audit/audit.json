@@ -1,0 +1,22 @@
+{
+  "input": "/Volumes/ZG_Team/yaolinjia/dm_first_inf/data/grape_experiment_CK_site_years.xlsx",
+  "sheet": "CK_Data",
+  "sha256": "d8c0a9e11ddee8668fbc18c4129f16e906f8c34b94299dbe4a2be7922c18f1e2",
+  "rows": 320,
+  "site_years": 6,
+  "collections": 102,
+  "positive_collections": 38,
+  "zero_collections": 64,
+  "blank_spore_rows": 218,
+  "total_count": 602,
+  "first_exposure_start": "first collection date minus 3 days; researcher confirmed 2026-09-16",
+  "interval_rule": "first: (t_first - 3 days, t_first]; subsequent: (previous nonblank collection date, current collection date]",
+  "endpoint_csv_matches": true,
+  "checks": [
+    "unique site-year dates",
+    "nonnegative integer counts",
+    "six groups",
+    "endpoint agreement",
+    "total reconciliation"
+  ]
+}

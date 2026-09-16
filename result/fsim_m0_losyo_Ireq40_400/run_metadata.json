@@ -1,0 +1,84 @@
+{
+  "status": "complete",
+  "model": "M0",
+  "smoke": false,
+  "created_utc": "2026-09-13T11:56:05.564375+00:00",
+  "settings": {
+    "parameter_table": "config/fsim_m0_losyo_parameters.csv",
+    "manifest": "result/fsim_inputs/site_year_manifest.csv",
+    "coarse_levels": [
+      15,
+      37
+    ],
+    "refinement_rounds": 2,
+    "refinement_factor": 2,
+    "refinement_margin_days": 1.0,
+    "near_optimal_tolerances_days": [
+      0.5,
+      1.0
+    ],
+    "tie_atol_days": 1e-09,
+    "tie_rule": "lowest_VPD_w_then_lowest_I_req",
+    "objective": "training_interval_MAE_days",
+    "require_all_training_predictions": true,
+    "accuracy_tolerances_days": [
+      7,
+      10
+    ],
+    "max_candidates_per_fold": 9000,
+    "workers": 4,
+    "chunk_size": 32,
+    "check_duplicate_policy": true
+  },
+  "bounds": {
+    "VPD_w": [
+      1.0,
+      8.0
+    ],
+    "I_req": [
+      40.0,
+      400.0
+    ]
+  },
+  "final_lattice_spacing": {
+    "VPD_w": 0.125,
+    "I_req": 2.5
+  },
+  "n_coarse_candidates": 555,
+  "full_fine_grid_candidates": 8265,
+  "source_sha256": {
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/model/crop_season_spore_infthr.py": "33ae4dd8e70c3723325b1b87dc4f6a7b42ede003e7a943298f719faa5dbc4260",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/model/first_infection.py": "f06a8435cda69b825af5bb101888d7dd4e2c06fc95eaec3a0a32ce86e8a1a150",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/model/sporulation_timing.py": "ade88b8d66220d795d1fa0c590ae28489304a2bb1e5d7bb5c14768af5be7fdfc",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/model/first_infection_spore_infthr.py": "b1f6ba0bbf50f5359f6361fc7a0a90d5b95f68e302bb048e14a059259749e218",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/model/config.py": "9f68eb3de1a5ff8b40f0d131dade3cbf1b79cb69b9e4f30534cee16ad6311cc4",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/model/process_rules.py": "7fc1a9e92c23a4414349646b407ca6fe84d4e1d0b8c5345ee66642188007d252",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/model/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/model/parameter_table.py": "83f9e45a5bf929c08906ca362d2fbf752cc880174de14c79cd9a74e68cc96eb5",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/model/crop_season.py": "4084d1f6fa5d3cae587d6f2feb9f1e2bec8340b1750d54e3556165383b7fcddd",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/src/calibrate_m0_losyo.py": "b2229d7bcf42c9b818d956f32bff7eead4034888924ce0ca4a32eae7b44a73bb",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/src/analyze_fsim_parameters.py": "8603f8b2ac177b18145b73a961095dcbe6e5e49f3ec87f51736dfbd91aa22058",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/config/fsim_m0_losyo.json": "3bc56446c7b7bceaf17a598c07c21ca65bfce1f2a6e50713afd1ed4587e5c278",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/config/fsim_m0_losyo_parameters.csv": "cf44892acf44c57d8fa796e56b651d1463271b0d69ca7f10e4490a714f8fcb66"
+  },
+  "input_sha256": {
+    "result/fsim_inputs/site_year_manifest.csv": "00bceeaab6ae5dae27d0aca90af67c27058b6225ffa0aac9ca30777af0de42a5",
+    "data/DA_MPT_2022_grape_rb.json": "3ead8103c1579f18ca30353babd8b242869c04b082c4a7f9c992e04244cb0228",
+    "data/DA_MPT_2023_grape_rb.json": "9c45a8c18f2a1e4782a435aa913cc7bab32ed2a17941634d7bef3ee39be7ac13",
+    "data/DA_MPT_2024_grape_rb.json": "c0765f2ba249ada50edef44413e3d7a5d4c681dde176749531b44f50bd99f884",
+    "data/GL_WK_2022_grape_rb.json": "dfab4ddfa8771e4a7111d00f2f7edeb7d6896d20ee9b76eead17000965154a5e",
+    "data/NN_JF_2023_grape_rb.json": "507b332d212e631dc9ad5af8e6173e232b5fadb44b0e0b0e3eee3e37c8d8853a",
+    "data/NN_JF_2024_grape_rb.json": "dbec78f460aa698ea598b6751089ab585ee53b5c198a98c498bc0ba0bae8bbc2"
+  },
+  "versions": {
+    "python": "3.12.7",
+    "numpy": "2.4.0",
+    "pandas": "2.3.3",
+    "tqdm": "4.67.1"
+  },
+  "n_model_evaluations": 6407,
+  "n_calibration_failures": 0,
+  "n_duplicate_policy_evaluations": 1549,
+  "duplicate_policy_differences": 0,
+  "completed_utc": "2026-09-13T11:59:45.227705+00:00"
+}

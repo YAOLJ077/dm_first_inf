@@ -1,0 +1,17 @@
+{
+  "arm": "A",
+  "budget": 1024,
+  "seed": 123,
+  "run_status": "running",
+  "active_plan": "B",
+  "input_sha256": {
+    "site_year_manifest.csv": "1c4e89a6f0841a87cb864af92b6c4dd3e718d77f593f262dcc6146b6165fa99a",
+    "oof_predictions.csv": "5e20e8a31c136a6e66378c0015f0b55b871a79d9dd1c790f12614ee51ad28598",
+    "fold_summary.csv": "a5ca3450d21f35c0731729c9cdfec4813a494fe5875a923f24db99f75603048c",
+    "exploratory_predictions.csv": "b78c1683ef5e318783238cc4541a3c65fdf729943a9de0ca512eaf479eea40b6",
+    "exploratory_fold_summary.csv": "81c802561610e8c7b2c81269be035fbcd2a7a74dc5a34fe8424436df05bf8c6a"
+  },
+  "checked_splits": 24,
+  "checked_prediction_rows": 36,
+  "models_executed": 0
+}

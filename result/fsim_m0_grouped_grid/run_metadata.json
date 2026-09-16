@@ -1,0 +1,119 @@
+{
+  "status": "complete",
+  "model": "M0",
+  "settings": {
+    "parameter_table": "src/grid_m0_reference/config/fsim_m0_losyo_parameters.csv",
+    "manifest": "result/fsim_inputs/site_year_manifest.csv",
+    "coarse_levels": [
+      15,
+      37
+    ],
+    "refinement_rounds": 3,
+    "refinement_factor": 2,
+    "refinement_margin_days": 1.0,
+    "near_optimal_tolerances_days": [
+      0.5,
+      1.0
+    ],
+    "tie_atol_days": 1e-09,
+    "tie_rule": "lowest_VPD_w_then_lowest_I_req",
+    "objective": "training_interval_MAE_days",
+    "require_all_training_predictions": true,
+    "accuracy_tolerances_days": [
+      7,
+      10
+    ],
+    "max_candidates_per_fold": 35000,
+    "workers": 4,
+    "chunk_size": 32,
+    "check_duplicate_policy": true,
+    "reference_run": "result/fsim_m0_losyo_Ireq40_400_refine3",
+    "validation_schemes": [
+      "site",
+      "year"
+    ]
+  },
+  "started_utc": "2026-09-14T04:04:47.726814+00:00",
+  "source_sha256": {
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/src/calibrate_m0_grouped_grid.py": "319adb8893d9cdc83bf82027d4517e587be06bcab28e8092c2353a149ee76045",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/config/fsim_m0_grouped_grid.json": "3acce7547aed8ec2d3a09c303b0c388d70e932e8b3dac5021ffe856a94bd2860",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/src/grid_m0_reference/snapshot_manifest.json": "d241ddc653bc278ee00c616d8fa4aebff387b609cd3dbe53e614f82644faeed2",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/src/grid_m0_reference/config/fsim_runtime_parameters.csv": "d62eecb3f37393d750c1696fa532e9c199c59665b41f7826e74a68dbf36fc1ee",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/src/grid_m0_reference/config/fsim_m0_losyo_refine3.json": "dfe71155f889fb974a4dbe578499bbb71beac7f415bc29d32c9cc439ae097b4d",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/src/grid_m0_reference/config/fsim_m0_losyo_parameters.csv": "cf44892acf44c57d8fa796e56b651d1463271b0d69ca7f10e4490a714f8fcb66",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/src/grid_m0_reference/model/crop_season_spore_infthr.py": "33ae4dd8e70c3723325b1b87dc4f6a7b42ede003e7a943298f719faa5dbc4260",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/src/grid_m0_reference/model/first_infection.py": "f06a8435cda69b825af5bb101888d7dd4e2c06fc95eaec3a0a32ce86e8a1a150",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/src/grid_m0_reference/model/sporulation_timing.py": "ade88b8d66220d795d1fa0c590ae28489304a2bb1e5d7bb5c14768af5be7fdfc",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/src/grid_m0_reference/model/first_infection_spore_infthr.py": "b1f6ba0bbf50f5359f6361fc7a0a90d5b95f68e302bb048e14a059259749e218",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/src/grid_m0_reference/model/config.py": "9f68eb3de1a5ff8b40f0d131dade3cbf1b79cb69b9e4f30534cee16ad6311cc4",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/src/grid_m0_reference/model/process_rules.py": "7fc1a9e92c23a4414349646b407ca6fe84d4e1d0b8c5345ee66642188007d252",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/src/grid_m0_reference/model/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/src/grid_m0_reference/model/parameter_table.py": "83f9e45a5bf929c08906ca362d2fbf752cc880174de14c79cd9a74e68cc96eb5",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/src/grid_m0_reference/model/crop_season.py": "4084d1f6fa5d3cae587d6f2feb9f1e2bec8340b1750d54e3556165383b7fcddd",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/src/grid_m0_reference/src/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/src/grid_m0_reference/src/analyze_fsim_parameters.py": "8603f8b2ac177b18145b73a961095dcbe6e5e49f3ec87f51736dfbd91aa22058",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/src/grid_m0_reference/src/calibrate_m0_losyo.py": "b2229d7bcf42c9b818d956f32bff7eead4034888924ce0ca4a32eae7b44a73bb"
+  },
+  "input_sha256": {
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/result/fsim_inputs/site_year_manifest.csv": "00bceeaab6ae5dae27d0aca90af67c27058b6225ffa0aac9ca30777af0de42a5",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/data/DA_MPT_2022_grape_rb.json": "3ead8103c1579f18ca30353babd8b242869c04b082c4a7f9c992e04244cb0228",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/data/DA_MPT_2023_grape_rb.json": "9c45a8c18f2a1e4782a435aa913cc7bab32ed2a17941634d7bef3ee39be7ac13",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/data/DA_MPT_2024_grape_rb.json": "c0765f2ba249ada50edef44413e3d7a5d4c681dde176749531b44f50bd99f884",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/data/GL_WK_2022_grape_rb.json": "dfab4ddfa8771e4a7111d00f2f7edeb7d6896d20ee9b76eead17000965154a5e",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/data/NN_JF_2023_grape_rb.json": "507b332d212e631dc9ad5af8e6173e232b5fadb44b0e0b0e3eee3e37c8d8853a",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/data/NN_JF_2024_grape_rb.json": "dbec78f460aa698ea598b6751089ab585ee53b5c198a98c498bc0ba0bae8bbc2"
+  },
+  "schemes": {
+    "site": {
+      "status": "complete",
+      "summary": {
+        "n_folds": 3,
+        "n_site_years": 6,
+        "n_calibration_failed_folds": 0,
+        "n_calibration_failed_site_years": 0,
+        "n_predictions": 6,
+        "n_no_predictions": 0,
+        "prediction_rate_fixed_six": 1.0,
+        "MAE_days": 32.479166666666664,
+        "RMSE_days": 40.04346235423224,
+        "conditional_MAE_days": 32.479166666666664,
+        "conditional_RMSE_days": 40.04346235423224,
+        "equal_group_MAE_days": 32.32175925925927,
+        "accurate_prediction_rate_7d_fixed_six": 0.3333333333333333,
+        "accurate_prediction_rate_10d_fixed_six": 0.3333333333333333
+      },
+      "n_model_evaluations": 7365,
+      "n_duplicate_evaluations": 1848,
+      "duplicate_policy_differences": 0
+    },
+    "year": {
+      "status": "complete",
+      "summary": {
+        "n_folds": 3,
+        "n_site_years": 6,
+        "n_calibration_failed_folds": 0,
+        "n_calibration_failed_site_years": 0,
+        "n_predictions": 6,
+        "n_no_predictions": 0,
+        "prediction_rate_fixed_six": 1.0,
+        "MAE_days": 35.09027777777778,
+        "RMSE_days": 41.90154285920128,
+        "conditional_MAE_days": 35.09027777777778,
+        "conditional_RMSE_days": 41.90154285920128,
+        "equal_group_MAE_days": 35.09027777777778,
+        "accurate_prediction_rate_7d_fixed_six": 0.16666666666666666,
+        "accurate_prediction_rate_10d_fixed_six": 0.16666666666666666
+      },
+      "n_model_evaluations": 9044,
+      "n_duplicate_evaluations": 2426,
+      "duplicate_policy_differences": 0
+    }
+  },
+  "versions": {
+    "python": "3.12.7",
+    "numpy": "2.4.0",
+    "pandas": "2.3.3",
+    "tqdm": "4.67.1"
+  },
+  "completed_utc": "2026-09-14T04:16:42.618312+00:00"
+}

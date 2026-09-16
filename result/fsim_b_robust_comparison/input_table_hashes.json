@@ -1,0 +1,23 @@
+{
+  "base_1024": {
+    "site_year_manifest.csv": "1c4e89a6f0841a87cb864af92b6c4dd3e718d77f593f262dcc6146b6165fa99a",
+    "oof_predictions.csv": "c2bd75f4f275b2f5ca0ceb1f47a21b2862af127404e3ea690d49ac91c456af77",
+    "fold_summary.csv": "f247f326c7712d18b213adc80568b01dba38e8159dc4ed17dd57fbc1eeb10206",
+    "exploratory_predictions.csv": "0150a957a85582e045502e9c1e95939322dc90811ef3c35dd2b48c0f3c523ce5",
+    "exploratory_fold_summary.csv": "7edf00b06f0a052a7696521a6a0ccf2eb020dd60f9e6c06e0f85875b57ec6312"
+  },
+  "robust_1024": {
+    "site_year_manifest.csv": "1c4e89a6f0841a87cb864af92b6c4dd3e718d77f593f262dcc6146b6165fa99a",
+    "oof_predictions.csv": "305277da9ee5caf10e73227f633e02fae656d68746dabfba059b0973cdcc4f1d",
+    "fold_summary.csv": "30474c5df68b04527933d371032d8590266e0aac419cd77de14eefea133552de",
+    "exploratory_predictions.csv": "26b9e9b258b6193eb7822cbfff5ff60aacb509719c317395e5a8630f2c48cba2",
+    "exploratory_fold_summary.csv": "8b94f016dd912d33ac1f275b69181b767b3f84075ee7d097b5609405f2826050"
+  },
+  "robust_2048": {
+    "site_year_manifest.csv": "1c4e89a6f0841a87cb864af92b6c4dd3e718d77f593f262dcc6146b6165fa99a",
+    "oof_predictions.csv": "305277da9ee5caf10e73227f633e02fae656d68746dabfba059b0973cdcc4f1d",
+    "fold_summary.csv": "30474c5df68b04527933d371032d8590266e0aac419cd77de14eefea133552de",
+    "exploratory_predictions.csv": "26b9e9b258b6193eb7822cbfff5ff60aacb509719c317395e5a8630f2c48cba2",
+    "exploratory_fold_summary.csv": "8b94f016dd912d33ac1f275b69181b767b3f84075ee7d097b5609405f2826050"
+  }
+}

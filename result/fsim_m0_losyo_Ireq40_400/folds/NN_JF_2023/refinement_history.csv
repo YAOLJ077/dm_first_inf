@@ -1,0 +1,4 @@
+stage,n_candidates,n_feasible,best_training_MAE_days,improvement_days,n_tied_best
+0,555,482,14.408333333333335,,2
+1,594,521,14.408333333333335,0.0,3
+2,654,581,9.674999999999999,4.733333333333336,1

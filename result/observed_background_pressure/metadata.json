@@ -1,0 +1,14 @@
+{
+  "input": "data/grape_experiment_CK_site_years.xlsx",
+  "observational_unit": "completed slide-collection interval",
+  "nominal_interval_days": 3,
+  "first_interval_rule": "end_date minus 2 days through end_date",
+  "subsequent_interval_rule": "day after previous completed collection through current end date",
+  "pressure_definition": "clip(log1p(spore_total/duration_days)/Q95, 0, 1)",
+  "q95_log_scale": 2.3204502663892335,
+  "q95_source": "descriptive all-interval value; refit within each training fold for evaluation",
+  "daily_allocation": "constant interval pressure; weight=1/duration_days for external-dose allocation",
+  "long_interval_flag_days": 4,
+  "n_intervals": 102,
+  "n_daily_rows": 322
+}

@@ -1,0 +1,8 @@
+{
+  "baseline_run": "result/fsim_m0_losyo_Ireq40_400_refine3",
+  "RH_sp_values": [75, 80, 85, 90],
+  "reference_RH_sp": 80,
+  "workers": 4,
+  "tie_rule": "closest_RH_to_80_then_lowest_RH_then_lowest_VPD_w_then_lowest_I_req",
+  "notes": "Exploratory discrete RH grid, not a validated biological interval. Other parameters and three-round two-dimensional refinement follow the verified baseline. RH is selected from training loss only."
+}
