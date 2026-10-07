@@ -1,3 +1,0 @@
-input_key,extra_rows,first_duplicate,last_duplicate,primary_policy,sensitivity_policy
-DA_MPT_2024,24,2024-12-31T00:00:00,2024-12-31T23:00:00,keep_last,keep_first
-NN_JF_2024,24,2024-12-31T00:00:00,2024-12-31T23:00:00,keep_last,keep_first

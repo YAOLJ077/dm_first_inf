@@ -1,2 +1,0 @@
-variable,unit,n,p50,p90,p95,p99,p99_9,maximum
-wind_speed,m/s (numerically cross-checked; original request metadata unavailable),52656,2.61,4.69,5.33,6.58,8.33,13.19

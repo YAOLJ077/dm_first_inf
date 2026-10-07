@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "model": "FSIM/FSIM-S deployment parameters",
+  "created_at_utc": "2026-10-07T05:59:58.715330+00:00",
+  "selection_rule": {
+    "outer_cv": "six site-year leave-one-out folds",
+    "fixed_parameters": "retain values identical across all folds",
+    "fold_consensus": "unique mode; median when the mode is tied",
+    "spore_gate": "numeric zero-spore collection intervals suppress weather-generated cohorts; missing observations do not"
+  },
+  "parameters": {
+    "FSIM": {
+      "wind_min_m_s": 0.5,
+      "heavy_rain_washoff_mm": 5.0,
+      "minimum_moist_hours": 7.0,
+      "infection_degree_hours": 170.0,
+      "effective_deposition_min_rain_mm": 3.85,
+      "sporulation_rh_min_pct": 85.0
+    },
+    "FSIM-S": {
+      "wind_min_m_s": 0.5,
+      "heavy_rain_washoff_mm": 5.0,
+      "minimum_moist_hours": 7.0,
+      "infection_degree_hours": 170.0,
+      "effective_deposition_min_rain_mm": 3.85,
+      "sporulation_rh_min_pct": 85.0,
+      "beta_sp": 0.005,
+      "observed_zero_weather_gate": true,
+      "pressure_field": {
+        "shape": "interval_rate",
+        "normalization": "zscore",
+        "rolling_days": 3,
+        "outside_fill": "zero",
+        "reference_level": 0.5
+      }
+    }
+  },
+  "source_files": {
+    "fsim_fold_parameters": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/result/cv_spore_pressure_s_dep38_395_rh80_coarse/fold_parameters.csv",
+    "spore_fold_parameters": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/result/cv_spore_pressure_s_observed_zero_gate/fold_parameters.csv"
+  }
+}

@@ -1,0 +1,137 @@
+{
+  "schema_version": 4,
+  "model": "nested_fsim_s_grouped_cv",
+  "created_at_utc": "2026-10-06T17:00:46.352233+00:00",
+  "primary_cv_scheme": "site_year",
+  "cv_schemes": [
+    "site_year"
+  ],
+  "supplementary_cv_schemes": [],
+  "site_years": [
+    "22_61_108_23_2023",
+    "22_61_108_23_2024",
+    "23_83_108_1_2022",
+    "23_83_108_1_2023",
+    "23_83_108_1_2024",
+    "25_45_110_8_2022"
+  ],
+  "fold_training": "fit two open FSIM parameters on all records outside the held-out group with wind, wash-off, minimum moist hours and RH threshold fixed; then fix FSIM and fit beta_sp on the same training records",
+  "held_out_evaluation": "fixed fold S parameters for Sporangia and fixed fold S plus beta_sp for Spore",
+  "observed_window": "[observed_date - 3 days, observed_date]",
+  "error_definition": "zero for overlapping observed and predicted windows; otherwise signed distance to the nearest window boundary",
+  "selection_target": "minimum missing predictions; among candidates within a fixed tolerance of minimum training penalized MAE, minimize domain-normalized squared distance to the component-wise median of the near-optimal training candidates; then MAE, non-positive bias, absolute bias, lexicographic vector",
+  "mae_tolerance_days": 0.5,
+  "search_navigation": "complete finite Cartesian coarse grid followed by a local Cartesian fine grid around the best coarse candidate; select from the near-optimal training candidate set using its normalized median center",
+  "selection_scope": "training site-years only; no held-out labels, configuration prior, prior exploratory optimum, or cross-fold parameter consensus used for selection",
+  "evaluation_status": "exploratory protocol revision after inspection of earlier LOSYO results; not independent confirmatory validation",
+  "stability_definition": "component-wise median center of the near-optimal training candidate set within each fold; actual between-fold dispersion reported separately",
+  "training_summary_unit": "pooled fold/site-year predictions within each CV scheme; repeated observations, not independent site-years",
+  "missing_penalty_days": 60.0,
+  "parameter_names": [
+    "infection_degree_hours",
+    "effective_deposition_min_rain_mm",
+    "sporulation_rh_min_pct"
+  ],
+  "fixed_parameters": {
+    "wind_min_m_s": 0.5,
+    "heavy_rain_washoff_mm": 5.0,
+    "minimum_moist_hours": 7.0
+  },
+  "parameter_bounds": {
+    "infection_degree_hours": [
+      150.0,
+      200.0
+    ],
+    "effective_deposition_min_rain_mm": [
+      3.8,
+      3.95
+    ],
+    "sporulation_rh_min_pct": [
+      80.0,
+      100.0
+    ],
+    "heavy_rain_washoff_mm": [
+      4.0,
+      10.0
+    ]
+  },
+  "coarse_grids": {
+    "infection_degree_hours": [
+      150.0,
+      160.0,
+      170.0,
+      180.0,
+      190.0,
+      200.0
+    ],
+    "effective_deposition_min_rain_mm": [
+      3.8,
+      3.85,
+      3.9,
+      3.95
+    ],
+    "sporulation_rh_min_pct": [
+      80.0,
+      85.0,
+      90.0,
+      95.0,
+      100.0
+    ],
+    "heavy_rain_washoff_mm": [
+      4.0,
+      5.0,
+      6.0,
+      8.0,
+      10.0
+    ]
+  },
+  "fine_steps": {
+    "infection_degree_hours": 1.0,
+    "effective_deposition_min_rain_mm": 0.04999999999999982,
+    "sporulation_rh_min_pct": 5.0,
+    "heavy_rain_washoff_mm": 0.5
+  },
+  "coarse_passes": 1,
+  "fine_passes": 0,
+  "pressure_parameter": "beta_sp",
+  "pressure_bounds": [
+    0.0,
+    1.0
+  ],
+  "pressure_coarse_grid": [
+    0.0,
+    0.0625,
+    0.125,
+    0.25,
+    0.5,
+    1.0
+  ],
+  "pressure_fine_step": 0.05,
+  "pressure_preprocessing": {
+    "shape": "interval_rate",
+    "normalization": "zscore",
+    "rolling_days": 3,
+    "outside_fill": "zero",
+    "reference_level": 0.5
+  },
+  "inputs": {
+    "weather_dir": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/data/weather_data/site_year",
+    "observations": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/data/disease_data/grape_downy_mildew_data.xlsx",
+    "phenology_observations": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/data/phenology_data/phenology.xlsx",
+    "spore_file": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/data/spore_data/guangxi_site_years_spore_data.xlsx",
+    "s_config": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/model/FSIM/config.json",
+    "spore_config": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/model/FSIM-S/config.json",
+    "host_config": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/model/phenology/susceptibility_modulation.json"
+  },
+  "outputs": [
+    "s_candidate_scores.csv",
+    "beta_candidate_scores.csv",
+    "fold_parameters.csv",
+    "predictions.csv",
+    "summary.csv",
+    "training_validation_summary.csv",
+    "selection_audit.json",
+    "parameter_stability.csv",
+    "manifest.json"
+  ]
+}

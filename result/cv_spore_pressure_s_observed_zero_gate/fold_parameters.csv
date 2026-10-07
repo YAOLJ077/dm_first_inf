@@ -1,0 +1,7 @@
+cv_scheme,held_out_group,selected_beta_sp,training_mae_days,training_bias_days,held_out_error_days,held_out_absolute_error_days,held_out_selected_cohort_count,held_out_candidate_cohort_count
+site_year,22_61_108_23_2023,0.005,4.4,-1.2,1,1,38,208
+site_year,22_61_108_23_2024,0.005,3.8,-1.8,4,4,45,210
+site_year,23_83_108_1_2022,0.005,1.8,1.8,-14,14,24,143
+site_year,23_83_108_1_2023,0.005,3.8,-1.8,4,4,36,180
+site_year,23_83_108_1_2024,0.005,4.6,-1.0,0,0,23,192
+site_year,25_45_110_8_2022,0.005,4.6,-1.0,0,0,13,132

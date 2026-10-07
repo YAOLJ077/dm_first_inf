@@ -1,3 +1,0 @@
-seed,trial,I_req,MP_sp,RH_sp,VPD_w,u_tr,feasible,n_no_prediction,optimizer_value,training_MAE_days,training_RMSE_days,test_prediction_complete,n_test,n_test_predicted,test_MAE_days,test_RMSE_days,conditional_test_MAE_days,selection_uses_test_data,evaluation_role
-123,897,141.92165094088918,3,80,1.5352831986510371,0.0,True,0,9.674999999999999,9.674999999999999,13.454875716837952,True,1,1,62.875,62.875,62.875,True,exploratory_test_selected
-123,1000,142.7159227566,3,80,1.5845227559510648,0.0,True,0,9.674999999999999,9.674999999999999,13.454875716837952,True,1,1,62.875,62.875,62.875,True,exploratory_test_selected

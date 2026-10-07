@@ -1,0 +1,9 @@
+﻿output,finite_samples,total_samples,variance,min,max,status
+mean_first_window_day_censored,14336,14336,105.4683185616318,98.0,204.8,analysed
+mean_first_window_day_complete,14336,14336,99.53098412338568,98.0,164.5,analysed
+complete_window_fraction,14336,14336,6.128972890425698e-05,0.8,1.0,analysed
+missing_windows,14336,14336,0.0015322432226064259,0.0,1.0,analysed
+mae_days_complete,14336,14336,19.521622918564447,2.4,41.5,analysed
+mae_days_penalized,14336,14336,19.817533927255745,2.4,45.2,analysed
+mean_signed_error_days_complete,14336,14336,91.00985593833487,-25.0,41.5,analysed
+mean_interval_distance_days_complete,14336,14336,19.521622918564447,2.4,41.5,analysed

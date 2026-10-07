@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "route": "S",
+  "N": 512,
+  "workers": 4,
+  "second_order": true,
+  "resamples": 100,
+  "confidence": 0.95,
+  "output_dir": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/result/sobol_sensitivity/S_N512",
+  "created_at_utc": "2026-10-04T16:21:40.770497+00:00",
+  "output_metadata": [
+    {
+      "output": "mean_first_window_day_censored",
+      "finite_samples": 7168,
+      "total_samples": 7168,
+      "variance": 104.32948162468112,
+      "min": 98.0,
+      "max": 204.8,
+      "status": "analysed"
+    },
+    {
+      "output": "mean_first_window_day_complete",
+      "finite_samples": 7168,
+      "total_samples": 7168,
+      "variance": 100.00618046035572,
+      "min": 98.0,
+      "max": 164.5,
+      "status": "analysed"
+    },
+    {
+      "output": "complete_window_fraction",
+      "finite_samples": 7168,
+      "total_samples": 7168,
+      "variance": 4.459303252551019e-05,
+      "min": 0.8,
+      "max": 1.0,
+      "status": "analysed"
+    },
+    {
+      "output": "missing_windows",
+      "finite_samples": 7168,
+      "total_samples": 7168,
+      "variance": 0.0011148258131377553,
+      "min": 0.0,
+      "max": 1.0,
+      "status": "analysed"
+    },
+    {
+      "output": "mae_days_complete",
+      "finite_samples": 7168,
+      "total_samples": 7168,
+      "variance": 19.895950027339314,
+      "min": 2.4,
+      "max": 41.5,
+      "status": "analysed"
+    },
+    {
+      "output": "mae_days_penalized",
+      "finite_samples": 7168,
+      "total_samples": 7168,
+      "variance": 20.115401474310424,
+      "min": 2.4,
+      "max": 45.2,
+      "status": "analysed"
+    },
+    {
+      "output": "mean_signed_error_days_complete",
+      "finite_samples": 7168,
+      "total_samples": 7168,
+      "variance": 91.44426634374929,
+      "min": -25.0,
+      "max": 41.5,
+      "status": "analysed"
+    },
+    {
+      "output": "mean_interval_distance_days_complete",
+      "finite_samples": 7168,
+      "total_samples": 7168,
+      "variance": 19.895950027339314,
+      "min": 2.4,
+      "max": 41.5,
+      "status": "analysed"
+    }
+  ]
+}

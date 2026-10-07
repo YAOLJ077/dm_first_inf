@@ -1,9 +1,9 @@
-This is XeTeX, Version 3.141592653-2.6-0.999998 (TeX Live 2026) (preloaded format=xelatex 2026.4.23)  13 SEP 2026 15:10
+This is XeTeX, Version 3.141592653-2.6-0.999998 (TeX Live 2026) (preloaded format=xelatex 2026.4.23)  7 OCT 2026 15:41
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
-**paper/manuscript.tex
-(./paper/manuscript.tex
+**manuscript.tex
+(./manuscript.tex
 LaTeX2e <2025-11-01>
 L3 programming layer <2026-01-19>
 (/usr/local/texlive/2026/texmf-dist/tex/latex/base/article.cls
@@ -1188,39 +1188,37 @@ File: bkm-dvipdfm.def 2023-12-10 v1.31 bookmark driver for dvipdfm (HO)
 ))
 (/usr/local/texlive/2026/texmf-dist/tex/latex/xurl/xurl.sty
 Package: xurl 2022/01/09 v 0.10 modify URL breaks
-)
-(paper/manuscript.aux)
+) (./manuscript.aux)
 \openout1 = `manuscript.aux'.
 
-LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 114.
-LaTeX Font Info:    ... okay on input line 114.
-LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 114.
-LaTeX Font Info:    ... okay on input line 114.
-LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 114.
-LaTeX Font Info:    ... okay on input line 114.
-LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 114.
-LaTeX Font Info:    ... okay on input line 114.
-LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 114.
-LaTeX Font Info:    ... okay on input line 114.
-LaTeX Font Info:    Checking defaults for TU/lmr/m/n on input line 114.
-LaTeX Font Info:    ... okay on input line 114.
-LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 114.
-LaTeX Font Info:    ... okay on input line 114.
-LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 114.
-LaTeX Font Info:    ... okay on input line 114.
-LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 114.
-LaTeX Font Info:    ... okay on input line 114.
-LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 114.
-LaTeX Font Info:    ... okay on input line 114.
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 116.
+LaTeX Font Info:    ... okay on input line 116.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 116.
+LaTeX Font Info:    ... okay on input line 116.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 116.
+LaTeX Font Info:    ... okay on input line 116.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 116.
+LaTeX Font Info:    ... okay on input line 116.
+LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 116.
+LaTeX Font Info:    ... okay on input line 116.
+LaTeX Font Info:    Checking defaults for TU/lmr/m/n on input line 116.
+LaTeX Font Info:    ... okay on input line 116.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 116.
+LaTeX Font Info:    ... okay on input line 116.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 116.
+LaTeX Font Info:    ... okay on input line 116.
+LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 116.
+LaTeX Font Info:    ... okay on input line 116.
+LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 116.
+LaTeX Font Info:    ... okay on input line 116.
 LaTeX Font Info:    Overwriting math alphabet `\mathsf' in version `normal'
-(Font)                  OT1/lmss/m/n --> TU/lmss/m/n on input line 114.
+(Font)                  OT1/lmss/m/n --> TU/lmss/m/n on input line 116.
 LaTeX Font Info:    Overwriting math alphabet `\mathsf' in version `bold'
-(Font)                  OT1/lmss/bx/n --> TU/lmss/b/n on input line 114.
+(Font)                  OT1/lmss/bx/n --> TU/lmss/b/n on input line 116.
 LaTeX Font Info:    Overwriting math alphabet `\mathtt' in version `normal'
-(Font)                  OT1/lmtt/m/n --> TU/lmtt/m/n on input line 114.
+(Font)                  OT1/lmtt/m/n --> TU/lmtt/m/n on input line 116.
 LaTeX Font Info:    Overwriting math alphabet `\mathtt' in version `bold'
-(Font)                  OT1/lmtt/m/n --> TU/lmtt/b/n on input line 114.
-
+(Font)                  OT1/lmtt/m/n --> TU/lmtt/b/n on input line 116.
 *geometry* driver: auto-detecting
 *geometry* detected driver: xetex
 *geometry* verbose mode - [ preamble ] result:
@@ -1255,13 +1253,13 @@ LaTeX Font Info:    Overwriting math alphabet `\mathtt' in version `bold'
 * \@reversemarginfalse
 * (1in=72.27pt=25.4mm, 1cm=28.453pt)
 
-LaTeX Info: Redefining \microtypecontext on input line 114.
-Package microtype Info: Applying patch `item' on input line 114.
-Package microtype Info: Applying patch `toc' on input line 114.
-Package microtype Info: Applying patch `eqnum' on input line 114.
-Package microtype Info: Applying patch `footnote' on input line 114.
-Package microtype Info: Applying patch `verbatim' on input line 114.
-LaTeX Info: Redefining \microtypesetup on input line 114.
+LaTeX Info: Redefining \microtypecontext on input line 116.
+Package microtype Info: Applying patch `item' on input line 116.
+Package microtype Info: Applying patch `toc' on input line 116.
+Package microtype Info: Applying patch `eqnum' on input line 116.
+Package microtype Info: Applying patch `footnote' on input line 116.
+Package microtype Info: Applying patch `verbatim' on input line 116.
+LaTeX Info: Redefining \microtypesetup on input line 116.
 Package microtype Info: Character protrusion enabled (level 2).
 Package microtype Info: Using protrusion set `basicmath'.
 Package microtype Info: No adjustment of tracking.
@@ -1274,37 +1272,37 @@ Package microtype Info: Loading generic protrusion settings for font family
 Package caption Info: Begin \AtBeginDocument code.
 Package caption Info: hyperref package is loaded.
 Package caption Info: End \AtBeginDocument code.
-Package hyperref Info: Link coloring OFF on input line 114.
+Package hyperref Info: Link coloring OFF on input line 116.
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(0)/m/n' will be
-(Font)              scaled to size 17.28pt on input line 119.
+(Font)              scaled to size 17.28pt on input line 121.
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(0)/m/n' will be
-(Font)              scaled to size 7.0pt on input line 119.
+(Font)              scaled to size 7.0pt on input line 121.
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(0)/m/n' will be
-(Font)              scaled to size 12.0pt on input line 119.
+(Font)              scaled to size 12.0pt on input line 121.
 LaTeX Font Info:    Font shape `TU/STIXTwoMath(1)/m/n' will be
-(Font)              scaled to size 11.34705pt on input line 119.
+(Font)              scaled to size 11.34705pt on input line 121.
 LaTeX Font Info:    Font shape `TU/STIXTwoMath(1)/m/n' will be
-(Font)              scaled to size 7.5647pt on input line 119.
+(Font)              scaled to size 7.5647pt on input line 121.
 LaTeX Font Info:    Font shape `TU/STIXTwoMath(1)/m/n' will be
-(Font)              scaled to size 5.67352pt on input line 119.
+(Font)              scaled to size 5.67352pt on input line 121.
 LaTeX Font Info:    Trying to load font information for OML+lmm on input line 1
-19.
+21.
 (/usr/local/texlive/2026/texmf-dist/tex/latex/lm/omllmm.fd
 File: omllmm.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
 LaTeX Font Info:    Font shape `TU/STIXTwoMath(2)/m/n' will be
-(Font)              scaled to size 11.34814pt on input line 119.
+(Font)              scaled to size 11.34814pt on input line 121.
 LaTeX Font Info:    Font shape `TU/STIXTwoMath(2)/m/n' will be
-(Font)              scaled to size 7.56543pt on input line 119.
+(Font)              scaled to size 7.56543pt on input line 121.
 LaTeX Font Info:    Font shape `TU/STIXTwoMath(2)/m/n' will be
-(Font)              scaled to size 5.67407pt on input line 119.
+(Font)              scaled to size 5.67407pt on input line 121.
 LaTeX Font Info:    Font shape `TU/STIXTwoMath(3)/m/n' will be
-(Font)              scaled to size 11.34595pt on input line 119.
+(Font)              scaled to size 11.34595pt on input line 121.
 LaTeX Font Info:    Font shape `TU/STIXTwoMath(3)/m/n' will be
-(Font)              scaled to size 7.56396pt on input line 119.
+(Font)              scaled to size 7.56396pt on input line 121.
 LaTeX Font Info:    Font shape `TU/STIXTwoMath(3)/m/n' will be
-(Font)              scaled to size 5.67297pt on input line 119.
-LaTeX Font Info:    Trying to load font information for U+msa on input line 119
+(Font)              scaled to size 5.67297pt on input line 121.
+LaTeX Font Info:    Trying to load font information for U+msa on input line 121
 .
 
 (/usr/local/texlive/2026/texmf-dist/tex/latex/amsfonts/umsa.fd
@@ -1313,7 +1311,7 @@ File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 (/usr/local/texlive/2026/texmf-dist/tex/latex/microtype/mt-msa.cfg
 File: mt-msa.cfg 2006/02/04 v1.1 microtype config. file: AMS symbols (a) (RS)
 )
-LaTeX Font Info:    Trying to load font information for U+msb on input line 119
+LaTeX Font Info:    Trying to load font information for U+msb on input line 121
 .
 
 (/usr/local/texlive/2026/texmf-dist/tex/latex/amsfonts/umsb.fd
@@ -1323,138 +1321,147 @@ File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 File: mt-msb.cfg 2005/06/01 v1.0 microtype config. file: AMS symbols (b) (RS)
 )
 LaTeX Font Info:    Font shape `TU/STIXTwoMath(1)/m/n' will be
-(Font)              scaled to size 6.61911pt on input line 120.
+(Font)              scaled to size 6.61911pt on input line 122.
 LaTeX Font Info:    Font shape `TU/STIXTwoMath(1)/m/n' will be
-(Font)              scaled to size 5.20073pt on input line 120.
+(Font)              scaled to size 5.20073pt on input line 122.
 LaTeX Font Info:    Font shape `TU/STIXTwoMath(2)/m/n' will be
-(Font)              scaled to size 9.45679pt on input line 120.
+(Font)              scaled to size 9.45679pt on input line 122.
 LaTeX Font Info:    Font shape `TU/STIXTwoMath(2)/m/n' will be
-(Font)              scaled to size 6.61975pt on input line 120.
+(Font)              scaled to size 6.61975pt on input line 122.
 LaTeX Font Info:    Font shape `TU/STIXTwoMath(2)/m/n' will be
-(Font)              scaled to size 5.20123pt on input line 120.
+(Font)              scaled to size 5.20123pt on input line 122.
 LaTeX Font Info:    Font shape `TU/STIXTwoMath(3)/m/n' will be
-(Font)              scaled to size 9.45496pt on input line 120.
+(Font)              scaled to size 9.45496pt on input line 122.
 LaTeX Font Info:    Font shape `TU/STIXTwoMath(3)/m/n' will be
-(Font)              scaled to size 6.61847pt on input line 120.
+(Font)              scaled to size 6.61847pt on input line 122.
 LaTeX Font Info:    Font shape `TU/STIXTwoMath(3)/m/n' will be
-(Font)              scaled to size 5.20023pt on input line 120.
+(Font)              scaled to size 5.20023pt on input line 122.
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(0)/b/n' will be
-(Font)              scaled to size 10.0pt on input line 153.
+(Font)              scaled to size 10.0pt on input line 155.
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(0)/b/n' will be
-(Font)              scaled to size 7.0pt on input line 160.
+(Font)              scaled to size 7.0pt on input line 162.
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(0)/m/n' will be
-(Font)              scaled to size 14.4pt on input line 162.
+(Font)              scaled to size 14.4pt on input line 164.
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(0)/b/n' will be
-(Font)              scaled to size 14.4pt on input line 162.
+(Font)              scaled to size 14.4pt on input line 164.
  [1
 
 ]
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(0)/m/it' will be
-(Font)              scaled to size 10.0pt on input line 173.
+(Font)              scaled to size 10.0pt on input line 176.
 
 [2] [3]
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(0)/b/n' will be
-(Font)              scaled to size 12.0pt on input line 286.
-File: fig/Figure_01.png Graphic file (type bmp)
-<fig/Figure_01.png>
+(Font)              scaled to size 12.0pt on input line 276.
+File: ../fig/Figure_01.png Graphic file (type bmp)
+<../fig/Figure_01.png>
  [4] [5]
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(0)/m/n' will be
-(Font)              scaled to size 8.0pt on input line 368.
+(Font)              scaled to size 8.0pt on input line 344.
 LaTeX Font Info:    Font shape `TU/STIXTwoMath(1)/m/n' will be
-(Font)              scaled to size 4.72794pt on input line 387.
+(Font)              scaled to size 4.72794pt on input line 363.
 LaTeX Font Info:    Font shape `TU/STIXTwoMath(2)/m/n' will be
-(Font)              scaled to size 4.7284pt on input line 387.
+(Font)              scaled to size 4.7284pt on input line 363.
 LaTeX Font Info:    Font shape `TU/STIXTwoMath(3)/m/n' will be
-(Font)              scaled to size 4.72748pt on input line 387.
+(Font)              scaled to size 4.72748pt on input line 363.
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/b/n' will be
-(Font)              scaled to size 7.8374pt on input line 387.
+(Font)              scaled to size 7.8374pt on input line 363.
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/b/n' will be
-(Font)              scaled to size 5.87805pt on input line 387.
+(Font)              scaled to size 5.87805pt on input line 363.
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/b/n' will be
-(Font)              scaled to size 4.89838pt on input line 387.
-File: fig/Figure_02.png Graphic file (type bmp)
-<fig/Figure_02.png>
+(Font)              scaled to size 4.89838pt on input line 363.
+File: ../fig/Figure_02.png Graphic file (type bmp)
+<../fig/Figure_02.png>
  [6]
-File: fig/Figure_03.png Graphic file (type bmp)
-<fig/Figure_03.png>
- [7] [8]
-File: fig/Figure_04.png Graphic file (type bmp)
-<fig/Figure_04.png>
+File: ../fig/Figure_03.png Graphic file (type bmp)
+<../fig/Figure_03.png>
+ [7]
+File: ../fig/Figure_04.png Graphic file (type bmp)
+<../fig/Figure_04.png>
+ [8]
+LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/b/n' will be
+(Font)              scaled to size 9.79675pt on input line 446.
+LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/b/n' will be
+(Font)              scaled to size 6.85773pt on input line 446.
+LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/b/n' will be
+(Font)              scaled to size 5.38821pt on input line 446.
+File: ../fig/Figure_05.png Graphic file (type bmp)
+<../fig/Figure_05.png>
  [9]
-LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/b/n' will be
-(Font)              scaled to size 9.79675pt on input line 491.
-LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/b/n' will be
-(Font)              scaled to size 6.85773pt on input line 491.
-LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/b/n' will be
-(Font)              scaled to size 5.38821pt on input line 491.
-File: fig/Figure_05.png Graphic file (type bmp)
-<fig/Figure_05.png>
+LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/m/n' will be
+(Font)              scaled to size 10.0pt on input line 480.
+LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/m/n' will be
+(Font)              scaled to size 7.0pt on input line 480.
+LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/m/n' will be
+(Font)              scaled to size 5.5pt on input line 480.
  [10] [11]
-LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/m/n' will be
-(Font)              scaled to size 10.0pt on input line 577.
-LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/m/n' will be
-(Font)              scaled to size 7.0pt on input line 577.
-LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/m/n' will be
-(Font)              scaled to size 5.5pt on input line 577.
- [12]
-LaTeX Font Info:    Font shape `TU/TimesNewRoman(0)/m/n' will be
-(Font)              scaled to size 5.5pt on input line 597.
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(0)/b/it' will be
-(Font)              scaled to size 10.0pt on input line 629.
- [13]
-File: fig/Figure_06.png Graphic file (type bmp)
-<fig/Figure_06.png>
- [14] [15] [16] [17]
+(Font)              scaled to size 10.0pt on input line 565.
+ [12]
+File: ../fig/Figure_06.png Graphic file (type bmp)
+<../fig/Figure_06.png>
+ [13] [14]
+ignored: Infinite glue shrinkage found in box being split [15] [16] [17]
+File: ../fig/Figure_07.png Graphic file (type bmp)
+<../fig/Figure_07.png>
+
 [18] [19]
-File: fig/Figure_08.png Graphic file (type bmp)
-<fig/Figure_08.png>
+File: ../fig/Figure_08_core_timeline.png Graphic file (type bmp)
+<../fig/Figure_08_core_timeline.png>
  [20]
-File: fig/Figure_09.png Graphic file (type bmp)
-<fig/Figure_09.png>
+File: ../fig/Figure_Sobol_sensitivity.png Graphic file (type bmp)
+<../fig/Figure_Sobol_sensitivity.png>
  [21]
-File: fig/Figure_10.png Graphic file (type bmp)
-<fig/Figure_10.png>
- [22] [23]
-File: fig/Figure_11.png Graphic file (type bmp)
-<fig/Figure_11.png>
- [24] [25] [26] [27] [28] [29]
-Underfull \hbox (badness 1242) in paragraph at lines 1417--1421
+File: ../fig/Figure_FSIM_vs_FSIM-S_error_metrics.png Graphic file (type bmp)
+<../fig/Figure_FSIM_vs_FSIM-S_error_metrics.png>
+ [22]
+File: ../fig/Figure_FSIM_vs_FSIM-S_site_year_errors.png Graphic file (type bmp)
+
+<../fig/Figure_FSIM_vs_FSIM-S_site_year_errors.png>
+ [23]
+File: ../fig/Figure_12.png Graphic file (type bmp)
+<../fig/Figure_12.png>
+ [24]
+File: ../fig/Figure_13.png Graphic file (type bmp)
+<../fig/Figure_13.png>
+ [25] [26] [27] [28] [29] [30] [31]
+Underfull \hbox (badness 1242) in paragraph at lines 1432--1436
 []\TU/TimesNewRoman(0)/m/n/10 Gobbin, D., Jermini, M., Loskill, B., Pertot, I.,
  Raynal, M., Gessler, C., 2005. Importance of secondary
  []
 
 
-Underfull \hbox (badness 2005) in paragraph at lines 1417--1421
+Underfull \hbox (badness 2005) in paragraph at lines 1432--1436
 \TU/TimesNewRoman(0)/m/n/10 inoculum of \TU/TimesNewRoman(0)/m/it/10 Plasmopara
  viticola \TU/TimesNewRoman(0)/m/n/10 to epidemics of grapevine downy mildew. P
 lant Pathol. 54, 522–534.
  []
 
-[30] [31]
-Underfull \hbox (badness 1102) in paragraph at lines 1517--1521
+[32] [33]
+Underfull \hbox (badness 1102) in paragraph at lines 1542--1546
 []\TU/TimesNewRoman(0)/m/n/10 Peng, J., Wang, X., Wang, H., Li, X., Zhang, Q., 
 Wang, M., Yan, J., 2024. Advances in understanding
  []
 
 
-Underfull \hbox (badness 1259) in paragraph at lines 1527--1531
+Underfull \hbox (badness 1259) in paragraph at lines 1552--1556
 []\TU/TimesNewRoman(0)/m/n/10 Puelles, M., Arbizu-Milagro, J., Castillo-Ruiz, F
 .J., Peña, J.M., 2024. Predictive models for grape downy
  []
 
-[32] [33] [34] (paper/manuscript.aux)
+[34] [35] [36] (./manuscript.aux)
  ***********
 LaTeX2e <2025-11-01>
 L3 programming layer <2026-01-19>
  ***********
  ) 
 Here is how much of TeX's memory you used:
- 21108 strings out of 468168
- 388562 string characters out of 5432815
- 983618 words of memory out of 5000000
- 49528 multiletter control sequences out of 15000+600000
- 635686 words of font info for 122 fonts, out of 8000000 for 9000
+ 21169 strings out of 468168
+ 391099 string characters out of 5432815
+ 980009 words of memory out of 5000000
+ 49588 multiletter control sequences out of 15000+600000
+ 635678 words of font info for 121 fonts, out of 8000000 for 9000
  1348 hyphenation exceptions out of 8191
- 90i,10n,116p,1084b,526s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 90i,10n,116p,1007b,562s stack positions out of 10000i,1000n,20000p,200000b,200000s
 
-Output written on paper/manuscript.xdv (34 pages, 736284 bytes).
+Output written on manuscript.xdv (36 pages, 774980 bytes).

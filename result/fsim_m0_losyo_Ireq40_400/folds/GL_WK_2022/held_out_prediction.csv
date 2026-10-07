@@ -1,2 +1,0 @@
-sample_id,model,design,u_tr,VPD_w,I_req,grid_x,grid_y,input_key,observed_L,observed_U,status,overlap,weather_policy,n_windows,predicted_start,predicted_end,predicted_midpoint_doy,window_width_days,signed_interval_error_days,interval_distance_days,abs_midpoint_error_days,first_positive_distance_days,calibration_status,held_out
-M0_x23_y97,M0,losyo_grid,,3.875,282.5,23,97,GL_WK_2022,2022-05-27 00:00:00,2022-05-30 00:00:00,predicted,False,original,24,2022-04-23T18:00:00,2022-04-25T03:00:00,114.4375,1.375,-31.875,31.875,34.0625,34.875,selected,GL_WK_2022

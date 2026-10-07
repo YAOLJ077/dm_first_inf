@@ -1,3 +1,0 @@
-input_key,status,error_type,message
-DA_MPT_2024,input_error,ValueError,Weather must be a complete ordered hourly calendar year
-NN_JF_2024,input_error,ValueError,Weather must be a complete ordered hourly calendar year

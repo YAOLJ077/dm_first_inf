@@ -1,2 +1,0 @@
-model,sample_id,I_req,MP_sp,RH_sp,VPD_w,u_tr,input_key,observed_L,observed_U,status,overlap,weather_policy,n_windows,predicted_start,predicted_end,predicted_midpoint_doy,window_width_days,signed_interval_error_days,interval_distance_days,abs_midpoint_error_days,first_positive_distance_days
-M1,abc_tpe,324.102527074094,3,80,4.210953441171521,4.01859298893902,DA_MPT_2022,2022-05-05 00:00:00,2022-05-08 00:00:00,predicted,False,original,15,2022-04-23T02:00:00,2022-04-24T10:00:00,113.75,1.3333333333333333,-10.583333333333334,10.583333333333334,12.75,13.583333333333334

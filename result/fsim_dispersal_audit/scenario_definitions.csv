@@ -1,5 +1,0 @@
-scenario,release_mode,deposition_mode,description,role
-S0_current_release_and_deposition,legacy,legacy,Current rain-or-wind release thresholds; wind-released cohorts wait for the current rain deposition threshold.,Current structural reference
-S1_legacy_release_immediate_deposition,legacy,immediate,Current release thresholds; all released cohorts deposit one hour later without a second rainfall threshold.,Isolates the deposition assumption
-S2_event_release_immediate_deposition,event,immediate,Release with measurable hourly rain (>0 mm) or wind >=9 m/s; all released cohorts deposit one hour later.,Literature-informed event-trigger stress test
-S3_broad_release_immediate_deposition,broad,immediate,"At 08:00, an available viable pool may enter dispersal and is deposited one hour later; no hard rain or wind threshold.",Operational implementation of the Brischetto D&DR=1 assumption

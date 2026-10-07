@@ -1,0 +1,18 @@
+{
+  "schema_version": 3,
+  "model": "FSIM-S",
+  "role": "Observation-derived spore extension for the FSIM sporangia route.",
+  "pressure_adjustment": {
+    "enabled": false,
+    "beta_sp": 0.005,
+    "rolling_days": 3,
+    "reference_level": 0.5,
+    "observed_zero_weather_gate": true
+  },
+  "notes": {
+    "pressure_field": "Numeric CK counts are distributed as interval rates over the completed collection intervals, standardized over the measured period, smoothed with a three-day centered mean, and centered at reference_level.",
+    "dose_rule": "observed dose = beta_sp * max(centered pressure, 0)",
+    "zero_interval_rule": "Numeric zero-spore intervals suppress weather-generated cohorts; missing observations do not suppress weather production, and observed background dose is retained.",
+    "deployment_beta_sp": 0.005
+  }
+}

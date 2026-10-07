@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "route": "S",
+  "N": 1024,
+  "workers": 4,
+  "second_order": true,
+  "resamples": 100,
+  "confidence": 0.95,
+  "output_dir": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/result/sobol_sensitivity/S_N1024",
+  "created_at_utc": "2026-10-04T17:39:54.424673+00:00",
+  "output_metadata": [
+    {
+      "output": "mean_first_window_day_censored",
+      "finite_samples": 14336,
+      "total_samples": 14336,
+      "variance": 105.4683185616318,
+      "min": 98.0,
+      "max": 204.8,
+      "status": "analysed"
+    },
+    {
+      "output": "mean_first_window_day_complete",
+      "finite_samples": 14336,
+      "total_samples": 14336,
+      "variance": 99.53098412338568,
+      "min": 98.0,
+      "max": 164.5,
+      "status": "analysed"
+    },
+    {
+      "output": "complete_window_fraction",
+      "finite_samples": 14336,
+      "total_samples": 14336,
+      "variance": 6.128972890425698e-05,
+      "min": 0.8,
+      "max": 1.0,
+      "status": "analysed"
+    },
+    {
+      "output": "missing_windows",
+      "finite_samples": 14336,
+      "total_samples": 14336,
+      "variance": 0.0015322432226064259,
+      "min": 0.0,
+      "max": 1.0,
+      "status": "analysed"
+    },
+    {
+      "output": "mae_days_complete",
+      "finite_samples": 14336,
+      "total_samples": 14336,
+      "variance": 19.521622918564447,
+      "min": 2.4,
+      "max": 41.5,
+      "status": "analysed"
+    },
+    {
+      "output": "mae_days_penalized",
+      "finite_samples": 14336,
+      "total_samples": 14336,
+      "variance": 19.817533927255745,
+      "min": 2.4,
+      "max": 45.2,
+      "status": "analysed"
+    },
+    {
+      "output": "mean_signed_error_days_complete",
+      "finite_samples": 14336,
+      "total_samples": 14336,
+      "variance": 91.00985593833487,
+      "min": -25.0,
+      "max": 41.5,
+      "status": "analysed"
+    },
+    {
+      "output": "mean_interval_distance_days_complete",
+      "finite_samples": 14336,
+      "total_samples": 14336,
+      "variance": 19.521622918564447,
+      "min": 2.4,
+      "max": 41.5,
+      "status": "analysed"
+    }
+  ]
+}

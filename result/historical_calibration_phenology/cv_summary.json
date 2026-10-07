@@ -1,0 +1,35 @@
+{
+  "model_north": "Force-only_Tb0",
+  "model_south": "Force-only_Tb0",
+  "latitude_cutoff_n": 32.0,
+  "folds": 5,
+  "fold_seed": 20260925,
+  "site_year_count_all_targets": 39,
+  "site_year_count_by_region": {
+    "north": 18,
+    "south": 21
+  },
+  "grouped_targets": 110,
+  "stage_counts": {
+    "09": 38,
+    "65": 39,
+    "81": 33
+  },
+  "workers": 4,
+  "excluded_site_years": [
+    "22.610000_108.230000_2023",
+    "22.610000_108.230000_2024",
+    "23.830000_108.100000_2022",
+    "23.830000_108.100000_2023",
+    "23.830000_108.100000_2024"
+  ],
+  "forcing_bounds": [
+    0.001,
+    3000.0
+  ],
+  "inputs": {
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/data/phenology_data/historical_data/phenology_model_observations.csv": "ee52d6c5baf90d53ea1a4c1e883057bb59867c4a1c8c040b25069fb270e9c2c1",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/data/phenology_data/historical_data/phenology_model_site_years.csv": "521910a542eb92f51a63d9716ddc61cb5375a801992a0c32fb0d722f0d841a91",
+    "/Users/yaolinjia/Desktop/Grape/dm_first_inf/model/phenology/config.json": "470914266b5653fdb7cc4d003a23afc16edea8501cbe211700040a1d343791ba"
+  }
+}

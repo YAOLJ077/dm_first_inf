@@ -1,10 +1,23 @@
 # Fdb version 4
-["xdvipdfmx"] 1789283402.4416 "paper/manuscript.xdv" "paper/manuscript.pdf" "paper/manuscript" 1789283410.18478 0
-  "paper/manuscript.xdv" 1789283402.33547 736284 4ae0d2e818d7e9d5f99ecb3862f2481a "xelatex"
+["xdvipdfmx"] 1791358919.6237 "manuscript.xdv" "manuscript.pdf" "manuscript" 1791358927.74619 0
+  "manuscript.xdv" 1791358919.53998 774980 105ac34df2bd9b0eaf05e3d04fe868cc "xelatex"
   (generated)
-  "paper/manuscript.pdf"
+  "manuscript.pdf"
   (rewritten before read)
-["xelatex"] 1789283401.40591 "paper/manuscript.tex" "paper/manuscript.xdv" "manuscript" 1789283410.18392 0
+["xelatex"] 1791358918.63058 "manuscript.tex" "manuscript.xdv" "manuscript" 1791358927.74534 0
+  "../fig/Figure_01.png" 1778138754.63117 76578 5d60b1c9d8d79b1e665248330fcbf1b9 ""
+  "../fig/Figure_02.png" 1778139699.90932 1944666 3b3511f9fac0a7476d15267a1289a502 ""
+  "../fig/Figure_03.png" 1791301693.45214 1047851 c258274c6af50f9cfb225deaa5be85f1 ""
+  "../fig/Figure_04.png" 1778138754.6395 2757749 5bec65052dc322804e9ac88183ebdb87 ""
+  "../fig/Figure_05.png" 1778138754.65075 2528267 1b460662a9b9867b4d5ed852d93ff900 ""
+  "../fig/Figure_06.png" 1778138754.65412 176086 e2f60becbd97aedd410979461bc16008 ""
+  "../fig/Figure_07.png" 1778138754.66 116727 a687510c3c92226a3b2df71b00e79d73 ""
+  "../fig/Figure_08_core_timeline.png" 1791268157.96633 458767 365f5c8afb53de11ea5ce470c47e0a2e ""
+  "../fig/Figure_12.png" 1778138754.66714 335132 503fc70b81885b5c6b7606291cbfaf13 ""
+  "../fig/Figure_13.png" 1778138754.6679 337005 948da1f8d275b7667413d2e25fc2e489 ""
+  "../fig/Figure_FSIM_vs_FSIM-S_error_metrics.png" 1791353735.47749 198411 0370a3af5b37b8f6db50213f54ada915 ""
+  "../fig/Figure_FSIM_vs_FSIM-S_site_year_errors.png" 1791353735.82029 173473 e38fc6422c3e447c62f86159493cdee7 ""
+  "../fig/Figure_Sobol_sensitivity.png" 1791342071.10303 287677 859fde74de5adf88380f35a72a059a52 ""
   "/usr/local/texlive/2026/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/local/texlive/2026/texmf-dist/fonts/tfm/adobe/zapfding/pzdr.tfm" 1136768653 1528 f853c4d1b4e0550255e02831fdc8496f ""
   "/usr/local/texlive/2026/texmf-dist/fonts/tfm/jknappen/ec/ectt1000.tfm" 1136768653 1536 06717a2b50de47d4087ac0e6cd759455 ""
@@ -109,20 +122,10 @@
   "/usr/local/texlive/2026/texmf-dist/web2c/texmf.cnf" 1770478701 43630 e9fa012910491fe5ae08a72c3c2997a7 ""
   "/usr/local/texlive/2026/texmf-var/web2c/xetex/xelatex.fmt" 1776926076 5948563 30de48e9b6d3b2b0959514538098e2fb ""
   "/usr/local/texlive/2026/texmf.cnf" 1774209515 577 648cd9f92f9c0eac486f4c71c85cfbbe ""
-  "fig/Figure_01.png" 1778138754.63117 76578 5d60b1c9d8d79b1e665248330fcbf1b9 ""
-  "fig/Figure_02.png" 1778139699.90932 1944666 3b3511f9fac0a7476d15267a1289a502 ""
-  "fig/Figure_03.png" 1789108589.17551 2038773 363790759a1f3c45a043d643ee6603c5 ""
-  "fig/Figure_04.png" 1778138754.6395 2757749 5bec65052dc322804e9ac88183ebdb87 ""
-  "fig/Figure_05.png" 1778138754.65075 2528267 1b460662a9b9867b4d5ed852d93ff900 ""
-  "fig/Figure_06.png" 1778138754.65412 176086 e2f60becbd97aedd410979461bc16008 ""
-  "fig/Figure_08.png" 1778138754.66459 151723 6928996486d0f8aedcac05b02668e5e1 ""
-  "fig/Figure_09.png" 1778138754.66519 143779 f3453c332ddc0a90e54c4ab67c2a91c4 ""
-  "fig/Figure_10.png" 1778138754.66561 149576 58baeb9cb90ff430d3890903676c82b5 ""
-  "fig/Figure_11.png" 1778138754.66599 92791 a1cb155a0b4baa8ad4a65d5d617b82b2 ""
-  "paper/manuscript.aux" 1789283402.33354 18329 78b2c281c5e4836e3c0d01d6c9b69540 "xelatex"
-  "paper/manuscript.tex" 1789283401.30135 79391 2ae5a8f1686ae098118652257d62607e ""
+  "manuscript.aux" 1791358919.539 20087 ebe83451441186b68062d73700453a78 "xelatex"
+  "manuscript.tex" 1791358904.96161 82441 82031e661d499250a89e9a6ceac3581c ""
   (generated)
-  "paper/manuscript.aux"
-  "paper/manuscript.log"
-  "paper/manuscript.xdv"
+  "manuscript.aux"
+  "manuscript.log"
+  "manuscript.xdv"
   (rewritten before read)

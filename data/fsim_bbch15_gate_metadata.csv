@@ -1,7 +1,0 @@
-﻿input_key,Place,Year,Variety,BBCH15_date,source,method
-DA_MPT_2022,Duan,2022,MPT,2022-04-14,observed_GS15,first recorded GS >= 15
-DA_MPT_2023,Duan,2023,MPT,2023-03-28,observed_GS15,first recorded GS >= 15
-DA_MPT_2024,Duan,2024,MPT,2024-04-05,inferred_site_variety_median,median DOY of same-site same-variety observed GS >= 15
-GL_WK_2022,Guilin,2022,WK,2022-04-03,observed_GS15,first recorded GS >= 15
-NN_JF_2023,Mingyang,2023,JF,2023-03-21,observed_GS15,first recorded GS >= 15
-NN_JF_2024,Mingyang,2024,JF,2024-03-20,inferred_site_variety_median,median DOY of same-site same-variety observed GS >= 15

@@ -1,5 +1,0 @@
-sample_id,grid_x,grid_y,VPD_w,I_req,n_training_predictions,feasible,training_MAE_days,training_RMSE_days,first_stage,RH_sp,distance_to_reference_RH
-M0_x50_y224,50,224,4.125,320.0,5,True,15.625,18.373960665995657,2,75,5
-M0_x50_y225,50,225,4.125,321.25,5,True,15.625,18.373960665995657,3,75,5
-M0_x50_y226,50,226,4.125,322.5,5,True,15.625,18.373960665995657,2,75,5
-M0_x50_y227,50,227,4.125,323.75,5,True,15.625,18.373960665995657,3,75,5

@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "enabled": true,
+  "name": "host_susceptibility_modulation",
+  "phenology_configs": {
+    "north": "model/phenology/config_north.json",
+    "south": "model/phenology/config_south.json"
+  },
+  "latitude_cutoff_n": 32.0,
+  "observed_phenology": {
+    "enabled": true,
+    "path": "data/phenology_data/phenology.xlsx",
+    "anchor_policy": "first_observed_bbch_at_or_above_node"
+  },
+  "auxiliary_stage_rules": {
+    "53": {
+      "left_bbch": 9,
+      "right_bbch": 65,
+      "forcing_fraction": 0.1,
+      "basis": "fallback_only_when_no_local_observed_anchor_is_available"
+    }
+  },
+  "progress_basis": "fixed_forcing_between_adjacent_BBCH_nodes",
+  "interpolation": "linear",
+  "missing_stage_coefficient": 1.0,
+  "nodes": [
+    {
+      "bbch": 9,
+      "name": "budburst",
+      "coefficient": 0.0
+    },
+    {
+      "bbch": 53,
+      "name": "inflorescence_emergence",
+      "coefficient": 0.6
+    },
+    {
+      "bbch": 65,
+      "name": "flowering",
+      "coefficient": 0.7
+    },
+    {
+      "bbch": 81,
+      "name": "veraison",
+      "coefficient": 0.9
+    },
+    {
+      "bbch": 89,
+      "name": "post_veraison",
+      "coefficient": 0.50
+    }
+  ]
+}

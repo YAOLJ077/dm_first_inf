@@ -1,0 +1,10 @@
+﻿model,parameter,source_column,fold_values,selected_value,selection_rule
+FSIM,wind_min_m_s,s_wind_min_m_s,"0.5,0.5,0.5,0.5,0.5,0.5",0.5,fixed_across_folds
+FSIM,heavy_rain_washoff_mm,s_heavy_rain_washoff_mm,"5.0,5.0,5.0,5.0,5.0,5.0",5.0,fixed_across_folds
+FSIM,minimum_moist_hours,s_minimum_moist_hours,"7.0,7.0,7.0,7.0,7.0,7.0",7.0,fixed_across_folds
+FSIM,infection_degree_hours,s_infection_degree_hours,"170.0,170.0,170.0,170.0,170.0,170.0",170.0,fixed_across_folds
+FSIM,effective_deposition_min_rain_mm,s_effective_deposition_min_rain_mm,"3.85,3.9,3.85,3.85,3.85,3.85",3.85,unique_mode
+FSIM,sporulation_rh_min_pct,s_sporulation_rh_min_pct,"85.0,85.0,90.0,85.0,85.0,85.0",85.0,unique_mode
+FSIM-S,beta_sp,selected_beta_sp,"0.005,0.005,0.005,0.005,0.005,0.005",0.005,unique_mode
+FSIM-S,observed_zero_weather_gate,accepted structural rule,true,True,prespecified observation rule
+FSIM-S,pressure_field,accepted structural configuration,interval_rate/zscore/3-day/zero/0.5,interval_rate/zscore/3-day/zero/0.5,prespecified observation rule

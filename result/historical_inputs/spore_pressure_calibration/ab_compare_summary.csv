@@ -1,2 +1,0 @@
-run_label,obs_peak_weight_alpha,best_loss_mae,cv_train_mae_mean,cv_val_mae_mean
-A_alpha0.00,0.0,0.172743951920264,0.17520379036660957,0.19391333465468977

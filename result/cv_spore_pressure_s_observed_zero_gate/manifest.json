@@ -1,0 +1,32 @@
+{
+  "cv_scheme": "site_year",
+  "fsim_parameters": "fixed from result/cv_spore_pressure_s_dep38_395_rh80_coarse/fold_parameters.csv",
+  "gate": "suppress weather-generated cohorts whose production date has interval spore_count == 0; retain observed-background dose",
+  "beta_grid": [
+    0.0,
+    0.005,
+    0.01,
+    0.025,
+    0.05,
+    0.1,
+    0.125,
+    0.25,
+    0.5,
+    1.0
+  ],
+  "pressure_config": {
+    "enabled": true,
+    "beta_sp": 0.25,
+    "shape": "interval_rate",
+    "alpha_pos": 0.65,
+    "alpha_neg": 2.85,
+    "normalization": "zscore",
+    "rolling_days": 3,
+    "outside_fill": "zero",
+    "pressure_scale": 1.0,
+    "reference_level": 0.5,
+    "negative_pressure_threshold_cap": 1.25,
+    "observed_zero_weather_gate": true
+  },
+  "held_out_pressure_data": "used only for held-out evaluation, not beta selection"
+}

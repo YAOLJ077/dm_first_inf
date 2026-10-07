@@ -1,2 +1,0 @@
-sample_id,grid_x,grid_y,VPD_w,I_req,n_training_predictions,feasible,training_MAE_days,training_RMSE_days,first_stage
-M0_x5_y41,5,41,1.625,142.5,5,True,9.674999999999999,13.454875716837952,2

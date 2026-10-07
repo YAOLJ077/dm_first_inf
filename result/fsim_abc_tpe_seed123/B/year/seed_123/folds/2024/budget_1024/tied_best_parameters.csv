@@ -1,2 +1,0 @@
-seed,trial,I_req,MP_sp,RH_sp,VPD_w,u_tr,feasible,n_no_prediction,optimizer_value,training_MAE_days,training_RMSE_days
-123,171,322.41273593506054,3,80,4.184882314844646,0.0,True,0,19.697916666666668,19.697916666666668,21.60292105055857
