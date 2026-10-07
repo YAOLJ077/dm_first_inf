@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "source_onset_table": "D:\\yaolinjia\\Grape\\dm_first_inf\\result\\guangxi_2000_2024_onset_windows\\guangxi_2000_2024_onset_windows.csv",
+  "source_management_workbook": "D:\\yaolinjia\\Grape\\dm_first_inf\\data\\management_data\\management_data.xlsx",
+  "management_schedule_basis_year": 2022,
+  "management_schedule_basis_site": "Duan",
+  "management_spray_doys": [
+    74,
+    104,
+    114,
+    126,
+    131,
+    139,
+    149,
+    158,
+    195
+  ],
+  "management_spray_count": 9,
+  "effective_window": "first_symptom_date - 7 days through first_symptom_date - 1 day",
+  "n_rows": 8550,
+  "complete_symptom_rows": 8544,
+  "no_symptom_rows": 6,
+  "total_potential_savable_sprays": 24097,
+  "mean_potential_savable_sprays_per_grid_year": 2.818362573099415,
+  "output": "D:\\yaolinjia\\Grape\\dm_first_inf\\result\\guangxi_2000_2024_fungicides\\guangxi_2000_2024_fungicide_savings.csv"
+}
