@@ -1,0 +1,58 @@
+{
+  "schema_version": "1.0",
+  "profile": "table",
+  "description": "Validated Table profile after excluding Guilin.",
+  "site_years": [
+    "22.610000_108.230000_2023",
+    "22.610000_108.230000_2024"
+  ],
+  "model": {
+    "family": "linear_gdd",
+    "temperature_response": "linear",
+    "base_temperature_c": 10.0,
+    "start_doy": 20,
+    "forcing_units": "degree-days above base temperature",
+    "threshold_semantics": "incremental; reset accumulation after each stage"
+  },
+  "stage_thresholds": [
+    {
+      "bbch": 9,
+      "name": "BBCH09",
+      "incremental_gdd": 294.9591278771551
+    },
+    {
+      "bbch": 65,
+      "name": "BBCH65",
+      "incremental_gdd": 370.1520787365379
+    },
+    {
+      "bbch": 81,
+      "name": "BBCH81",
+      "incremental_gdd": 761.6895564460108
+    }
+  ],
+  "weather": {
+    "timezone": "Asia/Shanghai",
+    "timezone_label": "BJT",
+    "daily_input": "data/phenology_data/calibration_data/phenology_weather_daily_bjt.csv"
+  },
+  "calibration": {
+    "target_table": "result/phenology_table_vine_no_guilin/phenology_calibration_targets_table_vine_no_guilin.csv",
+    "validation": "leave-one-site-year-out",
+    "bbch09_assumptions": {
+      "22.610000_108.230000_2023": "2023-03-06",
+      "22.610000_108.230000_2024": "2024-03-18"
+    },
+    "validation_mae_days": {
+      "BBCH09": 3.0,
+      "BBCH65": 3.0,
+      "BBCH81": 3.5,
+      "primary_BBCH09_65": 3.0
+    }
+  },
+  "provenance": {
+    "calibration_script": "model/phenology/calibrate_table_vine_no_guilin.py",
+    "final_parameters": "result/phenology_table_vine_no_guilin/table_final_parameters.json",
+    "temperature_base_upper_bound_c": 10.0
+  }
+}

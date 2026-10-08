@@ -247,28 +247,17 @@ initialized from oospores or visible local lesions do not directly represent
 this source before symptoms appear, leaving a gap in predicting disease
 onset during the first crop growing season.
 
-We developed the \emph{First Seasonal Infection Model} (FSIM) to estimate
-the first visible symptom-onset window during the first crop growing
-season, when recurrent airborne inoculum is present. Starting from a pool
-of asexual inoculum, FSIM represents sporangium production, airborne
-dispersal, deposition, zoospore release, infection establishment and
-incubation. It combines the
-cohort structure of Rossi et al. (2008) with the sporangial processes
-described by Brischetto et al. (2021) to estimate the window of first
-symptom appearance. FSIM-S denotes the spore-constrained extension of FSIM,
-in which field observations of background airborne sporangia provide
-information on site--year variation in inoculum availability within the
-same mechanistic framework.
-
-The framework was evaluated using assessments of disease onset and airborne
-sporangia records from six Guangxi site--years collected during
-2022--2024. We assessed whether FSIM and FSIM-S reproduced the timing of
-the first visible symptoms during the first crop growing season and whether
-the spore-constrained extension improved retrospective symptom-onset
-estimation. By linking regional inoculum availability with symptom-onset
-timing, the framework provides a basis for scheduling
-preventive fungicide applications according to infection risk in Guangxi's
-subtropical vineyards.
+To address this gap, we conducted orchard observations and monitoring
+experiments in three representative vineyards in Guangxi, China, during
+2022--2024. Disease-onset assessments, airborne sporangia monitoring,
+grapevine phenology, and meteorological records were combined to construct
+and validate a process-based model for estimating first visible symptom
+onset under the regional double-cropping system. This study design was
+intended to establish whether integrating recurrent airborne inoculum with
+weather and host phenology can provide a regionally applicable basis for
+identifying early disease risk and timing preventive protection, thereby
+supporting more efficient fungicide use and stable grape production in
+subtropical orchards.
 
 \section{Materials and methods}\label{materials-and-methods}
 
@@ -298,10 +287,12 @@ and spray-management scenario analysis.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.65\linewidth]{fig/Figure_01.png}
-\caption{Overall workflow of this study. CK indicates control plots
-without fungicide applications, whereas TT denotes plots managed under
-conventional fungicide schedules.}
+\includegraphics[width=0.98\linewidth]{fig/Figure_01.png}
+\caption{Overall workflow of this study. Field observations from three
+Guangxi vineyards (2022--2024) supported process-based model construction
+and site--year cross-validation. The validated model was then used for
+Guangxi-wide simulations during 2000--2024 to reconstruct symptom-onset
+windows and assess potentially avoidable early fungicide applications.}
 \label{_Ref225433957}
 \end{figure}
 
@@ -653,74 +644,6 @@ rankings across the three values of \(N\), rather than by treating larger
 designs as additional biological replicates. No parameter configuration was
 selected from the sensitivity analysis.
 
-\protect\phantomsection\label{_Ref226058574}{}
-\manualcaption{Table 2 Model parameters under the FSIM and FSIM-S frameworks.
-FSIM denotes the baseline model, whereas FSIM-S represents the extended
-version incorporating regulation by an observed spore-pressure field.}
-
-{\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.3342}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1404}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.0964}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.0964}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.0743}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.2584}}@{}}
-\toprule\noalign{}
-\begin{minipage}[b]{\linewidth}\raggedright
-Parameter
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Abbreviation
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-FSIM
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-FSIM-S
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Unit
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Description
-\end{minipage} \\
-\midrule\noalign{}
-\endhead
-\bottomrule\noalign{}
-\endlastfoot
-Mp\_tmp\_\_rh\_wet\_night & MTWN & 87.5894 & 83.6223 & \% & Night-time
-relative humidity threshold used to define wet-night conditions for
-sporulation initiation. \\
-Sporulation\_\_MP\_min & SMMI & 4.3106 & 5.1741 & hours & VPD threshold
-representing Minimum cumulative wet-night hours required to trigger
-sporulation. \\
-Sporulation\_\_Tmin & STMI & 13.9426 & 11.8061 & °C & Lower temperature
-limit for sporulation response. \\
-Sporulation\_\_Topt & STOP & 25.4161 & 19.3980 & °C & Optimum
-temperature for sporulation intensity. \\
-Sporulation\_\_Tmax & STMX & 35.2136 & 35.0492 & °C & Upper temperature
-limit for sporulation response. \\
-Dispersal\_\_rain\_min & DIRM & 12.4525 & 12.3417 & mm & Rainfall
-threshold triggering rain-driven sporangial dispersal. \\
-Dispersal\_\_wind\_min & DIWM & 6.4975 & 6.2638 & m/s & Wind-speed
-threshold triggering wind-driven sporangial dispersal. \\
-Deposition\_\_rain\_min & DERM & 5.1413 & 6.0721 & mm & Rainfall
-threshold controlling deposition/washout of airborne propagules. \\
-Zoospore\_alive\_\_rain & ZARA & 4.0835 & 5.3267 & mm & Rainfall
-condition threshold used in zoospore survival gating. \\
-Zoospore\_alive\_\_vpd & ZVPD & 1.9396 & 1.9674 & kPa & Vapor pressure
-deficit threshold used in zoospore survival gating. \\
-Infection\_\_infection\_condition & IC & 25.4409 & 81.4294 & / &
-Infection-establishment requirement threshold. \\
-Incubation\_\_spl\_spores & ISED & 1.1063 & 0.9361 & / & Cumulative
-incubation progress threshold for visible oil-spot onset. \\
-Thresholds\_\_min\_spores & TMSO & 0.0431 & 0.1016 & / & Minimum viable
-spore amount retained for process continuity. \\
-Spore\_\_alpha\_pos & SAP & / & 1.2849 & / & Positive spore-pressure
-coefficient; decreases the effective infection-establishment threshold under favourable
-spore pressure. \\
-Spore\_\_alpha\_neg & SAN & / & 0.6306 & / & Negative spore-pressure
-coefficient; increases the effective infection-establishment threshold under suppressive
-spore pressure. \\
-\end{longtable}
-}
-
 \subsection{Model calibration and
 evaluation}\label{model-calibration-and-evaluation}
 
@@ -738,23 +661,69 @@ coefficient \(\beta_{\mathrm{sp}}\).
 
 Calibration used a site--year leave-one-out design. In each of the
 six outer folds, one site--year was held out and the remaining five were used
-for calibration. Six shared FSIM process parameters were first fitted with a
-bounded finite coarse-to-fine coordinate search: one-at-a-time screening on
-the prescribed coarse grids was followed by coarse coordinate descent and
-local fine coordinate descent. Fine candidates were generated at the
-parameter-specific step size within two steps on either side of the current
-value. The calibrated parameters were the infection-establishment degree-hour threshold,
-minimum wind speed, effective deposition rainfall threshold, sporulation
-relative-humidity threshold, minimum moist-hours requirement, and heavy-rain
-wash-off threshold.
+for calibration. The open FSIM process parameters were evaluated jointly on
+a prespecified candidate set. Each candidate was scored using the training
+records only, with the interval-based onset error and the prespecified penalty
+for a missing simulated window. To reduce sensitivity to flat objective
+surfaces, candidates with comparable training performance were grouped as a
+near-optimal set; a normalized component-wise median of this set defined a
+stability centre, and the candidate nearest to that centre was selected.
+After the FSIM configuration was selected, the FSIM-S pressure coefficient
+\(\beta_{\mathrm{sp}}\) was calibrated on the same training site--years using
+the same training-only selection principle. The selected fold configuration
+and coefficient were then fixed for evaluation of the held-out site--year,
+so that no held-out observations entered either calibration stage. This
+candidate-based calibration and selection strategy follows the general
+principles of data-driven hyper-parameter optimization (Bergstra et al.,
+2011).
 
-After the FSIM parameter vector was fixed, \(\beta_{\mathrm{sp}}\) was
-calibrated on the same five training site--years. The coefficient was bounded
-to \([0,1]\) and selected by a coarse grid followed by local refinement with a
-step of 0.05. Candidate configurations were ranked by penalized MAE; ties
-were resolved by preferring non-positive mean signed error, then the smallest
-absolute signed error, and finally the configuration closest to the prior
-values.
+\newpage
+
+\protect\phantomsection\label{_Ref226058574}{}
+\manualcaption{Table 2 Open calibration parameters for FSIM and FSIM-S.
+Parameter space and step describe the candidate evaluation; determined values
+are the selected deployment values.}
+
+{\small\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.235}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.105}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.165}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.135}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.135}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.225}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Parameter
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Model
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Parameter space
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Step
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Determined value
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Description
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Infection degree-hour threshold (IDH) & FSIM / FSIM-S &
+150--200 degree-hours & 10 degree-hours & 170 degree-hours &
+Post-release infection requirement. \\
+Effective deposition rainfall threshold (EDR) & FSIM / FSIM-S &
+3.80--3.95 mm & 0.05 mm & 3.85 mm &
+Minimum rainfall for effective deposition. \\
+Sporulation relative-humidity threshold (SRH) & FSIM / FSIM-S &
+80--100\% RH & 5\% RH & 85\% RH &
+Minimum relative humidity for sporulation initiation. \\
+Relative spore-pressure coefficient (\(\beta_{\mathrm{sp}}\)) & FSIM-S &
+0--1 & Nonuniform candidates & 0.005 &
+Scales the positive relative spore-pressure dose. \\
+\end{longtable}
+}
 
 \subsubsection{Performance metrics}\label{performance-metrics}
 

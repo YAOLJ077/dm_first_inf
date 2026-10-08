@@ -1,11 +1,11 @@
 # Fdb version 4
-["xdvipdfmx"] 1791358919.6237 "manuscript.xdv" "manuscript.pdf" "manuscript" 1791358927.74619 0
-  "manuscript.xdv" 1791358919.53998 774980 105ac34df2bd9b0eaf05e3d04fe868cc "xelatex"
+["xdvipdfmx"] 1791431731.15616 "manuscript.xdv" "manuscript.pdf" "manuscript" 1791431739.70507 0
+  "manuscript.xdv" 1791431731.0716 756112 c73d31fb1ebc163972de5f9cf5099109 "xelatex"
   (generated)
   "manuscript.pdf"
   (rewritten before read)
-["xelatex"] 1791358918.63058 "manuscript.tex" "manuscript.xdv" "manuscript" 1791358927.74534 0
-  "../fig/Figure_01.png" 1778138754.63117 76578 5d60b1c9d8d79b1e665248330fcbf1b9 ""
+["xelatex"] 1791431730.14227 "manuscript.tex" "manuscript.xdv" "manuscript" 1791431739.70417 0
+  "../fig/Figure_01.png" 1791431715.8224 310421 789874c2ce316b81d52d487db90ddc2a ""
   "../fig/Figure_02.png" 1778139699.90932 1944666 3b3511f9fac0a7476d15267a1289a502 ""
   "../fig/Figure_03.png" 1791301693.45214 1047851 c258274c6af50f9cfb225deaa5be85f1 ""
   "../fig/Figure_04.png" 1778138754.6395 2757749 5bec65052dc322804e9ac88183ebdb87 ""
@@ -122,8 +122,8 @@
   "/usr/local/texlive/2026/texmf-dist/web2c/texmf.cnf" 1770478701 43630 e9fa012910491fe5ae08a72c3c2997a7 ""
   "/usr/local/texlive/2026/texmf-var/web2c/xetex/xelatex.fmt" 1776926076 5948563 30de48e9b6d3b2b0959514538098e2fb ""
   "/usr/local/texlive/2026/texmf.cnf" 1774209515 577 648cd9f92f9c0eac486f4c71c85cfbbe ""
-  "manuscript.aux" 1791358919.539 20087 ebe83451441186b68062d73700453a78 "xelatex"
-  "manuscript.tex" 1791358904.96161 82441 82031e661d499250a89e9a6ceac3581c ""
+  "manuscript.aux" 1791431731.07062 20399 5260f9ca7099e9ec4fa1a9738e12d9dd "xelatex"
+  "manuscript.tex" 1791394553.57603 80599 df4b7b8c4f36690c467e2716bc8ee67f ""
   (generated)
   "manuscript.aux"
   "manuscript.log"

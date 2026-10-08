@@ -1,178 +1,201 @@
-"""Draw the revised manuscript workflow as four integrated sections."""
+"""Create the compact study workflow used as manuscript Figure 1."""
 
 from pathlib import Path
+import textwrap
 
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Rectangle
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "fig" / "workflow.png"
+OUTPUTS = (ROOT / "fig" / "workflow.png", ROOT / "fig" / "Figure_01.png")
 
+WHITE = "#FFFFFF"
 INK = "#17313C"
 TEXT = "#506872"
-WHITE = "#FFFFFF"
-DATA_BG, DATA_EDGE = "#F1F7F2", "#3F7D58"
-MODEL_BG, MODEL_EDGE = "#EEF6F9", "#27708D"
-EVAL_BG, EVAL_EDGE = "#FFF8E8", "#B87718"
-REGION_BG, REGION_EDGE = "#FAF1ED", "#A95437"
+ARROW = "#5B6E76"
+PANELS = (
+    ("#F1F7F2", "#3F7D58"),
+    ("#EEF6F9", "#27708D"),
+    ("#FFF8E8", "#B87718"),
+    ("#FAF1ED", "#A95437"),
+)
 
 
-def arrow(ax, start, end, color, dashed=False, width=1.35):
-    ax.add_patch(FancyArrowPatch(
-        start, end, arrowstyle="-|>", mutation_scale=10,
-        linewidth=width, color=color,
-        linestyle="--" if dashed else "-",
-        shrinkA=2, shrinkB=2, zorder=6,
-    ))
-
-
-def routed_arrow(ax, points, color, dashed=False, width=1.35):
-    style = "--" if dashed else "-"
-    for start, end in zip(points[:-2], points[1:-1]):
-        ax.plot([start[0], end[0]], [start[1], end[1]],
-                color=color, linewidth=width, linestyle=style, zorder=5)
-    arrow(ax, points[-2], points[-1], color, dashed=dashed, width=width)
-
-
-def section(ax, x, y, w, h, number, title, bg, edge):
-    outer = FancyBboxPatch(
-        (x, y), w, h,
-        boxstyle="round,pad=0.006,rounding_size=0.012",
-        linewidth=1.8, edgecolor=edge, facecolor=bg, zorder=1,
+def panel(ax, x, y, width, height, number, title, background, edge):
+    ax.add_patch(
+        FancyBboxPatch(
+            (x, y), width, height,
+            boxstyle="round,pad=0.004,rounding_size=0.012",
+            facecolor=background, edgecolor=edge, linewidth=1.4, zorder=1,
+        )
     )
-    ax.add_patch(outer)
-    header_h = 0.038
-    ax.add_patch(Rectangle((x, y + h - header_h), w, header_h,
-                           linewidth=0, facecolor=edge, zorder=2))
-    ax.text(x + 0.022, y + h - header_h / 2, number,
-            ha="left", va="center", fontsize=11.0, fontweight="bold",
-            color=WHITE, zorder=3)
-    ax.text(x + 0.078, y + h - header_h / 2, title,
-            ha="left", va="center", fontsize=14.0, fontweight="bold",
-            color=WHITE, zorder=3)
-    return y + h - header_h
-
-
-def cell(ax, x, y, w, h, title, body, edge, title_size=9.9, body_size=7.6):
-    patch = FancyBboxPatch(
-        (x, y), w, h,
-        boxstyle="round,pad=0.006,rounding_size=0.007",
-        linewidth=1.05, edgecolor=edge, facecolor=WHITE, zorder=3,
+    header_height = 0.075
+    ax.add_patch(
+        Rectangle(
+            (x, y + height - header_height), width, header_height,
+            facecolor=edge, edgecolor=edge, linewidth=0, zorder=2,
+        )
     )
-    ax.add_patch(patch)
-    ax.text(x + 0.025 * w, y + h - 0.16 * h, title,
-            ha="left", va="top", fontsize=title_size, fontweight="bold",
-            color=INK, zorder=4)
-    ax.text(x + 0.025 * w, y + h - 0.43 * h, body,
-            ha="left", va="top", fontsize=body_size, color=TEXT,
-            linespacing=1.18, zorder=4)
+    ax.text(
+        x + 0.022, y + height - header_height / 2, number,
+        va="center", ha="left", color=WHITE, fontsize=8.0,
+        fontweight="bold", zorder=3,
+    )
+    ax.text(
+        x + 0.085, y + height - header_height / 2, title,
+        va="center", ha="left", color=WHITE, fontsize=7.6,
+        fontweight="bold", zorder=3,
+    )
+
+
+def card(ax, x, y, width, height, title, body, edge, body_size=7.0):
+    ax.add_patch(
+        FancyBboxPatch(
+            (x, y), width, height,
+            boxstyle="round,pad=0.003,rounding_size=0.007",
+            facecolor=WHITE, edgecolor=edge, linewidth=0.85, zorder=3,
+        )
+    )
+    wrapped_body = "\n".join(
+        textwrap.fill(line, width=25, break_long_words=False)
+        for line in body.splitlines()
+    )
+    ax.text(
+        x + 0.025 * width, y + height - 0.18 * height, title,
+        va="top", ha="left", color=INK, fontsize=6.8,
+        fontweight="bold", zorder=4,
+    )
+    ax.text(
+        x + 0.025 * width, y + height - 0.42 * height, wrapped_body,
+        va="top", ha="left", color=TEXT, fontsize=min(body_size, 5.7),
+        linespacing=1.15, zorder=4,
+    )
+
+
+def arrow(ax, start, end, color=ARROW, dashed=False):
+    ax.add_patch(
+        FancyArrowPatch(
+            start, end, arrowstyle="->", mutation_scale=12,
+            linewidth=1.25, color=color,
+            linestyle="--" if dashed else "-",
+            shrinkA=2, shrinkB=2, zorder=6,
+        )
+    )
 
 
 def main():
-    fig, ax = plt.subplots(figsize=(10, 14), dpi=180)
+    plt.rcParams.update({
+        "font.family": "serif",
+        "font.serif": ["Times New Roman", "Times", "DejaVu Serif"],
+        "axes.unicode_minus": False,
+        "savefig.bbox": "tight",
+    })
+    fig, ax = plt.subplots(figsize=(7.1, 4.65), dpi=180)
     fig.patch.set_facecolor(WHITE)
+    ax.set_facecolor(WHITE)
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.axis("off")
 
-    left, width = 0.06, 0.88
+    y, height = 0.13, 0.72
+    widths = (0.235, 0.31, 0.19, 0.19)
+    xs = (0.020, 0.270, 0.595, 0.800)
 
-    # 01 Field data
-    section(ax, left, 0.720, width, 0.250, "01", "Field data", DATA_BG, DATA_EDGE)
-    cell(ax, 0.085, 0.875, 0.83, 0.040,
-         "Experimental coverage",
-         "Three Guangxi vineyards | six independent CK site-years (2022-2024) | repeated observations nested within site-years",
-         DATA_EDGE, title_size=9.4, body_size=7.2)
-    cell(ax, 0.085, 0.805, 0.39, 0.060,
-         "Disease observations",
-         "Sequential incidence and severity assessments\nObserved onset interval (L,U]",
-         DATA_EDGE)
-    cell(ax, 0.525, 0.805, 0.39, 0.060,
-         "Phenology observations",
-         "Dated BBCH stages across crop development\nObserved phenology for the study site-years",
-         DATA_EDGE)
-    cell(ax, 0.085, 0.730, 0.39, 0.055,
-         "Meteorological observations",
-         "Hourly vineyard weather records\nacross the six site-years",
-         DATA_EDGE, title_size=9.6, body_size=7.4)
-    cell(ax, 0.525, 0.730, 0.39, 0.055,
-         "Airborne-sporangia observations",
-         "Repeated field slide counts\nacross six site-years",
-         DATA_EDGE, title_size=9.4, body_size=7.4)
+    background, edge = PANELS[0]
+    panel(ax, xs[0], y, widths[0], height, "01", "Field data", background, edge)
+    card(
+        ax, xs[0] + 0.018, 0.705, widths[0] - 0.036, 0.085,
+        "Experimental coverage",
+        "3 Guangxi vineyards\n6 site-years (2022-2024)", edge, 6.7,
+    )
+    card(
+        ax, xs[0] + 0.018, 0.585, widths[0] - 0.036, 0.095,
+        "Disease and phenology",
+        "Disease onset intervals\nBBCH 09 / 53 / 65 / 81", edge, 6.55,
+    )
+    card(
+        ax, xs[0] + 0.018, 0.455, widths[0] - 0.036, 0.095,
+        "Airborne sporangia",
+        "Passive-trap observations\nRepeated slide counts", edge, 6.55,
+    )
+    card(
+        ax, xs[0] + 0.018, 0.285, widths[0] - 0.036, 0.135,
+        "Meteorological data",
+        "Hourly T, RH, wind and rain\nDew point; VPD / DPD", edge, 6.3,
+    )
+    card(
+        ax, xs[0] + 0.018, 0.175, widths[0] - 0.036, 0.080,
+        "Site and management",
+        "Cultivars, layout and spray records", edge, 6.25,
+    )
 
-    # 02 Model construction
-    section(ax, left, 0.545, width, 0.165, "02", "Model construction", MODEL_BG, MODEL_EDGE)
-    cell(ax, 0.085, 0.575, 0.57, 0.085,
-         "FSIM modules",
-         "Sporangium production and loss | cohort formation\n"
-         "dispersal | deposition | zoospore release and survival\n"
-         "infection | incubation | symptom appearance",
-         MODEL_EDGE, title_size=10.5, body_size=8.0)
-    cell(ax, 0.695, 0.575, 0.22, 0.085,
-         "FSIM-S extension",
-         "FSIM modules\nobservation-derived relative\nspore-pressure field\nthreshold response",
-         MODEL_EDGE, title_size=9.7, body_size=7.4)
-    arrow(ax, (0.280, 0.730), (0.280, 0.660), DATA_EDGE)
-    routed_arrow(ax, [(0.525, 0.835), (0.500, 0.835), (0.500, 0.675), (0.470, 0.660)], DATA_EDGE)
-    arrow(ax, (0.720, 0.730), (0.805, 0.660), DATA_EDGE)
-    arrow(ax, (0.655, 0.617), (0.695, 0.617), MODEL_EDGE)
-    arrow(ax, (0.500, 0.545), (0.500, 0.515), MODEL_EDGE)
+    background, edge = PANELS[1]
+    panel(ax, xs[1], y, widths[1], height, "02", "Model construction", background, edge)
+    card(
+        ax, xs[1] + 0.018, 0.490, widths[1] - 0.036, 0.220,
+        "FSIM process chain",
+        "Weather + phenology\nProduction and loss\nDispersal + deposition\nSurvival / infection / onset",
+        edge, 6.0,
+    )
+    card(
+        ax, xs[1] + 0.018, 0.285, widths[1] - 0.036, 0.170,
+        "FSIM-S extension",
+        "FSIM process chain\nRelative spore-pressure input\nResponse weighting",
+        edge, 6.0,
+    )
+    card(
+        ax, xs[1] + 0.018, 0.155, widths[1] - 0.036, 0.095,
+        "Model output",
+        "Symptom-onset window\nper site-year",
+        edge, 6.3,
+    )
+    arrow(ax, (xs[1] + widths[1] / 2, 0.485), (xs[1] + widths[1] / 2, 0.455), edge)
+    arrow(ax, (xs[1] + widths[1] / 2, 0.280), (xs[1] + widths[1] / 2, 0.250), edge)
 
-    # 03 Parameterization and evaluation
-    section(ax, left, 0.295, width, 0.220, "03", "Parameterization and evaluation", EVAL_BG, EVAL_EDGE)
-    cell(ax, 0.085, 0.410, 0.39, 0.060,
-         "Biological parameterization",
-         "Literature-fixed parameters | bounded perturbations\nStructural audit and Morris screening",
-         EVAL_EDGE, title_size=9.7, body_size=7.5)
-    cell(ax, 0.525, 0.410, 0.39, 0.060,
-         "Staged calibration",
-         "Parsimonious staged calibration within training site-years\nFSIM parameters, then one FSIM-S spore-response term",
-         EVAL_EDGE, title_size=9.9, body_size=7.5)
-    cell(ax, 0.085, 0.325, 0.39, 0.060,
-         "Grouped cross-validation",
-         "Primary evaluation: leave-one-site-year-out (6 folds)\nAll preprocessing, selection and fitting within training data",
-         EVAL_EDGE, title_size=9.6, body_size=7.4)
-    cell(ax, 0.525, 0.325, 0.39, 0.060,
-         "Disease-onset evaluation",
-         "Interval distance | overlap | no-onset predictions\nPaired out-of-fold FSIM-S versus FSIM comparison",
-         EVAL_EDGE, title_size=9.1, body_size=7.2)
-    routed_arrow(ax, [(0.085, 0.835), (0.035, 0.835), (0.035, 0.355), (0.085, 0.355)],
-                 DATA_EDGE, dashed=True)
-    arrow(ax, (0.280, 0.410), (0.280, 0.385), EVAL_EDGE)
-    arrow(ax, (0.475, 0.440), (0.525, 0.440), EVAL_EDGE)
-    arrow(ax, (0.720, 0.410), (0.720, 0.385), EVAL_EDGE)
-    arrow(ax, (0.475, 0.355), (0.525, 0.355), EVAL_EDGE)
+    background, edge = PANELS[2]
+    panel(ax, xs[2], y, widths[2], height, "03", "Validation", background, edge)
+    card(
+        ax, xs[2] + 0.015, 0.635, widths[2] - 0.030, 0.135,
+        "Calibration",
+        "Parameter bounds\nSensitivity screening\nFSIM / FSIM-S fit", edge, 6.1,
+    )
+    card(
+        ax, xs[2] + 0.015, 0.435, widths[2] - 0.030, 0.135,
+        "LOSO validation",
+        "6 site-year folds\n5 train + 1 holdout", edge, 6.1,
+    )
+    card(
+        ax, xs[2] + 0.015, 0.235, widths[2] - 0.030, 0.135,
+        "Evaluation",
+        "MAE / RMSE\nCity-year errors\nFSIM versus FSIM-S", edge, 6.1,
+    )
 
-    # 04 Regional scenario analysis
-    section(ax, left, 0.035, width, 0.230, "04", "Retrospective regional scenario", REGION_BG, REGION_EDGE)
-    cell(ax, 0.085, 0.170, 0.39, 0.050,
-         "Historical meteorological forcing",
-         "Gridded hourly data | Guangxi | 2000-2024",
-         REGION_EDGE, title_size=9.6, body_size=7.4)
-    cell(ax, 0.525, 0.170, 0.39, 0.050,
-         "Regional model inputs",
-         "Phenology estimates | spore-pressure inputs",
-         REGION_EDGE, title_size=9.8, body_size=7.0)
-    cell(ax, 0.525, 0.100, 0.39, 0.050,
-         "Regional FSIM-S simulations",
-         "Infection-risk periods | predicted disease-onset windows",
-         REGION_EDGE, title_size=9.6, body_size=7.0)
-    cell(ax, 0.085, 0.100, 0.39, 0.050,
-         "Recorded spray schedules",
-         "Field application dates | reference schedule",
-         REGION_EDGE, title_size=9.8, body_size=7.3)
-    cell(ax, 0.195, 0.050, 0.61, 0.035,
-         "Retrospective management assessment",
-         "Risk-aligned windows | potentially avoidable early applications under stated assumptions; no efficacy claim",
-         REGION_EDGE, title_size=9.0, body_size=6.8)
-    arrow(ax, (0.475, 0.195), (0.525, 0.195), REGION_EDGE)
-    arrow(ax, (0.720, 0.170), (0.720, 0.150), REGION_EDGE)
-    arrow(ax, (0.280, 0.100), (0.390, 0.085), REGION_EDGE)
-    arrow(ax, (0.720, 0.100), (0.610, 0.085), REGION_EDGE)
+    background, edge = PANELS[3]
+    panel(ax, xs[3], y, widths[3], height, "04", "Regional use", background, edge)
+    card(
+        ax, xs[3] + 0.015, 0.635, widths[3] - 0.030, 0.135,
+        "Historical forcing",
+        "Guangxi 2000-2024\n342 grids x 25 years\n3 cultivars", edge, 6.0,
+    )
+    card(
+        ax, xs[3] + 0.015, 0.435, widths[3] - 0.030, 0.135,
+        "Onset windows",
+        "Grid-year first-symptom\nwindows and disease risk", edge, 6.0,
+    )
+    card(
+        ax, xs[3] + 0.015, 0.235, widths[3] - 0.030, 0.135,
+        "Spray assessment",
+        "Reference schedule\nRisk-aligned timing\nAvoidable early sprays", edge, 6.0,
+    )
 
-    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(OUTPUT, dpi=300, bbox_inches="tight", facecolor=WHITE)
+    arrow(ax, (xs[0] + widths[0] + 0.003, 0.50), (xs[1] - 0.003, 0.50))
+    arrow(ax, (xs[1] + widths[1] + 0.003, 0.50), (xs[2] - 0.003, 0.50))
+    arrow(ax, (xs[2] + widths[2] + 0.003, 0.50), (xs[3] - 0.003, 0.50))
+
+    for output in OUTPUTS:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(output, dpi=300, facecolor=WHITE)
     plt.close(fig)
 
 

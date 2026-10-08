@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.0",
+  "profiles": {
+    "table": "model/phenology/profile_config_table.json",
+    "vine": "model/phenology/profile_config_vine.json"
+  },
+  "selection_rule": "minimum leave-one-site-year-out validation MAE for BBCH09 and BBCH65, with base temperature candidates capped at 10 C",
+  "excluded_site": "Guilin (25.450000_110.800000_2022)"
+}

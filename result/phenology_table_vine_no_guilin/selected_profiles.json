@@ -1,0 +1,30 @@
+{
+  "table": {
+    "group": "table",
+    "model": "table__linear_fixed_base_10_free_start",
+    "family": "linear_fixed_base_10",
+    "start_mode": "free_start",
+    "apparent_primary_mae": 0.75,
+    "apparent_exact_mae": 0.75,
+    "validation_primary_mae": 3.0,
+    "validation_exact_mae": 3.0,
+    "validation_within_7d": 1.0,
+    "objective_days": 2.4,
+    "parameters": "{\"base_c\": 10.0, \"cardinals\": [0.0, 25.4, 35.0], \"start_doy\": 20, \"thresholds\": [294.9591278771551, 370.1520787365379, 761.6895564460108]}",
+    "restarts": "[{\"seed\": 20261008, \"objective\": 2.4, \"success\": true, \"iterations\": 54, \"evaluations\": 1765}, {\"seed\": 20261009, \"objective\": 3.4666666666666663, \"success\": true, \"iterations\": 60, \"evaluations\": 1957}]"
+  },
+  "vine": {
+    "group": "vine",
+    "model": "vine__linear_fixed_base_3_free_start",
+    "family": "linear_fixed_base_3",
+    "start_mode": "free_start",
+    "apparent_primary_mae": 0.3333333333333333,
+    "apparent_exact_mae": 0.3333333333333333,
+    "validation_primary_mae": 1.5,
+    "validation_exact_mae": 1.5,
+    "validation_within_7d": 1.0,
+    "objective_days": 1.0,
+    "parameters": "{\"base_c\": 3.0, \"cardinals\": [0.0, 25.4, 35.0], \"start_doy\": 44, \"thresholds\": [701.606011217476, 970.4240292689856, 1323.0024764866273]}",
+    "restarts": "[{\"seed\": 20261008, \"objective\": 1.0, \"success\": true, \"iterations\": 56, \"evaluations\": 1829}, {\"seed\": 20261009, \"objective\": 1.0, \"success\": true, \"iterations\": 55, \"evaluations\": 1797}]"
+  }
+}

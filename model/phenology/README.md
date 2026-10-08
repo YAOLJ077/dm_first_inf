@@ -11,6 +11,10 @@
 
 三个阶段按 BBCH09 → 65 → 81 顺序计算，每个阶段达到阈值后清零，下一阶段从次日重新累积。
 
+## Table/Vine 分层校准配置
+
+当前用于广西分层物候模拟的最终配置为 [`profile_config_table.json`](profile_config_table.json) 和 [`profile_config_vine.json`](profile_config_vine.json)，索引文件为 [`profile_configs.json`](profile_configs.json)。它们使用北京时间日平均气温、线性 GDD 响应和分阶段增量阈值；Guilin site-year 不再参与该配置。可复现校准脚本为 [`calibrate_table_vine_no_guilin.py`](calibrate_table_vine_no_guilin.py)，拟合核心为 [`profile_calibration_core.py`](profile_calibration_core.py)；候选基温上限固定为 10 °C，并以留一site-year验证选择最终模型。
+
 ## 主校准与验证
 
 历史物候校准入口为 [`src/calibrate_historical_phenology.py`](../../src/calibrate_historical_phenology.py)。它按完整 site-year 分组，北方和南方分别进行 5 折交叉验证，支持 4 进程和进度监控。默认输入位于 `data/phenology_data/historical_data/`，结果保存在 `result/historical_calibration_phenology/`。

@@ -1,0 +1,19 @@
+{
+  "target_site_years": 46,
+  "target_rows": 184,
+  "records": 267,
+  "stage_rows": {
+    "9": 46,
+    "53": 46,
+    "65": 46,
+    "81": 46
+  },
+  "censor_types": {
+    "exact": 124,
+    "interval_censored": 44,
+    "left_censored": 9,
+    "right_censored": 7
+  },
+  "weather_site_years": 46,
+  "workbook_site_years": 6
+}

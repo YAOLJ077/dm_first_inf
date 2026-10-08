@@ -1,4 +1,4 @@
-This is XeTeX, Version 3.141592653-2.6-0.999998 (TeX Live 2026) (preloaded format=xelatex 2026.4.23)  7 OCT 2026 15:41
+This is XeTeX, Version 3.141592653-2.6-0.999998 (TeX Live 2026) (preloaded format=xelatex 2026.4.23)  8 OCT 2026 11:55
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -1350,118 +1350,127 @@ LaTeX Font Info:    Font shape `TU/TimesNewRoman(0)/b/n' will be
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(0)/m/it' will be
 (Font)              scaled to size 10.0pt on input line 176.
 
-[2] [3]
+[2]
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(0)/b/n' will be
-(Font)              scaled to size 12.0pt on input line 276.
+(Font)              scaled to size 12.0pt on input line 265.
+ [3]
 File: ../fig/Figure_01.png Graphic file (type bmp)
 <../fig/Figure_01.png>
- [4] [5]
+ [4]
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(0)/m/n' will be
-(Font)              scaled to size 8.0pt on input line 344.
+(Font)              scaled to size 8.0pt on input line 335.
 LaTeX Font Info:    Font shape `TU/STIXTwoMath(1)/m/n' will be
-(Font)              scaled to size 4.72794pt on input line 363.
+(Font)              scaled to size 4.72794pt on input line 354.
 LaTeX Font Info:    Font shape `TU/STIXTwoMath(2)/m/n' will be
-(Font)              scaled to size 4.7284pt on input line 363.
+(Font)              scaled to size 4.7284pt on input line 354.
 LaTeX Font Info:    Font shape `TU/STIXTwoMath(3)/m/n' will be
-(Font)              scaled to size 4.72748pt on input line 363.
+(Font)              scaled to size 4.72748pt on input line 354.
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/b/n' will be
-(Font)              scaled to size 7.8374pt on input line 363.
+(Font)              scaled to size 7.8374pt on input line 354.
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/b/n' will be
-(Font)              scaled to size 5.87805pt on input line 363.
+(Font)              scaled to size 5.87805pt on input line 354.
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/b/n' will be
-(Font)              scaled to size 4.89838pt on input line 363.
+(Font)              scaled to size 4.89838pt on input line 354.
 File: ../fig/Figure_02.png Graphic file (type bmp)
 <../fig/Figure_02.png>
- [6]
+ [5]
 File: ../fig/Figure_03.png Graphic file (type bmp)
 <../fig/Figure_03.png>
- [7]
+ [6]
 File: ../fig/Figure_04.png Graphic file (type bmp)
 <../fig/Figure_04.png>
- [8]
+ [7]
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/b/n' will be
-(Font)              scaled to size 9.79675pt on input line 446.
+(Font)              scaled to size 9.79675pt on input line 437.
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/b/n' will be
-(Font)              scaled to size 6.85773pt on input line 446.
+(Font)              scaled to size 6.85773pt on input line 437.
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/b/n' will be
-(Font)              scaled to size 5.38821pt on input line 446.
+(Font)              scaled to size 5.38821pt on input line 437.
 File: ../fig/Figure_05.png Graphic file (type bmp)
 <../fig/Figure_05.png>
- [9]
+ [8]
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/m/n' will be
-(Font)              scaled to size 10.0pt on input line 480.
+(Font)              scaled to size 10.0pt on input line 471.
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/m/n' will be
-(Font)              scaled to size 7.0pt on input line 480.
+(Font)              scaled to size 7.0pt on input line 471.
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/m/n' will be
-(Font)              scaled to size 5.5pt on input line 480.
- [10] [11]
+(Font)              scaled to size 5.5pt on input line 471.
+ [9] [10]
 LaTeX Font Info:    Font shape `TU/TimesNewRoman(0)/b/it' will be
-(Font)              scaled to size 10.0pt on input line 565.
- [12]
+(Font)              scaled to size 10.0pt on input line 556.
+ [11]
 File: ../fig/Figure_06.png Graphic file (type bmp)
 <../fig/Figure_06.png>
- [13] [14]
-ignored: Infinite glue shrinkage found in box being split [15] [16] [17]
+ [12] [13] [14]
+LaTeX Font Info:    Font shape `TU/TimesNewRoman(0)/m/n' will be
+(Font)              scaled to size 9.0pt on input line 687.
+LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/m/n' will be
+(Font)              scaled to size 8.0pt on input line 722.
+LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/m/n' will be
+(Font)              scaled to size 6.0pt on input line 722.
+LaTeX Font Info:    Font shape `TU/TimesNewRoman(1)/m/n' will be
+(Font)              scaled to size 5.0pt on input line 722.
+ [15]
 File: ../fig/Figure_07.png Graphic file (type bmp)
 <../fig/Figure_07.png>
-
-[18] [19]
+ [16] [17]
 File: ../fig/Figure_08_core_timeline.png Graphic file (type bmp)
 <../fig/Figure_08_core_timeline.png>
- [20]
+
+[18]
 File: ../fig/Figure_Sobol_sensitivity.png Graphic file (type bmp)
 <../fig/Figure_Sobol_sensitivity.png>
- [21]
+ [19]
 File: ../fig/Figure_FSIM_vs_FSIM-S_error_metrics.png Graphic file (type bmp)
 <../fig/Figure_FSIM_vs_FSIM-S_error_metrics.png>
- [22]
+ [20]
 File: ../fig/Figure_FSIM_vs_FSIM-S_site_year_errors.png Graphic file (type bmp)
 
 <../fig/Figure_FSIM_vs_FSIM-S_site_year_errors.png>
- [23]
+ [21]
 File: ../fig/Figure_12.png Graphic file (type bmp)
 <../fig/Figure_12.png>
- [24]
+ [22]
 File: ../fig/Figure_13.png Graphic file (type bmp)
 <../fig/Figure_13.png>
- [25] [26] [27] [28] [29] [30] [31]
-Underfull \hbox (badness 1242) in paragraph at lines 1432--1436
+ [23] [24] [25] [26] [27] [28] [29]
+Underfull \hbox (badness 1242) in paragraph at lines 1401--1405
 []\TU/TimesNewRoman(0)/m/n/10 Gobbin, D., Jermini, M., Loskill, B., Pertot, I.,
  Raynal, M., Gessler, C., 2005. Importance of secondary
  []
 
 
-Underfull \hbox (badness 2005) in paragraph at lines 1432--1436
+Underfull \hbox (badness 2005) in paragraph at lines 1401--1405
 \TU/TimesNewRoman(0)/m/n/10 inoculum of \TU/TimesNewRoman(0)/m/it/10 Plasmopara
  viticola \TU/TimesNewRoman(0)/m/n/10 to epidemics of grapevine downy mildew. P
 lant Pathol. 54, 522–534.
  []
 
-[32] [33]
-Underfull \hbox (badness 1102) in paragraph at lines 1542--1546
+[30] [31]
+Underfull \hbox (badness 1102) in paragraph at lines 1511--1515
 []\TU/TimesNewRoman(0)/m/n/10 Peng, J., Wang, X., Wang, H., Li, X., Zhang, Q., 
 Wang, M., Yan, J., 2024. Advances in understanding
  []
 
 
-Underfull \hbox (badness 1259) in paragraph at lines 1552--1556
+Underfull \hbox (badness 1259) in paragraph at lines 1521--1525
 []\TU/TimesNewRoman(0)/m/n/10 Puelles, M., Arbizu-Milagro, J., Castillo-Ruiz, F
 .J., Peña, J.M., 2024. Predictive models for grape downy
  []
 
-[34] [35] [36] (./manuscript.aux)
+[32] [33] [34] (./manuscript.aux)
  ***********
 LaTeX2e <2025-11-01>
 L3 programming layer <2026-01-19>
  ***********
  ) 
 Here is how much of TeX's memory you used:
- 21169 strings out of 468168
- 391099 string characters out of 5432815
- 980009 words of memory out of 5000000
- 49588 multiletter control sequences out of 15000+600000
- 635678 words of font info for 121 fonts, out of 8000000 for 9000
+ 21181 strings out of 468168
+ 391532 string characters out of 5432815
+ 978175 words of memory out of 5000000
+ 49596 multiletter control sequences out of 15000+600000
+ 635710 words of font info for 125 fonts, out of 8000000 for 9000
  1348 hyphenation exceptions out of 8191
- 90i,10n,116p,1007b,562s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 90i,10n,116p,1007b,526s stack positions out of 10000i,1000n,20000p,200000b,200000s
 
-Output written on manuscript.xdv (36 pages, 774980 bytes).
+Output written on manuscript.xdv (34 pages, 756112 bytes).
