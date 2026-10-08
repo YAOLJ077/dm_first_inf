@@ -12,6 +12,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DISEASE_ROOT = Path(r"D:\yaolinjia\Grape\guangxi_disease_window")
 DEFAULT_OUTPUT_ROOT = REPO_ROOT / "result" / "guangxi_2000_2024_onset_windows"
+PROFILES = ("table", "vine")
 
 STAGES = {
     "9": "budburst",
@@ -22,10 +23,11 @@ STAGES = {
 }
 
 FIELDS = [
-    "year", "grid_id", "site_id", "province", "latitude", "longitude",
+    "phenology_profile", "bbch53_forcing_fraction", "year", "grid_id", "site_id", "province", "latitude", "longitude",
     "first_symptom_start", "first_symptom_end",
     "first_symptom_start_date", "first_symptom_end_date",
     "first_symptom_start_doy", "first_symptom_end_doy",
+    "first_symptom_midpoint_doy",
     "symptom_duration_hours", "symptom_duration_days",
     "symptom_window_complete", "window_status",
     "first_infection_time", "first_infection_date", "first_infection_doy",
@@ -80,6 +82,8 @@ def _row(path: Path) -> dict[str, object]:
 
     row: dict[str, object] = {
         "year": data["year"],
+        "phenology_profile": data.get("phenology_profile", ""),
+        "bbch53_forcing_fraction": data["bbch53_rule"]["forcing_fraction"],
         "grid_id": data["grid_id"],
         "site_id": data["site_id"],
         "province": data["province"],
@@ -91,6 +95,7 @@ def _row(path: Path) -> dict[str, object]:
         "first_symptom_end_date": _date(end),
         "first_symptom_start_doy": _doy(start),
         "first_symptom_end_doy": _doy(end),
+        "first_symptom_midpoint_doy": (int(_doy(start)) + int(_doy(end))) / 2 if start and end else "",
         "symptom_duration_hours": duration,
         "symptom_duration_days": f"{float(duration) / 24.0:.6f}" if duration else "",
         "symptom_window_complete": bool(data.get("symptom_window_complete", False)),
@@ -123,8 +128,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--disease-root", type=Path, default=DEFAULT_DISEASE_ROOT)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
+    parser.add_argument("--profile", choices=PROFILES, required=True)
     args = parser.parse_args()
-    disease_root = args.disease_root.resolve()
+    disease_root = args.disease_root.resolve() / args.profile
     output_root = args.output_root.resolve()
     files = []
     for year in range(2000, 2025):
@@ -133,8 +139,15 @@ def main() -> int:
             raise ValueError(f"expected 342 disease files for {year}, found {len(year_files)}")
         files.extend(year_files)
     rows = [_row(path) for path in files]
+    if any(row["phenology_profile"] != args.profile for row in rows):
+        raise ValueError(f"Disease files contain a different profile from {args.profile}")
+    fractions = {row["bbch53_forcing_fraction"] for row in rows}
+    if len(fractions) != 1:
+        raise ValueError("Disease files contain different BBCH53 forcing fractions")
+    if len({(row["year"], row["grid_id"]) for row in rows}) != len(rows):
+        raise ValueError("Duplicate grid-year disease results")
     output_root.mkdir(parents=True, exist_ok=True)
-    csv_path = output_root / "guangxi_2000_2024_onset_windows.csv"
+    csv_path = output_root / f"guangxi_2000_2024_onset_windows_{args.profile}.csv"
     with csv_path.open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=FIELDS, extrasaction="ignore")
         writer.writeheader()
@@ -144,7 +157,9 @@ def main() -> int:
         "schema_version": 1,
         "source": str(disease_root),
         "output": str(csv_path),
-        "years": [2000, 2024],
+        "profile": args.profile,
+        "bbch53_forcing_fraction": fractions.pop(),
+        "years": list(range(2000, 2025)),
         "n_years": 25,
         "n_grids": 342,
         "n_rows": len(rows),
@@ -153,7 +168,7 @@ def main() -> int:
         "incomplete_windows": sum(row["window_status"] == "incomplete" for row in rows),
         "date_convention": "ISO-8601 local Asia/Shanghai timestamps; DOY uses local calendar date",
     }
-    (output_root / "summary.json").write_text(
+    (output_root / f"summary_{args.profile}.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     print(json.dumps(summary, ensure_ascii=False))

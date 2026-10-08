@@ -50,6 +50,7 @@ def run_cropseason(
     wind_min_m_s: float | None = None,
     susceptibility_modulation_config: str | Path | None = DEFAULT_SUSCEPTIBILITY_MODULATION_CONFIG,
     observed_stage_dates: dict | None = None,
+    phenology_config_path: str | Path | None = None,
     first_window_only: bool = False,
 ) -> dict:
     """Run recurrent asexual cohorts through infection and symptom windows."""
@@ -70,7 +71,8 @@ def run_cropseason(
     drivers = HourlyDrivers(season, settings)
     susceptibility_modulator = (
         SusceptibilityModulator(season, susceptibility_modulation_config,
-                                observed_stage_dates=observed_stage_dates)
+                                observed_stage_dates=observed_stage_dates,
+                                phenology_config_path=phenology_config_path)
         if susceptibility_modulation_config is not None else None
     )
     process = simulate(

@@ -56,9 +56,12 @@ class PhenologyConfig:
     early_base_c: float | None = None
     forcing_start_month: int = 1
     forcing_start_day: int = 1
+    forcing_start_doy: int | None = None
 
     def start_date(self, year: int) -> date:
         """Forcing-only uses a fixed crop-year date; CF starts in prior autumn."""
+        if self.model_type == "force_only" and self.forcing_start_doy is not None:
+            return date(year, 1, 1) + timedelta(days=self.forcing_start_doy - 1)
         return (date(year, self.forcing_start_month, self.forcing_start_day) if self.model_type == "force_only" else
                 date(year - 1, self.chill_start_month, self.chill_start_day))
 
@@ -66,7 +69,9 @@ class PhenologyConfig:
         if self.model_type not in {"sequential_chill_force", "force_only"}:
             raise ValueError("Unknown phenology model_type")
         if self.model_type == "force_only":
-            start = date(2001, self.forcing_start_month, self.forcing_start_day)
+            if self.forcing_start_doy is not None and not 1 <= self.forcing_start_doy <= 365:
+                raise ValueError("Forcing start DOY must be between 1 and 365")
+            start = self.start_date(2001)
             if start > date(2001, self.simulation_end_month, self.simulation_end_day):
                 raise ValueError("Forcing start must not be after simulation end")
         values = [self.chill_min_c, self.chill_opt_c,
@@ -124,6 +129,38 @@ def load_config(path: str | Path = DEFAULT_CONFIG) -> PhenologyConfig:
     """Load a calibrated JSON configuration."""
 
     raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    # Adapt the calibrated Table/Vine schema to the existing sequential model.
+    if raw.get("profile") in {"table", "vine"}:
+        model = raw.get("model", {})
+        if model.get("family") != "linear_gdd" or model.get("temperature_response") != "linear":
+            raise ValueError("profile configuration must use the linear_gdd family")
+        start_doy = int(model.get("start_doy", 1))
+        start = date(2001, 1, 1) + timedelta(days=start_doy - 1)
+        profile_stage_names = {9: "budburst", 65: "flowering", 81: "veraison"}
+        targets = tuple(
+            StageTarget(
+                profile_stage_names.get(
+                    int(item["bbch"]),
+                    str(item.get("name", f"BBCH{int(item['bbch']):02d}")),
+                ),
+                int(item["bbch"]),
+                float(item["incremental_gdd"]),
+            )
+            for item in raw.get("stage_thresholds", [])
+        )
+        config = PhenologyConfig(
+            chill_requirement=None,
+            stage_targets=targets,
+            model_type="force_only",
+            forcing_base_c=float(model["base_temperature_c"]),
+            forcing_start_month=start.month,
+            forcing_start_day=start.day,
+            forcing_start_doy=start_doy,
+            simulation_end_month=12,
+            simulation_end_day=31,
+        )
+        config.validate()
+        return config
     kind = raw.get("model")
     if kind not in {"sequential_chill_force", "force_only"}:
         raise ValueError("configuration model must be sequential_chill_force or force_only")

@@ -24,6 +24,9 @@ STAGE_NAMES = {9: "budburst", 65: "flowering", 81: "veraison"}
 STAGE_WEIGHT = {9: 1.0, 65: 1.25, 81: 0.35}
 LOCAL_MULTIPLIER = 4.0
 UNATTAINED_PENALTY = 180.0
+BBCH53_FORCING_FRACTION = float(json.loads(
+    Path(__file__).with_name("susceptibility_modulation.json").read_text(encoding="utf-8")
+)["auxiliary_stage_rules"]["53"]["forcing_fraction"])
 
 
 def parse_args(argv=None):
@@ -143,7 +146,7 @@ def simulate_one(weather, params, family):
         idx65 = int(np.searchsorted(dates, int(out[65])))
         if idx65 > idx9:
             total = np.cumsum(response[idx9 + 1:idx65 + 1])
-            threshold = .15 * params["thresholds"][1]
+            threshold = BBCH53_FORCING_FRACTION * params["thresholds"][1]
             hit = np.flatnonzero(total >= threshold)
             if len(hit):
                 out[53] = float(dates[idx9 + 1 + int(hit[0])])

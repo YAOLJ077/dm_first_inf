@@ -16,7 +16,7 @@
     "53": {
       "left_bbch": 9,
       "right_bbch": 65,
-      "forcing_fraction": 0.1,
+      "forcing_fraction": 0.3,
       "basis": "fallback_only_when_no_local_observed_anchor_is_available"
     }
   },

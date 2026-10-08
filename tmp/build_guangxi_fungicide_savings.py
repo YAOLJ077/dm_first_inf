@@ -23,10 +23,10 @@ from xml.etree import ElementTree as ET
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_ONSET_TABLE = (
     REPO_ROOT / "result" / "guangxi_2000_2024_onset_windows"
-    / "guangxi_2000_2024_onset_windows.csv"
 )
 DEFAULT_MANAGEMENT = REPO_ROOT / "data" / "management_data" / "management_data.xlsx"
 DEFAULT_OUTPUT_ROOT = REPO_ROOT / "result" / "guangxi_2000_2024_fungicides"
+PROFILES = ("table", "vine")
 XML_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 
 EXTRA_FIELDS = [
@@ -137,24 +137,35 @@ def main() -> int:
     parser.add_argument("--onset-table", type=Path, default=DEFAULT_ONSET_TABLE)
     parser.add_argument("--management", type=Path, default=DEFAULT_MANAGEMENT)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
+    parser.add_argument("--profile", choices=PROFILES, required=True)
     args = parser.parse_args()
 
-    with args.onset_table.resolve().open("r", encoding="utf-8-sig", newline="") as handle:
+    onset_table = args.onset_table.resolve()
+    if onset_table.is_dir():
+        onset_table = onset_table / f"guangxi_2000_2024_onset_windows_{args.profile}.csv"
+    with onset_table.open("r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle)
         base_fields = list(reader.fieldnames or [])
         rows = list(reader)
-    required = {"year", "grid_id", "first_symptom_start_date"}
+    required = {"phenology_profile", "bbch53_forcing_fraction", "year", "grid_id", "first_symptom_start_date"}
     missing = required - set(base_fields)
     if missing:
         raise ValueError(f"Onset table is missing columns: {sorted(missing)}")
     if len(rows) != 8550:
         raise ValueError(f"Expected 8550 onset rows, found {len(rows)}")
+    if any(row["phenology_profile"] != args.profile for row in rows):
+        raise ValueError(f"Onset table contains a different profile from {args.profile}")
+    fractions = {float(row["bbch53_forcing_fraction"]) for row in rows}
+    if len(fractions) != 1:
+        raise ValueError("Onset table contains different BBCH53 forcing fractions")
+    if len({(row["year"], row["grid_id"]) for row in rows}) != len(rows):
+        raise ValueError("Duplicate grid-year onset rows")
     management_doys = _read_management_doys(args.management.resolve())
     result_rows = [_augment(row, management_doys) for row in rows]
 
     output_root = args.output_root.resolve()
     output_root.mkdir(parents=True, exist_ok=True)
-    output_path = output_root / "guangxi_2000_2024_fungicide_savings.csv"
+    output_path = output_root / f"guangxi_2000_2024_fungicide_savings_{args.profile}.csv"
     fields = base_fields + [field for field in EXTRA_FIELDS if field not in base_fields]
     with output_path.open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
@@ -163,7 +174,9 @@ def main() -> int:
 
     summary = {
         "schema_version": 1,
-        "source_onset_table": str(args.onset_table.resolve()),
+        "profile": args.profile,
+        "bbch53_forcing_fraction": fractions.pop(),
+        "source_onset_table": str(onset_table),
         "source_management_workbook": str(args.management.resolve()),
         "management_schedule_basis_year": 2022,
         "management_schedule_basis_site": "Duan",
@@ -177,7 +190,7 @@ def main() -> int:
         "mean_potential_savable_sprays_per_grid_year": sum(int(row["potential_savable_spray_count"]) for row in result_rows) / len(result_rows),
         "output": str(output_path),
     }
-    (output_root / "summary.json").write_text(
+    (output_root / f"summary_{args.profile}.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     print(json.dumps(summary, ensure_ascii=False))

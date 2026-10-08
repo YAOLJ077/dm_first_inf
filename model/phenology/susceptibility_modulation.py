@@ -123,7 +123,8 @@ class SusceptibilityModulator:
     """Map a site-year hourly timestamp to the configured host multiplier."""
 
     def __init__(self, season, config_path: str | Path = DEFAULT_CONFIG,
-                 observed_stage_dates: dict[int, date] | None = None):
+                 observed_stage_dates: dict[int, date] | None = None,
+                 phenology_config_path: str | Path | None = None):
         self.config = load_modulation_config(config_path)
         self.enabled = bool(self.config.get("enabled", True))
         self.stage_dates: dict[int, date | None] = {}
@@ -147,7 +148,10 @@ class SusceptibilityModulator:
                 if observed_stage_dates:
                     self.observed_phenology_path = str(observed_path)
 
-        if "phenology_configs" in self.config:
+        if phenology_config_path is not None:
+            phenology_path = _resolve_project_path(phenology_config_path)
+            self.region = f"profile:{phenology_path.stem}"
+        elif "phenology_configs" in self.config:
             cutoff = float(self.config["latitude_cutoff_n"])
             self.region = "north" if float(season.latitude) >= cutoff else "south"
             phenology_path = _resolve_project_path(self.config["phenology_configs"][self.region])
@@ -271,8 +275,8 @@ class SusceptibilityModulator:
         if direct is not None:
             # If the left node is an auxiliary split of this target, retain
             # only the remaining fraction after the split.
-            for rule in self.config.get("auxiliary_stage_rules", {}).values():
-                if (int(rule["left_bbch"]) == left_bbch
+            for auxiliary_bbch, rule in self.config.get("auxiliary_stage_rules", {}).items():
+                if (int(auxiliary_bbch) == left_bbch
                         and int(rule["right_bbch"]) == right_bbch):
                     return float(direct.requirement) * (1.0 - float(rule["forcing_fraction"]))
             return float(direct.requirement)
@@ -327,6 +331,7 @@ class SusceptibilityModulator:
             "stage_dates": {f"{bbch:02d}": value.isoformat() if value else None
                             for bbch, value in self.stage_dates.items()},
             "nodes": self.config.get("nodes", []),
+            "auxiliary_stage_rules": self.config.get("auxiliary_stage_rules", {}),
             "progress_basis": self.config.get("progress_basis"),
         }
 

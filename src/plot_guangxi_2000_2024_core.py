@@ -22,7 +22,7 @@ from scipy.stats import kendalltau
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_INPUT = ROOT / "result/guangxi_2000_2024_onset_windows/guangxi_2000_2024_onset_windows.csv"
+DEFAULT_INPUT = ROOT / "result/guangxi_2000_2024_onset_windows/guangxi_2000_2024_onset_windows_table.csv"
 DEFAULT_OUTPUT = ROOT / "fig/guangxi_2000_2024"
 DEFAULT_FIG_WIDTH = 6.95
 DOY_NORM = mcolors.Normalize(vmin=50, vmax=300)

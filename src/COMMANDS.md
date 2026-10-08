@@ -2,6 +2,33 @@
 
 Run the following commands from the repository root:
 
+## Guangxi Table/Vine regional scenarios
+
+```bash
+python tmp/run_guangxi_profiles.py --workers 16 --overwrite
+```
+
+The command runs the all-Table scenario and then the all-Vine scenario for
+342 grids and 2000-2024. Both use the same hourly weather archive at
+`D:\yaolinjia\Grape\input_weather_json\guangxi`. The calibrated profile
+configurations in `model/phenology/` supply each scenario's start DOY, base
+temperature, and incremental BBCH09/65/81 requirements. BBCH53 retains the
+operational susceptibility configuration's 30% forcing fallback. The regional
+runner and calibration diagnostic both read this fraction from
+`model/phenology/susceptibility_modulation.json`.
+
+Daily temperature and phenology JSON files go under
+`D:\yaolinjia\Grape\guangxi_phenology\{table,vine}\`; first symptom window
+JSON files go under `D:\yaolinjia\Grape\guangxi_disease_window\{table,vine}\`.
+Phenology and onset CSVs retain the existing
+`result/guangxi_2000_2024_onset_windows/` directory; savings CSVs retain
+`result/guangxi_2000_2024_fungicides/`. New CSVs and summaries have `_table`
+or `_vine` suffixes. Savings use the existing 2022 Duan spray schedule and
+the seven days before the first symptom. Superseded unlabelled onset and
+savings CSVs and summaries have been removed from `result/`.
+Omit `--overwrite` to reuse existing simulation
+JSON files after an interrupted run with the same inputs and configuration.
+
 ## Sobol sensitivity: FSIM/S
 
 Run several Sobol base sample sizes sequentially. The script creates one

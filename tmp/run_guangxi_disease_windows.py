@@ -27,6 +27,10 @@ DEFAULT_PHENOLOGY_ROOT = Path(r"D:\yaolinjia\Grape\guangxi_phenology")
 DEFAULT_OUTPUT_ROOT = Path(r"D:\yaolinjia\Grape\guangxi_disease_window")
 DEFAULT_CONFIG = REPO_ROOT / "result" / "deployment_parameters" / "fsim_deployment_config.json"
 DEFAULT_SUSCEPTIBILITY = REPO_ROOT / "model" / "phenology" / "susceptibility_modulation.json"
+PROFILE_CONFIGS = {
+    "table": REPO_ROOT / "model" / "phenology" / "profile_config_table.json",
+    "vine": REPO_ROOT / "model" / "phenology" / "profile_config_vine.json",
+}
 
 _CONFIG_PATH: str | None = None
 _SUSCEPTIBILITY_PATH: str | None = None
@@ -65,10 +69,10 @@ def _stage_dates(phenology: dict) -> dict[int, str]:
     return result
 
 
-def _process_one(task: tuple[str, str, str, bool]) -> dict[str, object]:
+def _process_one(task: tuple[str, str, str, str, str, bool]) -> dict[str, object]:
     if _CONFIG_PATH is None or _SUSCEPTIBILITY_PATH is None:
         raise RuntimeError("FSIM worker was not initialized")
-    weather_text, phenology_text, output_text, overwrite = task
+    weather_text, phenology_text, output_text, profile, profile_config_text, overwrite = task
     weather_path = Path(weather_text)
     phenology_path = Path(phenology_text)
     output_root = Path(output_text)
@@ -79,12 +83,17 @@ def _process_one(task: tuple[str, str, str, bool]) -> dict[str, object]:
 
     season = CropSeason.read(weather_path)
     phenology = json.loads(phenology_path.read_text(encoding="utf-8"))
+    if (phenology.get("profile") != profile or phenology["year"] != season.year
+            or phenology["grid_id"] != season.metadata["grid_id"]
+            or Path(phenology["config_path"]).resolve() != Path(profile_config_text).resolve()):
+        raise ValueError(f"Phenology profile, grid-year, or configuration mismatch: {phenology_path}")
     stage_dates = _stage_dates(phenology)
     result = run_cropseason(
         season,
         _CONFIG_PATH,
         susceptibility_modulation_config=_SUSCEPTIBILITY_PATH,
         observed_stage_dates=stage_dates,
+        phenology_config_path=profile_config_text,
         first_window_only=True,
     )
     diagnostics = result["process"]["diagnostics"]
@@ -94,6 +103,9 @@ def _process_one(task: tuple[str, str, str, bool]) -> dict[str, object]:
     # so make the provenance explicit in the persisted result.
     susceptibility["phenology_source"] = "weather_only_precomputed"
     susceptibility["observed_phenology_path"] = None
+    if (phenology["bbch53_rule"]["forcing_fraction"]
+            != susceptibility["auxiliary_stage_rules"]["53"]["forcing_fraction"]):
+        raise ValueError(f"Precomputed BBCH53 rule differs from disease configuration: {phenology_path}")
     payload = {
         "schema_version": 1,
         "model": "fsim_sporangia_infection_route",
@@ -107,7 +119,10 @@ def _process_one(task: tuple[str, str, str, bool]) -> dict[str, object]:
         "weather_path": str(weather_path),
         "phenology_path": str(phenology_path),
         "phenology_source": "weather_only_precomputed",
+        "phenology_profile": profile,
+        "phenology_profile_config": str(Path(profile_config_text).resolve()),
         "phenology_stage_dates": {str(bbch): value for bbch, value in sorted(stage_dates.items())},
+        "bbch53_rule": phenology["bbch53_rule"],
         "deployment_config": str(Path(_CONFIG_PATH).resolve()),
         "susceptibility_config": str(Path(_SUSCEPTIBILITY_PATH).resolve()),
         "first_symptom_start": diagnostics["first_symptom_start"],
@@ -127,18 +142,20 @@ def _process_one(task: tuple[str, str, str, bool]) -> dict[str, object]:
 
 
 def _tasks(weather_root: Path, phenology_root: Path, output_root: Path,
-           start_year: int, end_year: int, overwrite: bool) -> list[tuple[str, str, str, bool]]:
+           profile: str, profile_config: Path, start_year: int, end_year: int,
+           overwrite: bool) -> list[tuple[str, str, str, str, str, bool]]:
     tasks = []
     for year in range(start_year, end_year + 1):
         weather_paths = sorted((weather_root / str(year)).glob("*.json"))
-        phenology_dir = phenology_root / "phenology" / str(year)
+        phenology_dir = phenology_root / profile / "phenology" / str(year)
         if len(weather_paths) != 342:
             raise ValueError(f"expected 342 weather files for {year}, found {len(weather_paths)}")
         for weather_path in weather_paths:
             phenology_path = phenology_dir / weather_path.name
             if not phenology_path.exists():
                 raise FileNotFoundError(f"missing phenology file: {phenology_path}")
-            tasks.append((str(weather_path), str(phenology_path), str(output_root), overwrite))
+            tasks.append((str(weather_path), str(phenology_path), str(output_root / profile),
+                          profile, str(profile_config.resolve()), overwrite))
     return tasks
 
 
@@ -147,6 +164,10 @@ def main() -> int:
     parser.add_argument("--weather-root", type=Path, default=DEFAULT_WEATHER_ROOT)
     parser.add_argument("--phenology-root", type=Path, default=DEFAULT_PHENOLOGY_ROOT)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
+    parser.add_argument("--profile", choices=sorted(PROFILE_CONFIGS), required=True,
+                        help="Regional cultivar profile used for phenology and disease")
+    parser.add_argument("--profile-config", type=Path, default=None,
+                        help="Optional explicit profile configuration")
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--susceptibility-config", type=Path, default=DEFAULT_SUSCEPTIBILITY)
     parser.add_argument("--workers", type=int, default=16)
@@ -156,9 +177,14 @@ def main() -> int:
     args = parser.parse_args()
     if args.workers < 1:
         parser.error("--workers must be positive")
+    if args.start_year > args.end_year:
+        parser.error("--start-year must not exceed --end-year")
+    profile_config = (args.profile_config or PROFILE_CONFIGS[args.profile]).resolve()
+    if json.loads(profile_config.read_text(encoding="utf-8")).get("profile") != args.profile:
+        parser.error("Selected configuration must match --profile")
     tasks = _tasks(args.weather_root.resolve(), args.phenology_root.resolve(),
-                   args.output_root.resolve(), args.start_year, args.end_year,
-                   args.overwrite)
+                   args.output_root.resolve(), args.profile, profile_config,
+                   args.start_year, args.end_year, args.overwrite)
     counts = {"written": 0, "skipped": 0, "symptom": 0}
     with ProcessPoolExecutor(
         max_workers=args.workers,

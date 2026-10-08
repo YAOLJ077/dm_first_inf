@@ -17,6 +17,8 @@
 
 ## 主校准与验证
 
+区域 BBCH53 是辅助阶段：从 BBCH09 次日开始，积累达到 BBCH09→65 增量积温阈值的 30% 时判定。比例统一由 `susceptibility_modulation.json` 的 `auxiliary_stage_rules.53.forcing_fraction` 控制，区域模拟与校准辅助计算均读取该配置。BBCH09、65、81 的已校准阈值不受此规则影响。
+
 历史物候校准入口为 [`src/calibrate_historical_phenology.py`](../../src/calibrate_historical_phenology.py)。它按完整 site-year 分组，北方和南方分别进行 5 折交叉验证，支持 4 进程和进度监控。默认输入位于 `data/phenology_data/historical_data/`，结果保存在 `result/historical_calibration_phenology/`。
 
 结果目录中的 `cv_summary_by_stage.csv` 和 `cv_predictions.csv` 是留出 site-year 的验证结果，`final_config_north.json` 与 `final_config_south.json` 是使用全部有效校准数据重新拟合的参数。

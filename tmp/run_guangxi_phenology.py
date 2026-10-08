@@ -24,16 +24,24 @@ from model.phenology.model import PhenologyConfig, load_config, simulate
 
 DEFAULT_WEATHER_ROOT = Path(r"D:\yaolinjia\Grape\input_weather_json\guangxi")
 DEFAULT_OUTPUT_ROOT = Path(r"D:\yaolinjia\Grape\guangxi_phenology")
-DEFAULT_CONFIG = REPO_ROOT / "model" / "phenology" / "config_south.json"
+PROFILE_CONFIGS = {
+    "table": REPO_ROOT / "model" / "phenology" / "profile_config_table.json",
+    "vine": REPO_ROOT / "model" / "phenology" / "profile_config_vine.json",
+}
+BBCH53_RULE = json.loads(
+    (REPO_ROOT / "model/phenology/susceptibility_modulation.json").read_text(encoding="utf-8")
+)["auxiliary_stage_rules"]["53"]
 
 _CONFIG: PhenologyConfig | None = None
 _CONFIG_PATH: str | None = None
+_PROFILE: str | None = None
 
 
-def _init_worker(config_path: str) -> None:
-    global _CONFIG, _CONFIG_PATH
+def _init_worker(config_path: str, profile: str) -> None:
+    global _CONFIG, _CONFIG_PATH, _PROFILE
     _CONFIG = load_config(config_path)
     _CONFIG_PATH = config_path
+    _PROFILE = profile
 
 
 def _write_json(path: Path, payload: dict) -> None:
@@ -51,14 +59,14 @@ def _stage_53_date(
     stage_dates: dict[str, str | None],
     config: PhenologyConfig,
 ) -> str | None:
-    """Apply the configured 10% BBCH53 fallback between BBCH9 and BBCH65."""
+    """Apply the shared forcing fraction between BBCH09 and BBCH65."""
 
     left = stage_dates.get("budburst")
     right = stage_dates.get("flowering")
     if not left or not right:
         return None
     target = next(item for item in config.stage_targets if item.bbch == 65)
-    threshold = target.requirement * 0.1
+    threshold = target.requirement * float(BBCH53_RULE["forcing_fraction"])
     left_day = date.fromisoformat(left)
     right_day = date.fromisoformat(right)
     forcing = 0.0
@@ -141,6 +149,7 @@ def _process_one(task: tuple[str, str, bool]) -> dict[str, object]:
     }
     phenology_payload = {
         "schema_version": 1,
+        "profile": _PROFILE,
         "model": _CONFIG.model_type,
         "config_path": _CONFIG_PATH,
         **metadata,
@@ -153,7 +162,7 @@ def _process_one(task: tuple[str, str, bool]) -> dict[str, object]:
         "bbch53_rule": {
             "left_bbch": 9,
             "right_bbch": 65,
-            "forcing_fraction": 0.1,
+            "forcing_fraction": float(BBCH53_RULE["forcing_fraction"]),
             "source": "model-derived fallback",
         },
         "daily_input_path": str(daily_path),
@@ -178,7 +187,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--weather-root", type=Path, default=DEFAULT_WEATHER_ROOT)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
-    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    parser.add_argument("--profile", choices=sorted(PROFILE_CONFIGS), required=True,
+                        help="Regional cultivar profile to simulate everywhere")
+    parser.add_argument("--config", type=Path, default=None,
+                        help="Optional explicit config; defaults to the selected profile config")
     parser.add_argument("--workers", type=int, default=16)
     parser.add_argument("--start-year", type=int, default=2000)
     parser.add_argument("--end-year", type=int, default=2024)
@@ -186,13 +198,20 @@ def main() -> int:
     args = parser.parse_args()
     if args.workers < 1:
         parser.error("--workers must be positive")
-    tasks = _tasks(args.weather_root.resolve(), args.output_root.resolve(),
+    if args.start_year > args.end_year:
+        parser.error("--start-year must not exceed --end-year")
+    config_path = (args.config or PROFILE_CONFIGS[args.profile]).resolve()
+    raw = json.loads(config_path.read_text(encoding="utf-8"))
+    if raw.get("profile") != args.profile:
+        parser.error("Selected configuration must match --profile")
+    profile_output_root = args.output_root.resolve() / args.profile
+    tasks = _tasks(args.weather_root.resolve(), profile_output_root,
                    args.start_year, args.end_year, args.overwrite)
     counts = {"written": 0, "skipped": 0}
     with ProcessPoolExecutor(
         max_workers=args.workers,
         initializer=_init_worker,
-        initargs=(str(args.config.resolve()),),
+        initargs=(str(config_path), args.profile),
     ) as executor:
         for index, result in enumerate(executor.map(_process_one, tasks, chunksize=1), start=1):
             counts[result["status"]] += 1
