@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare compact temperature-response phenology models with grouped CV.
+"""Shared fitting and scoring functions for Table/Wine phenology profiles.
 
 This calibration deliberately keeps only three fitted stage requirements
 (BBCH09, BBCH65 and BBCH81).  BBCH53 is retained in the target table and
@@ -9,7 +9,6 @@ first observation at BBCH13 is not incorrectly treated as BBCH09.
 """
 from __future__ import annotations
 
-import argparse
 import json
 from pathlib import Path
 
@@ -18,7 +17,6 @@ import pandas as pd
 from scipy.optimize import differential_evolution
 
 
-ROOT = Path(__file__).resolve().parents[2]
 STAGES = (9, 65, 81)
 STAGE_NAMES = {9: "budburst", 65: "flowering", 81: "veraison"}
 STAGE_WEIGHT = {9: 1.0, 65: 1.25, 81: 0.35}
@@ -29,22 +27,10 @@ BBCH53_FORCING_FRACTION = float(json.loads(
 )["auxiliary_stage_rules"]["53"]["forcing_fraction"])
 
 
-def parse_args(argv=None):
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--data-dir", type=Path, default=ROOT / "data/phenology_data/calibration_data")
-    p.add_argument("--output-dir", type=Path, default=ROOT / "result/phenology_table_vine_no_guilin")
-    p.add_argument("--maxiter", type=int, default=55)
-    p.add_argument("--popsize", type=int, default=7)
-    p.add_argument("--seeds", type=int, nargs="+", default=[20261008, 20261009])
-    p.add_argument("--folds", type=int, default=5)
-    p.add_argument("--overwrite", action="store_true")
-    return p.parse_args(argv)
-
-
 def load_data(data_dir: Path, targets_path: Path | None = None):
     targets_file = targets_path or (data_dir / "phenology_calibration_targets.csv")
     targets = pd.read_csv(targets_file, encoding="utf-8-sig")
-    daily = pd.read_csv(data_dir / "phenology_weather_daily_bjt.csv", encoding="utf-8-sig")
+    daily = pd.read_csv(data_dir / "site_year_temperature_daily.csv", encoding="utf-8-sig")
     targets["target_stage"] = targets.target_stage.astype(int)
     targets["observed_start_ordinal"] = pd.to_numeric(targets.observed_start_ordinal, errors="coerce")
     targets["observed_end_ordinal"] = pd.to_numeric(targets.observed_end_ordinal, errors="coerce")
@@ -139,7 +125,7 @@ def simulate_one(weather, params, family):
         out[stage] = float(dates[idx])
         cursor = idx + 1
     # BBCH53 is an auxiliary interpolation target.  It is deliberately not a
-    # fourth free threshold because only six site-years contain it directly.
+    # fourth free threshold given the limited local observations.
     out[53] = np.nan
     if np.isfinite(out[9]) and np.isfinite(out[65]):
         idx9 = int(np.searchsorted(dates, int(out[9])))
@@ -235,12 +221,6 @@ def fit_model(targets, weather, sites, family, start_mode, args):
     return best, records
 
 
-def assign_folds(sites, n_folds, seed):
-    values = np.array(sorted(sites), dtype=object)
-    rng = np.random.default_rng(seed); rng.shuffle(values)
-    return {str(site): int(i % n_folds) for i, site in enumerate(values)}
-
-
 def metric_rows(targets, pred, sites, split, model):
     rows = []
     for row in targets.loc[targets.site_year.isin(sites)].itertuples():
@@ -256,101 +236,3 @@ def metric_rows(targets, pred, sites, split, model):
                      "interval_error_days": err, "exact_abs_error_days": exact_error,
                      "target_source": row.target_source})
     return rows
-
-
-def aggregate_metrics(rows):
-    frame = pd.DataFrame(rows)
-    if frame.empty:
-        return frame
-    frame["within_7d"] = frame.interval_error_days.le(7)
-    frame["within_10d"] = frame.interval_error_days.le(10)
-    return (frame.groupby(["model", "split", "target_stage"], as_index=False)
-            .agg(n=("target_stage", "size"), mae_days=("interval_error_days", "mean"),
-                 median_error_days=("interval_error_days", "median"),
-                 exact_n=("exact_abs_error_days", "count"), exact_mae_days=("exact_abs_error_days", "mean"),
-                 within_7d=("within_7d", "mean"), within_10d=("within_10d", "mean")))
-
-
-def make_model_name(family, start_mode):
-    return f"{family}_{start_mode}"
-
-
-def main(args):
-    if args.output_dir.exists() and not args.overwrite:
-        raise FileExistsError(f"Output exists: {args.output_dir}; use --overwrite")
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    targets, weather, local_sites = load_data(args.data_dir)
-    all_sites = sorted(weather)
-    specs = [
-        ("linear_fixed_base", "start_1"),
-        ("linear_fixed_base", "free_start"),
-        ("linear_free_base", "free_start"),
-        ("beta_fixed_cardinals", "start_1"),
-        ("beta_fixed_cardinals", "free_start"),
-    ]
-    # Alias used by response dispatch; fixed-base linear uses base 0 C.
-    models = []
-    all_prediction_rows = []
-    summary_rows = []
-    fold_map = assign_folds(all_sites, args.folds, 20261008)
-    for family, start_mode in specs:
-        name = make_model_name(family, start_mode)
-        train_sites = all_sites
-        best, restarts = fit_model(targets, weather, train_sites, family, start_mode, args)
-        full_pred = predictions(weather, all_sites, best.x, family, start_mode)
-        all_prediction_rows.extend(metric_rows(targets, full_pred, all_sites, "apparent_full", name))
-        params = decode(best.x, family, start_mode)
-        model_dir = args.output_dir / name
-        model_dir.mkdir(exist_ok=True)
-        (model_dir / "final_parameters.json").write_text(json.dumps({
-            "model": name, "family": family, "start_mode": start_mode,
-            "parameters": {"base_c": params["base_c"], "start_doy": params["start_doy"],
-                           "H09": float(params["thresholds"][0]), "H09_65": float(params["thresholds"][1]),
-                           "H65_81": float(params["thresholds"][2])},
-            "restarts": restarts,
-        }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-
-        # Random grouped CV across all supported site-years.
-        for fold in range(args.folds):
-            test = sorted(s for s in all_sites if fold_map[s] == fold)
-            train = sorted(s for s in all_sites if s not in test)
-            fitted, _ = fit_model(targets, weather, train, family, start_mode, args)
-            pred = predictions(weather, test, fitted.x, family, start_mode)
-            all_prediction_rows.extend(metric_rows(targets, pred, test, f"all_5fold_{fold}", name))
-
-        # Leave-one-local-site-year-out validation is the key selection test.
-        for test_site in sorted(local_sites):
-            train = sorted(s for s in all_sites if s != test_site)
-            fitted, _ = fit_model(targets, weather, train, family, start_mode, args)
-            pred = predictions(weather, [test_site], fitted.x, family, start_mode)
-            all_prediction_rows.extend(metric_rows(targets, pred, [test_site], "local_loso", name))
-
-    pred_frame = pd.DataFrame(all_prediction_rows)
-    pred_frame.to_csv(args.output_dir / "predictions.csv", index=False)
-    metrics = aggregate_metrics(all_prediction_rows)
-    metrics.to_csv(args.output_dir / "model_metrics.csv", index=False)
-
-    # Model choice emphasizes local leave-one-out BBCH09/65 while retaining
-    # the complete grouped-CV result as a transferability check.
-    select = []
-    for name in sorted(pred_frame.model.unique()):
-        local = pred_frame.loc[(pred_frame.model == name) & (pred_frame.split == "local_loso") & pred_frame.target_stage.isin([9, 65])]
-        global_cv = pred_frame.loc[(pred_frame.model == name) & pred_frame.split.str.startswith("all_5fold") & pred_frame.target_stage.isin([9, 65])]
-        exact_local = local.loc[local.censor_type == "exact", "exact_abs_error_days"]
-        select.append({"model": name, "local_primary_interval_mae": local.interval_error_days.mean(),
-                      "local_primary_exact_mae": exact_local.mean() if len(exact_local) else np.nan,
-                      "global_primary_interval_mae": global_cv.interval_error_days.mean(),
-                      "selection_score": .7 * local.interval_error_days.mean() + .3 * global_cv.interval_error_days.mean()})
-    comparison = pd.DataFrame(select).sort_values("selection_score")
-    comparison.to_csv(args.output_dir / "model_comparison.csv", index=False)
-    selected = str(comparison.iloc[0].model)
-    (args.output_dir / "selected_model.txt").write_text(selected + "\n", encoding="utf-8")
-
-    report = ["Phenology multi-model calibration", "", comparison.to_string(index=False), "", f"Selected model: {selected}", ""]
-    report.append(metrics.loc[metrics.model.eq(selected)].to_string(index=False))
-    (args.output_dir / "calibration_report.txt").write_text("\n".join(report) + "\n", encoding="utf-8")
-    print("\n".join(report))
-
-
-if __name__ == "__main__":
-    main(parse_args())

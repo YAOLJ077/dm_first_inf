@@ -1,5 +1,6 @@
 {
   "route": "S",
+  "model": "sporangia",
   "parameter_names": [
     "infection_degree_hours",
     "wind_min_m_s",
@@ -8,31 +9,13 @@
     "minimum_moist_hours",
     "heavy_rain_washoff_mm"
   ],
-  "prior_bounds": {
-    "infection_degree_hours": [
-      60.0,
-      240.0
-    ],
-    "wind_min_m_s": [
-      1.0,
-      5.0
-    ],
-    "effective_deposition_min_rain_mm": [
-      1.0,
-      5.0
-    ],
-    "sporulation_rh_min_pct": [
-      80.0,
-      100.0
-    ],
-    "minimum_moist_hours": [
-      1.0,
-      8.0
-    ],
-    "heavy_rain_washoff_mm": [
-      6.0,
-      15.0
-    ]
+  "prior_defaults": {
+    "infection_degree_hours": 180.0,
+    "wind_min_m_s": 0.5,
+    "effective_deposition_min_rain_mm": 3.422,
+    "sporulation_rh_min_pct": 98.0,
+    "minimum_moist_hours": 7.0,
+    "heavy_rain_washoff_mm": 5.0
   },
   "sampling_bounds": {
     "infection_degree_hours": [
@@ -60,21 +43,22 @@
       15.0
     ]
   },
-  "sampling_domain_note": "Prior calibration intervals expanded for exploratory sensitivity analysis; they are not observed parameter records.",
-  "expansion_fraction": 0.0,
-  "fixed_gate": true,
-  "fixed_literature_process_relations": true,
+  "sampling_domain_note": "Fixed user-specified S-route domains; heavy wash-off is projected above effective deposition when needed.",
+  "domain_definition": "fixed user-specified bounds",
   "sample_size_N": 512,
   "sobol_sample_count": 7168,
   "second_order": true,
   "seed": 20261004,
   "records": [
+    "22_61_108_23_2023",
+    "22_61_108_23_2024",
     "23_83_108_1_2022",
     "23_83_108_1_2023",
     "23_83_108_1_2024",
-    "22_61_108_23_2023",
-    "22_61_108_23_2024"
+    "25_45_110_8_2022"
   ],
-  "record_count": 5,
-  "missing_penalty_days": 60.0
+  "record_count": 6,
+  "missing_penalty_days": 60.0,
+  "observed_window": "[observed_date - 3 days, observed_date]",
+  "error_definition": "zero for overlapping observed and predicted windows; otherwise signed distance to the nearest window boundary"
 }

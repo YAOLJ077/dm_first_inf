@@ -145,17 +145,17 @@ def _prior_defaults(base_config: dict[str, Any]) -> tuple[float, ...]:
 
 
 def _expanded_bounds(base_config: dict[str, Any]) -> tuple[tuple[float, float], ...]:
-    """Return the fixed S-route Sobol domains requested for this analysis."""
+    """Retain the archived five-site-year Sobol domains for the six-site-year run."""
 
     # The current configuration remains the prior reference, while these
     # explicit domains define the bounded sensitivity experiment.
     return (
-        (60.0, 200.0),    # infection_degree_hours
-        (0.2, 1.0),       # wind_min_m_s
-        (1.0, 4.9),       # effective_deposition_min_rain_mm
+        (60.0, 240.0),    # infection_degree_hours
+        (1.0, 5.0),       # wind_min_m_s
+        (1.0, 5.0),       # effective_deposition_min_rain_mm
         (80.0, 100.0),    # sporulation_rh_min_pct
-        (3.0, 10.0),      # minimum_moist_hours
-        (5.0, 10.0),      # heavy_rain_washoff_mm
+        (1.0, 8.0),       # minimum_moist_hours
+        (6.0, 15.0),      # heavy_rain_washoff_mm
     )
 
 
@@ -310,6 +310,16 @@ def _analyse_output(problem: dict[str, Any], values: list[dict[str, Any]], key: 
     if not finite.all() or np.nanvar(raw) <= 1e-12:
         metadata["status"] = "skipped_nonfinite_or_zero_variance"
         return [], [], metadata
+    step = 2 * problem["num_vars"] + 2 if args.second_order else problem["num_vars"] + 2
+    base_a, base_b, _, _ = sobol_analyze.separate_output_values(
+        raw, problem["num_vars"], len(raw) // step, args.second_order,
+    )
+    base_values = np.r_[base_a, base_b]
+    metadata["base_sample_variance"] = float(np.var(base_values))
+    # SALib normalizes by variance in A and B, not the full hybrid design.
+    if np.ptp(base_values) == 0.0:
+        metadata["status"] = "skipped_zero_base_variance"
+        return [], [], metadata
     result = sobol_analyze.analyze(
         problem, raw, calc_second_order=args.second_order,
         num_resamples=args.resamples, conf_level=args.confidence,
@@ -339,6 +349,48 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
 
 
+def _load_saved_evaluations(
+    output_dir: Path,
+    samples: np.ndarray,
+    records: list[dict[str, Any]],
+    missing_penalty: float,
+) -> list[dict[str, Any]]:
+    """Reuse completed model evaluations after checking design and site-years."""
+
+    aggregate = pd.read_csv(output_dir / "sample_outputs.csv", encoding="utf-8-sig")
+    sites = pd.read_csv(output_dir / "site_year_outputs.csv", encoding="utf-8-sig")
+    if len(aggregate) != len(samples) or not np.array_equal(
+        aggregate["sample_index"].to_numpy(), np.arange(len(samples)),
+    ):
+        raise ValueError("Saved sample count or order does not match the requested Sobol design")
+    if not np.allclose(
+        aggregate[list(S_PARAMETER_NAMES)].to_numpy(dtype=float), samples,
+        rtol=0.0, atol=1e-12,
+    ):
+        raise ValueError("Saved parameter vectors do not match the requested bounds, seed or design")
+    expected_sites = {record["site_year"] for record in records}
+    if not aggregate["n_site_years"].eq(len(records)).all() or (
+        len(sites) != len(samples) * len(records)
+        or set(sites["site_year"]) != expected_sites
+        or sites.duplicated(["sample_index", "site_year"]).any()
+        or set(sites["sample_index"]) != set(range(len(samples)))
+        or not sites.groupby("sample_index")["site_year"].nunique().eq(len(records)).all()
+    ):
+        raise ValueError("Saved evaluations do not contain the requested site-years for every sample")
+    observed_dates = {record["site_year"]: record["observed_date"] for record in records}
+    if not sites["observed_date"].eq(sites["site_year"].map(observed_dates)).all():
+        raise ValueError("Saved disease observations differ from the requested observations")
+    complete_counts = aggregate["n_complete"].to_numpy(dtype=float)
+    expected_penalized = (
+        aggregate["mae_days_complete"].fillna(0).to_numpy(dtype=float) * complete_counts
+        + (len(records) - complete_counts) * missing_penalty
+    ) / len(records)
+    if not np.allclose(aggregate["mae_days_penalized"], expected_penalized, rtol=0.0, atol=1e-10):
+        raise ValueError("Saved penalized errors do not match the requested missing-window penalty")
+    print(f"Reusing {len(samples)} saved evaluations across {len(records)} site-years: {output_dir}")
+    return [{"aggregate": row} for row in aggregate.to_dict(orient="records")]
+
+
 def _run_one(args, sample_n: int) -> Path:
     base_config = _load_json(args.sporangia_config)
     defaults = _prior_defaults(base_config)
@@ -347,35 +399,38 @@ def _run_one(args, sample_n: int) -> Path:
     problem = {"num_vars": len(names), "names": names, "bounds": [list(item) for item in bounds]}
     samples = sobol_sample.sample(problem, sample_n, calc_second_order=args.second_order, seed=args.seed)
     records = _build_records(args.weather_dir, args.observations, args.phenology_observations, args.limit)
-    state = {
-        "records": records,
-        "base_config": base_config,
-        "susceptibility_config": str(args.susceptibility_config.resolve()),
-        "missing_penalty": float(args.missing_penalty),
-    }
-    context = ProcessPoolExecutor(max_workers=args.workers, initializer=_init_worker, initargs=(state,)) if args.workers > 1 else None
-    if context is None:
-        _init_worker(state)
-    try:
-        iterator = context.map(_evaluate_vector, samples.tolist(), chunksize=1) if context else map(_evaluate_vector, samples.tolist())
-        evaluated = list(tqdm(iterator, total=len(samples), desc=f"Sobol S N={sample_n}", unit="sample"))
-    finally:
-        if context is not None:
-            context.shutdown()
-
     output_dir = (args.output_dir or DEFAULT_OUTPUT_ROOT / f"S_N{sample_n}").resolve()
-    output_dir.mkdir(parents=True, exist_ok=True)
-    aggregate_rows, site_rows = [], []
-    for index, (vector, evaluation) in enumerate(zip(samples, evaluated)):
-        aggregate_rows.append({
-            "sample_index": index,
-            **dict(zip(names, map(float, vector))),
-            **{f"applied_{name}": value for name, value in zip(names, evaluation["applied_vector"])},
-            **evaluation["aggregate"],
-        })
-        site_rows.extend({"sample_index": index, **row} for row in evaluation["rows"])
-    pd.DataFrame(aggregate_rows).to_csv(output_dir / "sample_outputs.csv", index=False, encoding="utf-8-sig")
-    pd.DataFrame(site_rows).to_csv(output_dir / "site_year_outputs.csv", index=False, encoding="utf-8-sig")
+    if args.analyse_only:
+        evaluated = _load_saved_evaluations(output_dir, samples, records, args.missing_penalty)
+    else:
+        state = {
+            "records": records,
+            "base_config": base_config,
+            "susceptibility_config": str(args.susceptibility_config.resolve()),
+            "missing_penalty": float(args.missing_penalty),
+        }
+        context = ProcessPoolExecutor(max_workers=args.workers, initializer=_init_worker, initargs=(state,)) if args.workers > 1 else None
+        if context is None:
+            _init_worker(state)
+        try:
+            iterator = context.map(_evaluate_vector, samples.tolist(), chunksize=1) if context else map(_evaluate_vector, samples.tolist())
+            evaluated = list(tqdm(iterator, total=len(samples), desc=f"Sobol S N={sample_n}", unit="sample"))
+        finally:
+            if context is not None:
+                context.shutdown()
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+        aggregate_rows, site_rows = [], []
+        for index, (vector, evaluation) in enumerate(zip(samples, evaluated)):
+            aggregate_rows.append({
+                "sample_index": index,
+                **dict(zip(names, map(float, vector))),
+                **{f"applied_{name}": value for name, value in zip(names, evaluation["applied_vector"])},
+                **evaluation["aggregate"],
+            })
+            site_rows.extend({"sample_index": index, **row} for row in evaluation["rows"])
+        pd.DataFrame(aggregate_rows).to_csv(output_dir / "sample_outputs.csv", index=False, encoding="utf-8-sig")
+        pd.DataFrame(site_rows).to_csv(output_dir / "site_year_outputs.csv", index=False, encoding="utf-8-sig")
 
     output_keys = [
         "mean_first_window_day_censored", "mean_first_window_day_complete",
@@ -410,6 +465,7 @@ def _run_one(args, sample_n: int) -> Path:
         "schema_version": 1, "model": "sporangia_sobol", "route": "S", "N": sample_n,
         "workers": args.workers, "second_order": args.second_order,
         "resamples": args.resamples, "confidence": args.confidence,
+        "reused_saved_evaluations": args.analyse_only,
         "output_dir": str(output_dir), "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "output_metadata": output_metadata,
         "observed_window": "[observed_date - 3 days, observed_date]",
@@ -442,6 +498,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--sporangia-config", type=Path, default=DEFAULT_SPORANGIA_CONFIG)
     parser.add_argument("--susceptibility-config", type=Path, default=DEFAULT_SUSCEPTIBILITY_CONFIG)
     parser.add_argument("--output-dir", type=Path, default=None)
+    parser.add_argument("--analyse-only", action="store_true", help="Recompute indices from saved sample and site-year outputs without rerunning the model")
     parser.add_argument("--limit", type=int, default=None, help="Limit site-years for a smoke test")
     parser.add_argument("--no-second-order", dest="second_order", action="store_false")
     parser.set_defaults(second_order=True)

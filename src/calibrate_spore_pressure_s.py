@@ -62,7 +62,7 @@ DEFAULT_S_CONFIG = PROJECT_ROOT / "model/FSIM/config.json"
 DEFAULT_SPORE_CONFIG = PROJECT_ROOT / "model/FSIM-S/config.json"
 DEFAULT_SPORE_FILE = PROJECT_ROOT / "data/spore_data/guangxi_site_years_spore_data.xlsx"
 DEFAULT_HOST_CONFIG = PROJECT_ROOT / "model/phenology/susceptibility_modulation.json"
-DEFAULT_OUTPUT = PROJECT_ROOT / "result/cv_spore_pressure_s"
+DEFAULT_OUTPUT = PROJECT_ROOT / "result/fsim_s_calibration"
 DEFAULT_MISSING_PENALTY = 60.0
 DEFAULT_MAE_TOLERANCE_DAYS = 0.5
 CV_SCHEMES = ("site_year", "site", "year")
@@ -899,6 +899,11 @@ def _run_calibration(args) -> Path:
     pd.DataFrame(beta_candidate_rows).to_csv(output_dir / "beta_candidate_scores.csv", index=False, encoding="utf-8-sig")
     pd.DataFrame(fold_parameters).to_csv(output_dir / "fold_parameters.csv", index=False, encoding="utf-8-sig")
     predictions.to_csv(output_dir / "predictions.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame([
+        {**row, "model": model, "is_held_out": 0}
+        for model, rows in training_metric_rows.items()
+        for row in rows
+    ]).to_csv(output_dir / "training_predictions.csv", index=False, encoding="utf-8-sig")
     summaries.to_csv(output_dir / "summary.csv", index=False, encoding="utf-8-sig")
     terminal_summary.to_csv(output_dir / "training_validation_summary.csv", index=False, encoding="utf-8-sig")
     (output_dir / "selection_audit.json").write_text(

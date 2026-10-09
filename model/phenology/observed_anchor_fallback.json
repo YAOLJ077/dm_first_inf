@@ -1,0 +1,33 @@
+{
+  "model": "force_only",
+  "status": "observed_anchor_fallback_force_only",
+  "chill_start_month": 9,
+  "chill_start_day": 1,
+  "chill_min_c": -1.7,
+  "chill_opt_c": 1.7,
+  "chill_max_c": 13.2,
+  "forcing_base_c": 0.0,
+  "forcing_start_month": 1,
+  "forcing_start_day": 1,
+  "chill_requirement": null,
+  "stage_targets": [
+    {
+      "name": "budburst",
+      "bbch": 9,
+      "requirement": 678.5973596414974
+    },
+    {
+      "name": "flowering",
+      "bbch": 65,
+      "requirement": 662.3583817580305
+    },
+    {
+      "name": "veraison",
+      "bbch": 81,
+      "requirement": 1423.40137287593
+    }
+  ],
+  "simulation_end_month": 12,
+  "simulation_end_day": 31,
+  "early_base_c": 0.0
+}

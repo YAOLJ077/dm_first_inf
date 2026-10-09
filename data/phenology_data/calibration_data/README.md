@@ -1,23 +1,21 @@
-# Phenology calibration data
+# Local phenology calibration inputs
 
-These are the prepared inputs for the final Table/Vine profile calibration.
+Only the local Nanning Table and Hechi Wine observations used by the accepted
+profile calibration are retained here. Literature observations and merged
+historical weather archives have been removed.
 
-- `phenology_calibration_records.csv` retains the merged historical and
-  `phenology.xlsx` observations.
-- `phenology_calibration_targets.csv` contains BBCH09, BBCH53, BBCH65 and
-  BBCH81 targets. Exact dates, interval censoring and right/left censoring are
-  explicit. For a right-censored BBCH09 target, `calibration_lower` is a
-  conservative 14-day lower bound used only to prevent implausibly early
-  solutions; `observed_start` remains empty.
-- `phenology_weather_hourly_bjt.csv` converts historical UTC timestamps to
-  `Asia/Shanghai` before grouping. The repository JSON weather for Guilin
-  2022 is included because it is the only measured workbook site-year absent
-  from the historical ERA5 index.
-- `phenology_weather_daily_bjt.csv` is the 24-hour Beijing-time daily mean
-  table used by the calibration scripts.
-- `weather_support_audit.csv` confirms complete January--December target-year
-  coverage for every retained site-year.
+- `phenology_calibration_records.csv`: local records derived from
+  `../phenology.xlsx`.
+- `phenology_calibration_targets.csv`: BBCH09, BBCH53, BBCH65 and BBCH81
+  targets with explicit exact, interval- and one-sided censoring rules.
+- `site_year_temperature_daily.csv`: 1,827 target-year daily temperatures
+  for the five calibrated site-years, grouped in Asia/Shanghai time, with
+  24 hourly values per day. These are the exact daily values used by the
+  accepted calibration, extracted from the former merged table without
+  rounding or replacing temperatures.
 
-The final entry point is `model/phenology/calibrate_table_vine_no_guilin.py`.
-It uses the validated Table/Vine profiles and excludes Guilin from the target
-and calibration records.
+The calibration entry point is `src/calibrate_phenology_profiles.py`.
+It retains the accepted Nanning BBCH09 assumptions and site selection and
+writes its adjusted targets, predictions and parameter estimates to
+`result/phenology_calibration/`. The six-site-year observed workbook remains
+at `data/phenology_data/phenology.xlsx` for disease-model evaluation.

@@ -1,39 +1,44 @@
 {
   "schema_version": 1,
+  "model": "sporangia_sobol",
   "route": "S",
   "N": 512,
   "workers": 4,
   "second_order": true,
   "resamples": 100,
   "confidence": 0.95,
+  "reused_saved_evaluations": false,
   "output_dir": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/result/sobol_sensitivity/S_N512",
-  "created_at_utc": "2026-10-04T16:21:40.770497+00:00",
+  "created_at_utc": "2026-10-09T09:50:17.786283+00:00",
   "output_metadata": [
     {
       "output": "mean_first_window_day_censored",
       "finite_samples": 7168,
       "total_samples": 7168,
-      "variance": 104.32948162468112,
-      "min": 98.0,
-      "max": 204.8,
+      "variance": 66.70297620950645,
+      "min": 104.16666666666667,
+      "max": 195.33333333333334,
+      "base_sample_variance": 66.31287807888457,
       "status": "analysed"
     },
     {
       "output": "mean_first_window_day_complete",
       "finite_samples": 7168,
       "total_samples": 7168,
-      "variance": 100.00618046035572,
-      "min": 98.0,
-      "max": 164.5,
+      "variance": 63.18189177080619,
+      "min": 104.16666666666667,
+      "max": 161.2,
+      "base_sample_variance": 63.676513871086975,
       "status": "analysed"
     },
     {
       "output": "complete_window_fraction",
       "finite_samples": 7168,
       "total_samples": 7168,
-      "variance": 4.459303252551019e-05,
-      "min": 0.8,
+      "variance": 3.096738369827096e-05,
+      "min": 0.8333333333333334,
       "max": 1.0,
+      "base_sample_variance": 2.7100245157877592e-05,
       "status": "analysed"
     },
     {
@@ -43,43 +48,57 @@
       "variance": 0.0011148258131377553,
       "min": 0.0,
       "max": 1.0,
+      "base_sample_variance": 0.0009756088256835938,
       "status": "analysed"
     },
     {
       "output": "mae_days_complete",
       "finite_samples": 7168,
       "total_samples": 7168,
-      "variance": 19.895950027339314,
-      "min": 2.4,
-      "max": 41.5,
+      "variance": 13.95786013663761,
+      "min": 6.833333333333333,
+      "max": 33.166666666666664,
+      "base_sample_variance": 14.28630871242947,
       "status": "analysed"
     },
     {
       "output": "mae_days_penalized",
       "finite_samples": 7168,
       "total_samples": 7168,
-      "variance": 20.115401474310424,
-      "min": 2.4,
-      "max": 45.2,
+      "variance": 14.10426932613866,
+      "min": 6.833333333333333,
+      "max": 37.5,
+      "base_sample_variance": 14.392269955741035,
       "status": "analysed"
     },
     {
       "output": "mean_signed_error_days_complete",
       "finite_samples": 7168,
       "total_samples": 7168,
-      "variance": 91.44426634374929,
-      "min": -25.0,
-      "max": 41.5,
+      "variance": 49.23404981684523,
+      "min": -20.333333333333332,
+      "max": 33.0,
+      "base_sample_variance": 49.65007785373264,
       "status": "analysed"
     },
     {
       "output": "mean_interval_distance_days_complete",
       "finite_samples": 7168,
       "total_samples": 7168,
-      "variance": 19.895950027339314,
-      "min": 2.4,
-      "max": 41.5,
+      "variance": 13.95786013663761,
+      "min": 6.833333333333333,
+      "max": 33.166666666666664,
+      "base_sample_variance": 14.28630871242947,
       "status": "analysed"
     }
-  ]
+  ],
+  "observed_window": "[observed_date - 3 days, observed_date]",
+  "error_definition": "zero for overlapping observed and predicted windows; otherwise signed distance to the nearest window boundary",
+  "inputs": {
+    "weather_dir": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/data/weather_data/site_year",
+    "observations": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/data/disease_data/grape_downy_mildew_data.xlsx",
+    "phenology_observations": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/data/phenology_data/phenology.xlsx",
+    "sporangia_config": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/model/FSIM/config.json",
+    "susceptibility_config": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/model/phenology/susceptibility_modulation.json"
+  }
 }

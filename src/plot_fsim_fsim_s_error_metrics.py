@@ -17,17 +17,17 @@ from matplotlib.patches import Patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_BASELINE = ROOT / "result" / "cv_spore_pressure_s_dep38_395_rh80_coarse"
-DEFAULT_SPORE = ROOT / "result" / "cv_spore_pressure_s_observed_zero_gate"
-DEFAULT_OUTPUT = ROOT / "fig" / "Figure_FSIM_vs_FSIM-S_error_metrics.png"
-DEFAULT_SITE_ERROR_OUTPUT = ROOT / "fig" / "Figure_FSIM_vs_FSIM-S_site_year_errors.png"
+DEFAULT_BASELINE = ROOT / "result" / "fsim_calibration"
+DEFAULT_SPORE = ROOT / "result" / "fsim_s_calibration"
+DEFAULT_OUTPUT = ROOT / "fig" / "figure_10.png"
+DEFAULT_SITE_ERROR_OUTPUT = ROOT / "fig" / "figure_11.png"
 
 SITE_LABELS = {
-    "23_83_108_1": "Duan",
-    "22_61_108_23": "Mingyang",
+    "23_83_108_1": "Hechi",
+    "22_61_108_23": "Nanning",
     "25_45_110_8": "Guilin",
 }
-SITE_ORDER = {"Duan": 0, "Mingyang": 1, "Guilin": 2}
+SITE_ORDER = {"Hechi": 0, "Nanning": 1, "Guilin": 2}
 
 
 def _read_csv(path: Path) -> pd.DataFrame:
@@ -36,111 +36,87 @@ def _read_csv(path: Path) -> pd.DataFrame:
     return pd.read_csv(path, encoding="utf-8-sig")
 
 
-def _sem(values: pd.Series | np.ndarray) -> float:
-    array = np.asarray(values, dtype=float)
-    array = array[np.isfinite(array)]
-    if len(array) < 2:
-        return 0.0
-    return float(np.std(array, ddof=1) / np.sqrt(len(array)))
+def _summarize_errors(
+    model: str, training: pd.DataFrame, validation: pd.DataFrame
+) -> list[dict[str, float | str]]:
+    """Bootstrap site-years with the fitted fold models held fixed.
+
+    Repeated training predictions of a site-year receive the same bootstrap
+    weight across folds. The overlapping folds are not independent replicates.
+    """
+    groups = sorted(validation["site_year"].unique())
+    n = len(groups)
+    if n < 2 or len(validation) != n:
+        raise ValueError(f"{model}: expected one validation error per site-year")
+    matrix = training.pivot(
+        index="held_out_group", columns="site_year", values="error_days"
+    ).reindex(index=groups, columns=groups).to_numpy(dtype=float)
+    available = np.isfinite(matrix)
+    if len(training) != n * (n - 1) or not np.array_equal(
+        available, ~np.eye(n, dtype=bool)
+    ):
+        raise ValueError(f"{model}: expected complete leave-one-site-year-out training rows")
+    valid_errors = validation.set_index("site_year").loc[groups, "error_days"].to_numpy(dtype=float)
+    if not np.isfinite(valid_errors).all():
+        raise ValueError(f"{model}: validation errors must be finite")
+
+    weights = np.random.default_rng(20261008).multinomial(
+        n, np.full(n, 1.0 / n), size=20000
+    )
+    denominators = weights @ available.T
+    # A resample containing only the held-out site-year leaves one fold empty.
+    usable = (denominators > 0).all(axis=1)
+    rows = []
+    for metric in ("MAE", "RMSE"):
+        train_values = np.where(available, np.abs(matrix) if metric == "MAE" else matrix**2, 0.0)
+        valid_values = np.abs(valid_errors) if metric == "MAE" else valid_errors**2
+        train_point = train_values.sum(axis=1) / available.sum(axis=1)
+        train_boot = (weights[usable] @ train_values.T) / denominators[usable]
+        valid_point = valid_values.mean()
+        valid_boot = weights @ valid_values / n
+        if metric == "RMSE":
+            train_point, train_boot = np.sqrt(train_point), np.sqrt(train_boot)
+            valid_point, valid_boot = np.sqrt(valid_point), np.sqrt(valid_boot)
+        for dataset, value, samples in (
+            ("Training", train_point.mean(), train_boot.mean(axis=1)),
+            ("Validation", valid_point, valid_boot),
+        ):
+            rows.append({
+                "model": model, "dataset": dataset, "metric": metric,
+                "value": float(value), "se": float(np.std(samples, ddof=1)),
+            })
+    return rows
 
 
 def _metric_rows(
     baseline_dir: Path,
     spore_dir: Path,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Return one row per model, data split, and metric plus SEM values."""
+    """Return fold-mean training and pooled validation metrics with bootstrap SE."""
 
     baseline_fold = _read_csv(baseline_dir / "fold_parameters.csv")
     baseline_predictions = _read_csv(baseline_dir / "predictions.csv")
+    baseline_training = _read_csv(baseline_dir / "training_predictions.csv")
     spore_predictions = _read_csv(spore_dir / "predictions.csv")
-
-    rows: list[dict[str, float | str]] = []
-
-    # Training values are means of the six outer-fold metrics. Validation
-    # values are recomputed from the six held-out site-year errors.
-    fsim_train_mae_samples = baseline_fold["s_training_mae_days"]
-    fsim_train_rmse_samples = baseline_fold["s_training_rmse_days"]
-    fsim_valid_errors = baseline_predictions.loc[
-        baseline_predictions["model"].eq("FSIM"), "error_days"
-    ].astype(float)
-    fsim_valid_error_samples = fsim_valid_errors.abs()
-    rows.extend(
-        [
-            {
-                "model": "FSIM",
-                "dataset": "Training",
-                "metric": "MAE",
-                "value": float(fsim_train_mae_samples.mean()),
-                "sem": _sem(fsim_train_mae_samples),
-            },
-            {
-                "model": "FSIM",
-                "dataset": "Training",
-                "metric": "RMSE",
-                "value": float(fsim_train_rmse_samples.mean()),
-                "sem": _sem(fsim_train_rmse_samples),
-            },
-            {
-                "model": "FSIM",
-                "dataset": "Validation",
-                "metric": "MAE",
-                "value": float(fsim_valid_error_samples.mean()),
-                "sem": _sem(fsim_valid_error_samples),
-            },
-            {
-                "model": "FSIM",
-                "dataset": "Validation",
-                "metric": "RMSE",
-                "value": float(np.sqrt(np.mean(np.square(fsim_valid_errors)))),
-                "sem": _sem(fsim_valid_error_samples),
-            },
-        ]
+    baseline_training = baseline_training.loc[baseline_training["model"].eq("FSIM")]
+    # Check the recovered training predictions against the saved fold scores.
+    for held_out, group in baseline_training.groupby("held_out_group"):
+        fold = baseline_fold.set_index("held_out_group").loc[held_out]
+        values = group["error_days"].to_numpy(dtype=float)
+        if not np.allclose(
+            [np.abs(values).mean(), np.sqrt(np.mean(values**2))],
+            [fold["s_training_mae_days"], fold["s_training_rmse_days"]],
+        ):
+            raise ValueError(f"FSIM training predictions disagree with saved scores: {held_out}")
+    rows = _summarize_errors(
+        "FSIM", baseline_training,
+        baseline_predictions.loc[baseline_predictions["model"].eq("FSIM")],
     )
-
-    # The new FSIM-S gate result stores training rows for each outer fold and
-    # held-out rows marked by is_held_out. Fold-level summaries provide the
-    # independent replicates for the training error bars.
-    train = spore_predictions.loc[spore_predictions["is_held_out"].eq(0)].copy()
-    valid = spore_predictions.loc[spore_predictions["is_held_out"].eq(1)].copy()
-    train_by_fold = train.groupby("held_out_group", sort=True)
-    train_mae_samples = train_by_fold["absolute_error_days"].mean()
-    train_rmse_samples = train_by_fold["error_days"].apply(
-        lambda values: float(np.sqrt(np.mean(np.square(values))))
-    )
-    valid_errors = valid["error_days"].astype(float)
-    valid_error_samples = valid["absolute_error_days"].astype(float)
-    rows.extend(
-        [
-            {
-                "model": "FSIM-S",
-                "dataset": "Training",
-                "metric": "MAE",
-                "value": float(train_mae_samples.mean()),
-                "sem": _sem(train_mae_samples),
-            },
-            {
-                "model": "FSIM-S",
-                "dataset": "Training",
-                "metric": "RMSE",
-                "value": float(train_rmse_samples.mean()),
-                "sem": _sem(train_rmse_samples),
-            },
-            {
-                "model": "FSIM-S",
-                "dataset": "Validation",
-                "metric": "MAE",
-                "value": float(valid_error_samples.mean()),
-                "sem": _sem(valid_error_samples),
-            },
-            {
-                "model": "FSIM-S",
-                "dataset": "Validation",
-                "metric": "RMSE",
-                "value": float(np.sqrt(np.mean(np.square(valid_errors)))),
-                "sem": _sem(valid_error_samples),
-            },
-        ]
-    )
+    rows.extend(_summarize_errors(
+        "FSIM-S",
+        spore_predictions.loc[spore_predictions["is_held_out"].eq(0)],
+        spore_predictions.loc[spore_predictions["is_held_out"].eq(1)],
+    ))
     return pd.DataFrame(rows), spore_predictions
 
 
@@ -223,7 +199,7 @@ def _plot(metrics: pd.DataFrame, output: Path) -> None:
     width = 0.30
     offsets = {"Training": -width / 2, "Validation": width / 2}
 
-    upper = float((metrics["value"] + metrics["sem"]).max())
+    upper = float((metrics["value"] + metrics["se"]).max())
     y_max = max(10.0, np.ceil(upper * 1.16))
     fig, axes = plt.subplots(1, 2, figsize=(7.08, 3.45), sharey=True)
 
@@ -236,7 +212,7 @@ def _plot(metrics: pd.DataFrame, output: Path) -> None:
                     "model == @model and dataset == @dataset and metric == @metric"
                 ).iloc[0]
                 values.append(float(row["value"]))
-                errors.append(float(row["sem"]))
+                errors.append(float(row["se"]))
             bars = axis.bar(
                 x + offsets[dataset],
                 values,

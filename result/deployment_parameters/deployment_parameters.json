@@ -36,7 +36,7 @@
     }
   },
   "source_files": {
-    "fsim_fold_parameters": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/result/cv_spore_pressure_s_dep38_395_rh80_coarse/fold_parameters.csv",
-    "spore_fold_parameters": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/result/cv_spore_pressure_s_observed_zero_gate/fold_parameters.csv"
+    "fsim_fold_parameters": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/result/fsim_calibration/fold_parameters.csv",
+    "spore_fold_parameters": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/result/fsim_s_calibration/fold_parameters.csv"
   }
 }

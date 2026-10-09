@@ -2,11 +2,7 @@
   "schema_version": 1,
   "enabled": true,
   "name": "host_susceptibility_modulation",
-  "phenology_configs": {
-    "north": "model/phenology/config_north.json",
-    "south": "model/phenology/config_south.json"
-  },
-  "latitude_cutoff_n": 32.0,
+  "phenology_config": "model/phenology/observed_anchor_fallback.json",
   "observed_phenology": {
     "enabled": true,
     "path": "data/phenology_data/phenology.xlsx",

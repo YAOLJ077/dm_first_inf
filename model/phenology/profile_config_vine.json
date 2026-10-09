@@ -35,10 +35,10 @@
   "weather": {
     "timezone": "Asia/Shanghai",
     "timezone_label": "BJT",
-    "daily_input": "data/phenology_data/calibration_data/phenology_weather_daily_bjt.csv"
+    "daily_input": "data/phenology_data/calibration_data/site_year_temperature_daily.csv"
   },
   "calibration": {
-    "target_table": "result/phenology_table_vine_no_guilin/phenology_calibration_targets_table_vine_no_guilin.csv",
+    "target_table": "result/phenology_calibration/phenology_calibration_targets.csv",
     "validation": "leave-one-site-year-out",
     "validation_mae_days": {
       "BBCH09": 1.0,
@@ -48,8 +48,8 @@
     }
   },
   "provenance": {
-    "calibration_script": "model/phenology/calibrate_table_vine_no_guilin.py",
-    "final_parameters": "result/phenology_table_vine_no_guilin/vine_final_parameters.json",
+    "calibration_script": "src/calibrate_phenology_profiles.py",
+    "final_parameters": "result/phenology_calibration/vine_final_parameters.json",
     "temperature_base_upper_bound_c": 10.0
   }
 }

@@ -1,85 +1,104 @@
 {
   "schema_version": 1,
+  "model": "sporangia_sobol",
   "route": "S",
   "N": 1024,
   "workers": 4,
   "second_order": true,
   "resamples": 100,
   "confidence": 0.95,
+  "reused_saved_evaluations": false,
   "output_dir": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/result/sobol_sensitivity/S_N1024",
-  "created_at_utc": "2026-10-04T17:39:54.424673+00:00",
+  "created_at_utc": "2026-10-09T11:51:41.465830+00:00",
   "output_metadata": [
     {
       "output": "mean_first_window_day_censored",
       "finite_samples": 14336,
       "total_samples": 14336,
-      "variance": 105.4683185616318,
-      "min": 98.0,
-      "max": 204.8,
+      "variance": 68.7109811180303,
+      "min": 103.66666666666667,
+      "max": 230.83333333333334,
+      "base_sample_variance": 69.39128477705852,
       "status": "analysed"
     },
     {
       "output": "mean_first_window_day_complete",
       "finite_samples": 14336,
       "total_samples": 14336,
-      "variance": 99.53098412338568,
-      "min": 98.0,
-      "max": 164.5,
+      "variance": 62.5583250490811,
+      "min": 103.66666666666667,
+      "max": 163.25,
+      "base_sample_variance": 62.45693428436917,
       "status": "analysed"
     },
     {
       "output": "complete_window_fraction",
       "finite_samples": 14336,
       "total_samples": 14336,
-      "variance": 6.128972890425698e-05,
-      "min": 0.8,
+      "variance": 5.802275642516118e-05,
+      "min": 0.6666666666666666,
       "max": 1.0,
+      "base_sample_variance": 6.76512718200683e-05,
       "status": "analysed"
     },
     {
       "output": "missing_windows",
       "finite_samples": 14336,
       "total_samples": 14336,
-      "variance": 0.0015322432226064259,
+      "variance": 0.0020888192313058035,
       "min": 0.0,
-      "max": 1.0,
+      "max": 2.0,
+      "base_sample_variance": 0.002435445785522461,
       "status": "analysed"
     },
     {
       "output": "mae_days_complete",
       "finite_samples": 14336,
       "total_samples": 14336,
-      "variance": 19.521622918564447,
-      "min": 2.4,
-      "max": 41.5,
+      "variance": 13.732627949183492,
+      "min": 6.833333333333333,
+      "max": 40.25,
+      "base_sample_variance": 13.718505588107638,
       "status": "analysed"
     },
     {
       "output": "mae_days_penalized",
       "finite_samples": 14336,
       "total_samples": 14336,
-      "variance": 19.817533927255745,
-      "min": 2.4,
-      "max": 45.2,
+      "variance": 13.969233466924724,
+      "min": 6.833333333333333,
+      "max": 46.833333333333336,
+      "base_sample_variance": 13.988869448502859,
       "status": "analysed"
     },
     {
       "output": "mean_signed_error_days_complete",
       "finite_samples": 14336,
       "total_samples": 14336,
-      "variance": 91.00985593833487,
-      "min": -25.0,
-      "max": 41.5,
+      "variance": 48.75798544115896,
+      "min": -20.833333333333332,
+      "max": 40.25,
+      "base_sample_variance": 48.65925293710497,
       "status": "analysed"
     },
     {
       "output": "mean_interval_distance_days_complete",
       "finite_samples": 14336,
       "total_samples": 14336,
-      "variance": 19.521622918564447,
-      "min": 2.4,
-      "max": 41.5,
+      "variance": 13.732627949183492,
+      "min": 6.833333333333333,
+      "max": 40.25,
+      "base_sample_variance": 13.718505588107638,
       "status": "analysed"
     }
-  ]
+  ],
+  "observed_window": "[observed_date - 3 days, observed_date]",
+  "error_definition": "zero for overlapping observed and predicted windows; otherwise signed distance to the nearest window boundary",
+  "inputs": {
+    "weather_dir": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/data/weather_data/site_year",
+    "observations": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/data/disease_data/grape_downy_mildew_data.xlsx",
+    "phenology_observations": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/data/phenology_data/phenology.xlsx",
+    "sporangia_config": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/model/FSIM/config.json",
+    "susceptibility_config": "/Users/yaolinjia/Desktop/Grape/dm_first_inf/model/phenology/susceptibility_modulation.json"
+  }
 }

@@ -20,7 +20,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 WEATHER_DIR = ROOT / "data" / "weather_data" / "autumn_winter"
-OUTPUT_PNG = ROOT / "fig" / "Figure_03_autumn_winter.png"
+OUTPUT_PNG = ROOT / "fig" / "figure_03.png"
 
 # The site order follows the manuscript site table. Colours are drawn from a
 # colour-blind-safe palette and are reused across the three rows.

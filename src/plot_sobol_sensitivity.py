@@ -134,7 +134,7 @@ def _plot_stability_panel(ax: plt.Axes, data: pd.DataFrame, parameters: list[str
     ax.tick_params(which="minor", bottom=False, left=False)
 def main() -> None:
     project_root = Path(__file__).resolve().parents[1]
-    output_path = project_root / "fig" / "Figure_Sobol_sensitivity.png"
+    output_path = project_root / "fig" / "figure_09.png"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     data = _read_indices(project_root)

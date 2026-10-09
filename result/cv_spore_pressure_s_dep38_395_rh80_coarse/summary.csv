@@ -1,3 +1,0 @@
-﻿cv_scheme,model,n,complete,missing,window_coverage,mae_days,bias_days,rmse_days,selection_mae_days
-site_year,FSIM,6,6,0,1.0,5.666666666666667,-3.6666666666666665,7.2571803523590805,5.666666666666667
-site_year,FSIM-S,6,6,0,1.0,5.5,-3.8333333333333335,7.222649560006817,5.5

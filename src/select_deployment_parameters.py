@@ -13,8 +13,8 @@ import pandas as pd
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_FSIM_FOLDS = ROOT / "result/cv_spore_pressure_s_dep38_395_rh80_coarse/fold_parameters.csv"
-DEFAULT_SPORE_FOLDS = ROOT / "result/cv_spore_pressure_s_observed_zero_gate/fold_parameters.csv"
+DEFAULT_FSIM_FOLDS = ROOT / "result/fsim_calibration/fold_parameters.csv"
+DEFAULT_SPORE_FOLDS = ROOT / "result/fsim_s_calibration/fold_parameters.csv"
 DEFAULT_FSIM_CONFIG = ROOT / "model/FSIM/config.json"
 DEFAULT_SPORE_CONFIG = ROOT / "model/FSIM-S/config.json"
 DEFAULT_OUTPUT = ROOT / "result/deployment_parameters"

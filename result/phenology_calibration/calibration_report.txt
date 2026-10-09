@@ -1,0 +1,62 @@
+Table/Wine phenology profile calibration
+
+group                                  model  validation_primary_mae  validation_exact_mae  validation_within_7d
+table  table__linear_fixed_base_0_free_start                6.500000              6.500000                  0.75
+table  table__linear_fixed_base_3_free_start                6.000000              6.000000                  0.75
+table  table__linear_fixed_base_5_free_start                4.000000              4.000000                  1.00
+table  table__linear_fixed_base_8_free_start                3.250000              3.250000                  1.00
+table table__linear_fixed_base_10_free_start                3.000000              3.000000                  1.00
+table     table__linear_free_base_free_start                5.000000              5.000000                  0.75
+table     table__linear_fixed_base_0_start_1                7.500000              7.500000                  0.50
+table table__beta_fixed_cardinals_free_start                6.000000              6.000000                  0.50
+table    table__beta_fixed_cardinals_start_1                6.000000              6.000000                  0.50
+table  table__beta_free_cardinals_free_start                7.750000              7.750000                  0.50
+ vine   vine__linear_fixed_base_0_free_start                2.333333              2.333333                  1.00
+ vine   vine__linear_fixed_base_3_free_start                1.500000              1.500000                  1.00
+ vine   vine__linear_fixed_base_5_free_start                2.666667              2.666667                  1.00
+ vine   vine__linear_fixed_base_8_free_start                4.166667              4.166667                  1.00
+ vine  vine__linear_fixed_base_10_free_start                1.833333              1.833333                  1.00
+ vine      vine__linear_free_base_free_start                3.000000              3.000000                  1.00
+ vine      vine__linear_fixed_base_0_start_1                2.000000              2.000000                  1.00
+ vine  vine__beta_fixed_cardinals_free_start                2.833333              2.833333                  1.00
+ vine     vine__beta_fixed_cardinals_start_1                2.000000              2.000000                  1.00
+ vine   vine__beta_free_cardinals_free_start                3.333333              3.333333                  1.00
+
+Selected:
+{
+  "table": {
+    "group": "table",
+    "model": "table__linear_fixed_base_10_free_start",
+    "family": "linear_fixed_base_10",
+    "start_mode": "free_start",
+    "apparent_primary_mae": 0.75,
+    "apparent_exact_mae": 0.75,
+    "validation_primary_mae": 3.0,
+    "validation_exact_mae": 3.0,
+    "validation_within_7d": 1.0,
+    "objective_days": 2.4,
+    "parameters": "{\"base_c\": 10.0, \"cardinals\": [0.0, 25.4, 35.0], \"start_doy\": 20, \"thresholds\": [294.9591278771551, 370.1520787365379, 761.6895564460108]}",
+    "restarts": "[{\"seed\": 20261008, \"objective\": 2.4, \"success\": true, \"iterations\": 54, \"evaluations\": 1765}, {\"seed\": 20261009, \"objective\": 3.4666666666666663, \"success\": true, \"iterations\": 60, \"evaluations\": 1957}]"
+  },
+  "vine": {
+    "group": "vine",
+    "model": "vine__linear_fixed_base_3_free_start",
+    "family": "linear_fixed_base_3",
+    "start_mode": "free_start",
+    "apparent_primary_mae": 0.3333333333333333,
+    "apparent_exact_mae": 0.3333333333333333,
+    "validation_primary_mae": 1.5,
+    "validation_exact_mae": 1.5,
+    "validation_within_7d": 1.0,
+    "objective_days": 1.0,
+    "parameters": "{\"base_c\": 3.0, \"cardinals\": [0.0, 25.4, 35.0], \"start_doy\": 44, \"thresholds\": [701.606011217476, 970.4240292689856, 1323.0024764866273]}",
+    "restarts": "[{\"seed\": 20261008, \"objective\": 1.0, \"success\": true, \"iterations\": 56, \"evaluations\": 1829}, {\"seed\": 20261009, \"objective\": 1.0, \"success\": true, \"iterations\": 55, \"evaluations\": 1797}]"
+  }
+}
+
+Selected model stage metrics:
+              n  mae_days  exact_mae_days  within_7d
+target_stage                                        
+9             5       1.8             1.8        1.0
+65            5       2.4             2.4        1.0
+81            5       1.4             3.5        1.0

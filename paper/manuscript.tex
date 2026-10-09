@@ -1,11 +1,10 @@
 % Options for packages loaded elsewhere
 \PassOptionsToPackage{unicode}{hyperref}
 \PassOptionsToPackage{hyphens}{url}
-\documentclass[
-]{article}
+\documentclass{article}
 \usepackage{xcolor}
 \usepackage{amsmath,amssymb}
-\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\setcounter{secnumdepth}{3}
 \usepackage{iftex}
 \ifPDFTeX
   \usepackage[T1]{fontenc}
@@ -51,6 +50,7 @@
 \usepackage{calc} % for calculating minipage widths
 % Correct order of tables after \paragraph or \subparagraph
 \usepackage{etoolbox}
+\patchcmd{\subsubsection}{\normalsize}{\large}{}{}
 \AtBeginEnvironment{longtable}{%
   \fontsize{8}{9}\selectfont
   \renewcommand{\arraystretch}{0.9}%
@@ -104,12 +104,12 @@
 \IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
 \urlstyle{same}
 \hypersetup{
-  pdftitle={Spore-informed process-based modelling of grapevine downy mildew onset in subtropical production},
+  pdftitle={Process-based modelling of grapevine downy mildew symptom onset and potential fungicide savings in subtropical double-cropping vineyards},
   hidelinks,
   pdfcreator={LaTeX via pandoc}}
 
-\title{Spore-informed process-based modelling of grapevine downy mildew
-onset in subtropical production}
+\title{Process-based modelling of grapevine downy mildew symptom onset and
+potential fungicide savings in subtropical double-cropping vineyards}
 \author{}
 \date{}
 
@@ -119,10 +119,12 @@ onset in subtropical production}
 \linenumbers
 \maketitle
 
+\textbf{Running title:} First symptom onset modelling in subtropical vineyards
+
 Linjia Yao \textsuperscript{a \#}, Bin Chen \textsuperscript{b \#},
 Vittorio Rossi \textsuperscript{c}, Ling Yin \textsuperscript{d}, Shumei
 Wei \textsuperscript{d}, Qi Tian \textsuperscript{a}, Changqing Yan
-\textsuperscript{e}, Hui wang \textsuperscript{f}, Antonio Fernandes
+\textsuperscript{e}, Hui Wang \textsuperscript{f}, Antonio Fernandes
 Nogueira Júnior \textsuperscript{g}, Yu Huang \textsuperscript{h}, Qiang
 Yu \textsuperscript{b *}, Junjie Qu \textsuperscript{d *}, Gang Zhao
 \textsuperscript{b *}
@@ -161,65 +163,70 @@ Gang Zhao, E-mail: gang.zhao@nwafu.edu.cn
 \textbf{\textsuperscript{\#} These authors contributed equally to this
 work.}
 
-\section{Abstract}\label{abstract}
+\section*{Abstract}\label{abstract}
 
-\textbf{BACKGROUND:} Preventive control of grapevine downy mildew requires
-infection risk to be assessed from inoculum availability, host
-susceptibility and weather. In humid subtropical vineyards, double
-cropping maintains green host tissue across production cycles and can
-sustain asexual sporangia beyond the seasonal reset assumed by
-oospore-based models. FSIM estimates the first visible symptom-onset
-window during the first crop growing season, and FSIM-S assesses the
-additional value of field spore observations.
+\textbf{BACKGROUND:} Double cropping of grapevines (\emph{Vitis} L.) in humid
+subtropical vineyards can
+maintain green host tissue across production cycles, allowing asexual
+inoculum of \emph{Plasmopara viticola} (Berk. \& M.A. Curtis) Berl. \& De Toni
+to remain available. Models developed
+for oospore-driven seasonal initiation do not fully represent this setting.
+The First Seasonal Infection Model (FSIM) was developed to link airborne
+sporangial inoculum, weather and host development to first symptom-onset
+windows during the first crop growing season. A spore-constrained extension
+(FSIM-S) incorporated field monitoring.
 
-\textbf{RESULTS:} Across six Guangxi site--years, airborne
-\emph{Plasmopara viticola} sporangia were detected 9--72 days before the
-first visible symptoms. FSIM links cohort-based sporangium production
-with dispersal, deposition, zoospore release, infection establishment and
-incubation to estimate the symptom-onset window. Validation MAE was 5.67 days for FSIM and
-3.83 days for FSIM-S. FSIM-S incorporates an observation-derived relative
-spore-pressure field before dispersal and improved retrospective onset
-estimation. Regional FSIM-S reconstruction produced mean onset dates of
-DOY 195--198, with most estimates between DOY 180 and 210, and indicated
-an average of 3.0 potentially avoidable sprays per season (median 2.7)
-relative to the fixed-calendar programme.
+\textbf{RESULTS:} Across six site--years in Guangxi, China (2022--2024),
+sporangia were detected 9--43 days before the first symptom-positive
+assessment. Leave-one-site--year-out cross-validation yielded
+interval-based mean absolute errors of 5.67 days for FSIM and 3.83 days for
+FSIM-S, a 32.4\% reduction. Regional FSIM simulations for 2000--2024 showed
+earlier mean onset in eastern and southeastern Guangxi and later onset in
+the west and northwest. Grid-cell mean symptom-window midpoints averaged
+day of year 130.4 and 136.3 under the table- and wine-grape scenarios,
+respectively. Potential savings across all grids relative to the reference
+spray programme averaged 3.5 and 4.0 early applications per season,
+respectively.
 
-\textbf{CONCLUSION:} Representing recurrent sporangial inoculum before
-symptom appearance addresses a modelling gap in subtropical vineyards.
-FSIM-S improves onset estimation and supports process-based timing of
-preventive fungicide applications during the first crop growing season.
-Regional onset maps and spray-saving estimates support spatially targeted,
-risk-based disease management across Guangxi's double-cropping vineyards.
+\textbf{CONCLUSION:} Representing airborne sporangial inoculum supports
+modelling of first symptom onset under subtropical double cropping, with
+spore monitoring improving predictive performance. Prospective field
+evaluation is needed to confirm whether the estimated fungicide savings
+can be achieved while maintaining disease control. The framework provides
+a basis for adapting early-season protection to local disease risk and
+crop development.
 
 \textbf{Keywords:} Agroclimatic modelling; Airborne sporangia;
 Disease-onset estimation; Fungicide timing; Subtropical viticulture
 
-\section{Introduction}\label{introduction}
+\section{INTRODUCTION}\label{introduction}
 
-Grapevine downy mildew, caused by \emph{Plasmopara viticola}, threatens
+Grapevine (\emph{Vitis} L.) downy mildew, caused by \emph{Plasmopara viticola} (Berk. \& M.A.
+Curtis) Berl. \& De Toni, threatens
 production in humid subtropical regions, where warm, rainy conditions
 coincide with the emergence of susceptible leaves and development of
-inflorescences (Koledenkova et al., 2022; Peng et al., 2024). Epidemics
+inflorescences.\textsuperscript{1,2} Epidemics
 can impair canopy photosynthesis, damage inflorescences and berries, and
-cause substantial yield loss (Nogueira Júnior et al., 2019). Disease
-control depends heavily on repeated preventive fungicide applications
-(Gessler et al., 2011; Caffi et al., 2010). Timing based on calendar
+cause substantial yield loss.\textsuperscript{3} Disease
+control depends heavily on repeated preventive fungicide applications.
+\textsuperscript{4,5} Timing based on calendar
 schedules, grower experience or qualitative weather cues may be poorly
 aligned with infection risk. Understanding when inoculum can establish
 infection is therefore central to protecting susceptible tissue before
 symptoms appear. Preventive management based on infection risk
 requires joint consideration of inoculum availability, host
-susceptibility and environmental suitability (Scholthof, 2007).
+susceptibility and environmental suitability.\textsuperscript{6}
 
-Empirical models such as the ``3--10 rule'' and EPI use weather and
-phenological indicators to guide control timing (Baldacci, 1947; Strizyk,
-1983; Caffi et al., 2007), but they do not resolve the biological sequence
+Empirical models such as the ``3--10 rule'' and the Etat Potentiel
+d'Infection (EPI) model use weather and phenological indicators to guide
+control timing.\textsuperscript{7}
+They do not resolve the biological sequence
 from inoculum availability to symptom appearance. Process-based models
 provide a more explicit representation by linking the inoculum source,
 spore maturation or production, dispersal, deposition, zoospore release,
-infection and incubation (Rossi et al., 2008; Brischetto et al., 2020,
-2021). Rossi et al. (2008) used cohorts to represent primary infection from
-overwintered oospores, whereas Brischetto et al. (2021) modelled
+infection and incubation.\textsuperscript{8--10} Rossi et al.\textsuperscript{8}
+used cohorts to represent primary infection from overwintered oospores,
+whereas Brischetto et al.\textsuperscript{10} modelled
 sporangia produced on lesions and the subsequent infections. Together, these
 studies describe the complete sequence of infection processes with greater biological
 interpretability than empirical rules, but they begin from distinct
@@ -230,18 +237,18 @@ The long growing season and mild winters support commercial double cropping
 in southern China, including Guangxi. The first crop growing season is
 typically the summer cropping cycle; pruning and bud forcing after the first
 harvest then initiate a second crop growing season in winter. Two harvests
-per year can increase annual yield and extend the marketing season (Chen et
-al., 2017; Lu et al., 2022). However, successive crops also extend the availability
+per year can increase annual yield and extend the marketing season.\textsuperscript{11,12}
+However, successive crops also extend the availability
 of green grapevine tissues, allowing the pathogen to persist on living hosts
 and replenish airborne sporangia through repeated asexual reproduction
-between cropping cycles (Camargo et al., 2019). This continuity contrasts
+between cropping cycles.\textsuperscript{13} This continuity contrasts
 with the temperate disease cycle, in which resting oospores survive winter
 in the absence of susceptible host tissue and germinate to provide the
-initial inoculum (Gessler et al., 2011; Vercesi et al., 2010). Predominantly clonal
+initial inoculum.\textsuperscript{4,14} Predominantly clonal
 populations, asexual persistence or limited oospore occurrence have been
 reported in subtropical or warm viticultural regions, including São Paulo,
-South Africa and most surveyed Western Australian vineyards (Camargo et al.,
-2019; Koopman et al., 2007; Killigrew et al., 2005). Asexual sporangia may
+South Africa and most surveyed Western Australian vineyards.\textsuperscript{13,15,16}
+Asexual sporangia may
 therefore be an important source of initial inoculum in Guangxi. Models
 initialized from oospores or visible local lesions do not directly represent
 this source before symptoms appear, leaving a gap in predicting disease
@@ -259,40 +266,34 @@ identifying early disease risk and timing preventive protection, thereby
 supporting more efficient fungicide use and stable grape production in
 subtropical orchards.
 
-\section{Materials and methods}\label{materials-and-methods}
+\section{MATERIALS AND METHODS}\label{materials-and-methods}
 
 \subsection{Study design and overall
 workflow}\label{study-design-and-overall-workflow}
 
-This field-based modelling study combined observations from two
-commercial vineyards and one experimental orchard in Nanning, Guilin
-and Hechi, Guangxi, during 2022--2024. The analysis comprised field
-monitoring, development of FSIM and FSIM-S, and retrospective comparison
-of disease-onset estimates across six site--years
-(\hyperref[_Ref225433957]{Fig 1}). Observations included airborne
-sporangia, first confirmed visible downy mildew symptoms, grapevine
-phenology and agronomic management records. Site-specific hourly
-meteorological records provided the environmental forcing for model
-simulations (Hersbach et al., 2020).
+Field observations and monitoring were conducted during 2022--2024 at two
+commercial vineyards and one experimental site in Nanning, Guilin and
+Hechi, Guangxi, China. Plot-level records of grapevine phenology, dates of
+first visible downy mildew lesions and agronomic management were compiled
+alongside meteorological data and airborne sporangium observations to
+develop the First Seasonal Infection Model (FSIM) and its spore-constrained
+extension (FSIM-S) (\hyperref[_Ref225433957]{Fig 1}).
 
-FSIM simulated the infection-establishment, incubation and symptom-development
-processes during the first crop growing season from weather, phenology and a
-recurrent sporangial inoculum pool, and estimated the first visible
-symptom-onset window. FSIM-S retained the same process chain and incorporated
-an observation-derived relative spore-pressure field. Both models were
-calibrated and evaluated with interval-censored symptom-onset observations
-under site--year leave-one-out
-cross-validation; FSIM-S was then applied to regional onset reconstruction
-and spray-management scenario analysis.
+FSIM represents the processes leading to the first visible downy mildew
+lesions during the first crop growing season under a double-cropping
+system. FSIM-S incorporates a relative spore-pressure field derived from
+measured airborne sporangium counts to regulate sporangial cohort
+generation. Both models were calibrated and evaluated using
+interval-censored disease-onset observations under leave-one-site--year-out
+cross-validation. FSIM was subsequently applied across Guangxi to
+reconstruct disease-onset timing during 2000--2024 and assess the potential
+to reduce fungicide applications.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.98\linewidth]{fig/Figure_01.png}
-\caption{Overall workflow of this study. Field observations from three
-Guangxi vineyards (2022--2024) supported process-based model construction
-and site--year cross-validation. The validated model was then used for
-Guangxi-wide simulations during 2000--2024 to reconstruct symptom-onset
-windows and assess potentially avoidable early fungicide applications.}
+\includegraphics[width=0.98\linewidth]{fig/figure_01.png}
+\caption{Overall workflow of this study. LOSO, leave-one-site--year-out
+cross-validation.}
 \label{_Ref225433957}
 \end{figure}
 
@@ -333,12 +334,13 @@ which were used for subsequent phenological and disease monitoring.
 
 {\def\LTcaptype{none} % do not increment counter
 \begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1667}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1667}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1667}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1667}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1667}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1667}}@{}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.16}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.17}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.18}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.16}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.11}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.09}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.13}}@{}}
 \toprule\noalign{}
 \begin{minipage}[b]{\linewidth}\raggedright
 City/County
@@ -351,24 +353,26 @@ Orchard type
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 Planting year
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Grape use
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 Row \(\mathbf{\  \times \ }\) Spacing (m)
 \end{minipage} \\
 \midrule\noalign{}
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-Xing'an, Guilin & 25.45°N, 110.80°E & Wink (WK) & Commercial & 2018 &
+Xing'an, Guilin & 25.45°N, 110.80°E & Wink (WK) & Commercial & 2018 & Table &
 2.5\(\ \  \times \ \)2.5 \\
-Du'an, Hechi & 23.83°N, 108.11°E & Yeniang No. 2 (MPT) & Commercial & 2015 &
+Du'an, Hechi & 23.83°N, 108.10°E & Yeniang No. 2 (MPT) & Commercial & 2015 & Wine &
 2.5\(\  \times \ \)2.5 \\
-Jiangnan, Nanning & 22.61°N, 108.23°E & Kyoho (JF) & Experimental & 2020 &
+Jiangnan, Nanning & 22.61°N, 108.23°E & Kyoho (JF) & Experimental & 2020 & Table &
 3.2 \(\  \times \ \)3.0 \\
 \end{longtable}
 }
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\linewidth]{fig/Figure_02.png}
+\includegraphics[width=0.95\linewidth]{fig/figure_02.png}
 \caption{Study sites and field layout. (a) Location of Guangxi within
 China. (b) Spatial distribution of the three field experiment sites
 (Guilin, Hechi, and Nanning) in Guangxi Province; red circles indicate
@@ -380,7 +384,7 @@ untreated control plots (CK).}
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\linewidth]{fig/Figure_03.png}
+\includegraphics[width=0.95\linewidth]{fig/figure_03.png}
 \caption{Monthly autumn--winter air temperature, relative humidity, and
 rainfall at the three study sites in Guangxi, China, summarized from
 2022--2024 observations.}
@@ -395,14 +399,15 @@ monitored throughout the growing season following a standardized field
 observation protocol. All assessments were conducted in situ by trained
 technicians and recorded using a dedicated WeChat-based mobile data
 collection system (``Nong Qing Zhu Shou''), which provided structured
-interfaces for extended BBCH coding (Lorenz et al., 1995), lesion
+interfaces for the extended Biologische Bundesanstalt, Bundessortenamt
+and Chemische Industrie (BBCH) scale,\textsuperscript{17} lesion
 annotation, automatic time-stamping, GPS geolocation, and image capture.
 Records were uploaded directly to a cloud database, allowing continuous
 checks of data completeness and internal consistency.
 
 Observation frequency was adjusted according to developmental stage:
 surveys were conducted weekly from BBCH 00 to BBCH 13 (dormancy to three
-unfolded leaves), and every two days thereafter as vines entered the
+unfolded leaves), and every three days thereafter as vines entered the
 susceptible period for downy mildew. Suspected lesions were photographed
 and centrally reviewed; the first confirmed oil spot in any observation
 plot defined the first symptom-onset date
@@ -410,7 +415,7 @@ plot defined the first symptom-onset date
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.90\linewidth]{fig/Figure_04.png}
+\includegraphics[width=0.90\linewidth]{fig/figure_04.png}
 \caption{Downy mildew lesion emergence and development on Yeniang No. 2
 (MPT) leaves in the Du'an experimental vineyard, Hechi. Panels show
 severity levels from a single-leaf perspective: (a) healthy; (b) 1\%
@@ -431,7 +436,7 @@ The device sampled sporangia through natural ambient airflow without
 powered air suction.
 
 Sporangia were collected on glass slides coated with a thin layer of
-Vaseline, which were replaced every two days. Samples were sealed and
+Vaseline, which were replaced every three days. Samples were sealed and
 transported to the laboratory of the Guangxi Academy of Agricultural
 Sciences for quantitative analysis. For microscopic observation, each
 slide was rinsed with 300 \(\mu\)L of sterile water, and five 30 \(\mu\)L
@@ -446,7 +451,7 @@ validation (\hyperref[_Ref214187767]{Fig 5c}).
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\linewidth]{fig/Figure_05.png}
+\includegraphics[width=0.95\linewidth]{fig/figure_05.png}
 \caption{Schematic illustration of sporangia collection and processing
 in the vineyard experiment. (a) Schematic of dynamic monitoring of
 sporangia; (b) schematic of laboratory preprocessing; (c) schematic of
@@ -460,14 +465,14 @@ sporangia slide.}
 
 Meteorological data were retrieved from the Open-Meteo platform
 (\href{https://open-meteo.com/}{\ul{https://open-meteo.com/}}), which
-provides ERA5 reanalysis products with hourly temporal resolution
-(Hersbach et al., 2020). For each experimental orchard, geographic
+provides ERA5 reanalysis products with hourly temporal resolution.\textsuperscript{18} For each experimental orchard, geographic
 coordinates were used to extract site-specific time series of air
 temperature (T), relative humidity (RH), wind speed (W), dew-point
-temperature (T$_d$), and precipitation (R). Vapor pressure deficit (VPD)
-was calculated from T and RH following Rossi et al. (2008). Because direct
+temperature (T$_d$), and precipitation (R). Attached- and detached-state
+sporangial mortality used the empirical index $x=T(1-\mathrm{RH}/100)$,
+which is distinct from physical vapour pressure deficit.\textsuperscript{10} Because direct
 leaf-wetness observations were unavailable, dew-point depression (DPD) was
-used as a leaf-wetness proxy (Huber and Gillespie, 1992). DPD was
+used as a leaf-wetness proxy.\textsuperscript{19} DPD was
 calculated as $\mathrm{DPD}=T-T_d$; rainfall or DPD $<2.0$ $^{\circ}$C
 indicated wetness, DPD $>3.8$ $^{\circ}$C indicated drying, and
 intermediate values retained the previous wet/dry state.
@@ -479,144 +484,81 @@ refinements}\label{model-structure-and-refinements}
 mechanistic
 framework}\label{first-seasonal-infection-model-fsim-baseline-mechanistic-framework}
 
-The First Seasonal Infection Model (FSIM) was developed to simulate the
-infection-establishment, incubation, and symptom-development chain
-initiated by asexual sporangia during the first crop growing season in
-subtropical vineyards.
+FSIM represents first-season symptom onset initiated by asexual sporangia
+under subtropical double cropping (\hyperref[_Ref_model_concept]{Fig 6}).
+Zoospore release and survival, infection, incubation and symptom expression
+follow the framework of Rossi et al.,\textsuperscript{8} with upstream
+sporulation and mortality relations from Brischetto et al.\textsuperscript{10}
+Simulations began on 1 February as a calculation convention within the
+regional December--February leaf-fall period; this date is not a measured
+biological activation date.
 
-Because vines in the study region commonly undergo leaf fall during
-January--February, FSIM simulations began on 1 February. The FSIM was
-constructed through structural integration and process reorganization of
-the Rossi primary infection model and secondary infection risk frameworks
-(Brischetto et al., 2021; Rossi et al., 2008).
-
-The FSIM process chain, summarized in \hyperref[_Ref_model_concept]{Fig 6},
-ultimately outputs the window or time interval in which the first visible
-lesion appears. Its components retained from the Rossi model include
-zoospore release and survival, infection establishment, incubation, and
-symptom expression, which constitute the mechanistic backbone of the
-infection-to-symptom chain. The secondary infection risk module was
-positioned upstream to describe the production of sporangia, followed by
-the infection chain derived from the Rossi model, including zoospore
-release and survival, infection establishment, incubation, and symptom
-expression. In this restructuring, the probability-accumulation
-formulation of the original secondary infection model was reformulated
-into a cohort-based representation describing spore production,
-accumulation, depletion, and release. Because the inoculum entering the
-first-season route was treated as an external input, transfer to the
-airborne state was wind-driven. Rainfall provided the deposition
-opportunity and the wet conditions required by subsequent survival and
-release. A heavy-rain wash-off adjustment was included because intense
-rainfall can remove spores from the air column and reduce long-range
-dispersal (Gobbin et al., 2005).
-
-The cohort-based dispersal--deposition mechanism was defined as follows.
-The attached sporangia pool \(A_{t}\) was updated before transfer. When
-\(A_{t}\) exceeded the minimum threshold \(A_{\min}\) and wind speed
-\(W_{t}\) exceeded \(W_{\min}\), the pool was transferred to the airborne
-state:
+The adaptation represents recurrent sporangial supply as discrete cohorts
+tracked through attached and airborne survival, wind dispersal and
+rainfall-dependent deposition. A viable attached cohort disperses at the
+first hour \(t_i^{\mathrm{w}}\) with wind speed \(W_t\geq W_{\min}\).
+Its surviving dose \(A_i(t_i^{\mathrm{w}})\) enters the airborne pool,
+where survival \(B_i(t)\) and effective deposition \(D_i(t)\) are
 
 \begin{equation}
-B_{t_{0}} = A_{t_{0}},\ A_{t_{0}} \rightarrow 0
+\begin{aligned}
+B_i(t)&=A_i(t_i^{\mathrm{w}})
+\max\!\left(1-\sum_{u=t_i^{\mathrm{w}}}^{t}\mu_B(u),\,0\right)
+\qquad t\geq t_i^{\mathrm{w}}\\[4pt]
+D_i(t)&=
+\begin{cases}
+B_i(t) & \text{if } i\in\mathcal{B}(t),\ B_i(t)>0,\
+R_{\mathrm{dep}}\leq R_t<R_{\mathrm{wash}}\\
+0 & \text{otherwise}
+\end{cases}
+\end{aligned}
 \end{equation}
 
-where \(t_{0}\) denotes the wind-transfer time and \(B_{t_{0}}\) the
-initial airborne sporangia amount. Detached-state loss started at
-\(t_{0}\) and was updated hourly while the cohort remained airborne:
-
-\begin{equation}
-B_{t+1}=B_{t_{0}}\max\!\left(1-\sum_{u=t_{0}}^{t}\lambda_{u},0\right),
-\qquad t \geq t_{0},
-\end{equation}
-
-where \(\lambda_{t}\) is the weather-dependent detached-state loss rate.
-An effective deposition event occurred only when the surviving airborne
-amount was positive and rainfall was sufficient for deposition but below
-the wash-off threshold:
-
-\begin{equation}
-D_{t_d}=B_{t_d^-}\,\mathbf{1}\!\left(R_{\mathrm{dep}}\leq R_{t_d}<R_{\mathrm{wash}}\right)\,
-\mathbf{1}\!\left(B_{t_d^-}>B_{\min}\right),
-\end{equation}
-
-where \(t_d\) is the deposition time, \(R_{\mathrm{dep}}\) is the
-effective-deposition threshold, and \(R_{\mathrm{wash}}\) is the
-heavy-rain wash-off threshold. Rain below \(R_{\mathrm{dep}}\) leaves the
-cohort airborne, whereas rain at or above \(R_{\mathrm{wash}}\) removes it
-before effective deposition. Thus, deposition can contribute to infection
-only while the detached cohort remains within its survival period.
-
-Field monitoring indicated that airborne pathogen structures captured
-prior to the appearance of visible lesions were predominantly sporangia
-(\hyperref[_Ref214187767]{Fig 5d}), providing observational support for
-the sporulation, dispersal, and deposition modules included in the FSIM.
+where \(\mu_B\) is hourly detached-state mortality,
+\(\mathcal{B}(t)\) contains airborne cohorts, and \(R_t\),
+\(R_{\mathrm{dep}}\) and \(R_{\mathrm{wash}}\) denote hourly rainfall,
+effective deposition and heavy-rain wash-off thresholds. Rain below
+\(R_{\mathrm{dep}}\) leaves viable cohorts airborne; rain at or above
+\(R_{\mathrm{wash}}\) removes them. These rainfall thresholds are operational
+assumptions of this study, not independently validated deposition or
+wash-off limits. Deposited
+cohorts proceed through infection and incubation, and the earliest
+complete symptom window is reported. Pre-symptomatic sporangial captures
+support this exposure route (Supplementary Fig. S1d).
+Attached-state survival and hourly update rules are detailed in
+Supplementary Methods S1.
 
 \subsubsection{\texorpdfstring{Spore-constrained refinement of the
 \emph{First Seasonal Infection Model}
 (FSIM-S)}{Spore-constrained refinement of the First Seasonal Infection Model (FSIM-S)}}\label{spore-constrained-refinement-of-the-first-seasonal-infection-model-fsim-s}
 
-FSIM-S was defined as an observation-constrained extension of FSIM. It
-retained the FSIM sequence of weather-triggered sporangium production,
-wind-gated transfer, rainfall-mediated deposition, detached survival,
-infection establishment, incubation, and symptom expression. The extension
-used airborne sporangium observations to constrain inoculum availability and
-used intervals with numeric zero counts to suppress weather-generated cohorts
-when no sporangia were captured. Missing entries were treated as missing and
-did not activate this suppression rule.
-
-Airborne sporangia were recorded as accumulated counts over collection
-intervals. Let \(t_j\) denote the \(j\)th non-missing collection date and
-\(C_j\) its count. For an interval of duration
-\(\Delta_j=(t_j-t_{j-1})/\mathrm{d}\), the corresponding daily rate was
-calculated as
+FSIM-S constrains inoculum supply using observed sporangium counts,
+converted to standardized and smoothed daily relative pressure \(P(d)\).
+Numeric zero-count intervals suppress weather-generated cohorts, while
+positive pressure adds inoculum before dispersal:
 
 \begin{equation}
-r(d)=\frac{C_j}{\Delta_j},\qquad t_{j-1}<d\leq t_j.
+G_i^{\mathrm{S}}=g(d_i;\beta_{\mathrm{sp}})G_i^{\mathrm{F}}
++\beta_{\mathrm{sp}}\max[P(d_i),0]
 \end{equation}
 
-The daily rates were standardized using the mean \(\overline{r}_{M}\) and
-standard deviation \(s_{M}\) of the measured exposure days \(M\), smoothed
-with a three-day centered mean, and centered on the reference level
-\(L=0.5\). For day \(d\), \(W_d=\{d-1,d,d+1\}\cap\mathcal{D}\), where
-\(\mathcal{D}\) denotes the weather calendar, the resulting centered
-spore-pressure signal was
+where \(G_i^{\mathrm{F}}\) and \(G_i^{\mathrm{S}}\) are initial
+relative cohort doses, \(d_i\) is the generation date, and
+\(\beta_{\mathrm{sp}}\geq0\) scales the pressure contribution.
+The gate \(g(d;\beta_{\mathrm{sp}})\) equals zero during numeric zero-count
+intervals when \(\beta_{\mathrm{sp}}>0\), and one otherwise. At
+\(\beta_{\mathrm{sp}}=0\), both observation-based constraints are disabled
+and FSIM-S reduces exactly to FSIM. Missing entries are not treated as measured zeros and do not
+independently trigger either constraint. Subsequent processes follow
+FSIM (\hyperref[_Ref_model_concept]{Fig 6}); interval reconstruction,
+normalization and smoothing are detailed in Supplementary Methods S2.
 
-\begin{equation}
-P(d)=\frac{1}{\lvert W_d\rvert}\sum_{u\in W_d}
-\frac{r(u)-\overline{r}_{M}}{s_{M}}-L,\qquad L=0.5.
-\end{equation}
-
-The daily value \(P(d_t)\) was assigned to each hourly timestamp \(t\) on
-the corresponding local calendar day. At the daily sporangium-availability
-time (08:00), the positive part of this signal was converted to an external
-background dose. The total dose entering the attached sporangium pool was
-defined as
-
-\begin{equation}
-D^{\mathrm{obs}}_{t}=\beta_{\mathrm{sp}}\max\{P(d_t),0\},\qquad
-D^{\mathrm{total}}_{t}=G(d_t)D^{\mathrm{weather}}_{t}+D^{\mathrm{obs}}_{t}.
-\end{equation}
-
-Here, (G(d)=0) for days covered by an interval with a numeric zero
-count and (G(d)=1) otherwise; missing observations therefore do not
-suppress weather-generated cohorts.
-
-The combined dose then entered the FSIM attached-sporangium pool and passed
-through the same wind transfer, rain-mediated deposition, survival,
-infection-establishment, incubation, and symptom-development processes.
-Thus, FSIM-S constrains inoculum supply before dispersal while retaining the
-FSIM downstream process relations. The conceptual structure of the baseline
-and spore-constrained models is summarized in
-\hyperref[_Ref_model_concept]{Fig 6}.
-
-\begin{figure}[H]
+\begin{figure}[p]
 \centering
-\includegraphics[width=0.90\linewidth]{fig/Figure_06.png}
-\caption{Conceptual diagram of the FSIM process chain. FSIM-S adds an
-observation-derived background sporangia dose before dispersal and suppresses
-weather-generated cohorts during numeric-zero observation intervals, while
-retaining the subsequent survival, infection-establishment, incubation and
-symptom-development processes.}
+\includegraphics[width=0.90\linewidth]{fig/figure_06.png}
+\caption{Conceptual framework of FSIM and FSIM-S. DPD, dew-point
+depression; $M$, mortality index; RH, relative humidity; $W$, wind
+speed; $R$, rainfall; $T$, air temperature.}
 \label{_Ref_model_concept}
 \end{figure}
 
@@ -624,85 +566,73 @@ symptom-development processes.}
 analysis}\label{parameterization-and-sensitivity-analysis}
 
 Global parameter influence was quantified for the sporangia-process route
-using variance-based Sobol sensitivity analysis (Sobol, 2001; Hui et al.,
-2022; Iooss and Lemaître, 2015). Model parameters were sampled according
-to the implementation settings. The
-observation-derived spore-pressure field and pressure-specific coefficients
-were held fixed, and the sensitivity analysis was used for parameter
-screening rather than calibration.
-
-For each base sample size \(N\) (256, 512, and 1024), a Sobol sequence with
-first-, total- and second-order indices was generated using SALib. The same
-site--year inputs, observed phenology and interval-based onset metric were
-used for every design. First-order \(S_{1}\), total-order \(S_{T}\), and
-second-order \(S_{2}\) indices were estimated with 100 bootstrap resamples
-and 95\% confidence intervals. Missing symptom-onset windows were retained in the
-coverage outputs and assigned the prespecified 60-day penalty only for
-penalized MAE; outputs with nonfinite values or zero variance were not
-decomposed. Stability was assessed by comparing indices and parameter
-rankings across the three values of \(N\), rather than by treating larger
-designs as additional biological replicates. No parameter configuration was
-selected from the sensitivity analysis.
+using variance-based Sobol sensitivity analysis.\textsuperscript{20--22}
+Six process parameters were screened across all six observed site--years in FSIM with the observation layer
+disabled; neither zero-count gating nor observed-pressure dose injection
+was applied. Inherited biological response functions were held fixed.
+First-, total- and second-order indices were estimated using SALib at
+base sample sizes \(N=256\), 512 and 1024; rankings were compared across
+designs. The analysis informed parameter screening rather than
+calibration. Sampling domains, site--years, output definitions and
+confidence estimation are provided in Supplementary Methods S3 and
+Table S1.
 
 \subsection{Model calibration and
 evaluation}\label{model-calibration-and-evaluation}
 
-To assess the temporal predictive capability for first visible symptom
-onset and the applicability of the
-\emph{First Seasonal Infection Model} (FSIM) and its spore-constrained
-extension (FSIM-S) under humid subtropical vineyard conditions, parameter
-calibration and model evaluation were conducted within a site--year-based
-cross-validation framework. The two models used the same weather and
-phenology inputs and the same interval-based symptom-onset metric; FSIM-S additionally
-used the fixed interval-rate, z-score spore-pressure field and the calibrated
-coefficient \(\beta_{\mathrm{sp}}\).
+Both models used the same weather, observed phenology and host
+susceptibility modifier, reflecting developmental variation in
+susceptibility.\textsuperscript{23,24} The modifier is detailed in
+Supplementary Methods S5. FSIM-S additionally used observed relative spore pressure.
 
 \subsubsection{Calibration strategy}\label{calibration-strategy}
 
-Calibration used a site--year leave-one-out design. In each of the
-six outer folds, one site--year was held out and the remaining five were used
-for calibration. The open FSIM process parameters were evaluated jointly on
-a prespecified candidate set. Each candidate was scored using the training
-records only, with the interval-based onset error and the prespecified penalty
-for a missing simulated window. To reduce sensitivity to flat objective
-surfaces, candidates with comparable training performance were grouped as a
-near-optimal set; a normalized component-wise median of this set defined a
-stability centre, and the candidate nearest to that centre was selected.
-After the FSIM configuration was selected, the FSIM-S pressure coefficient
-\(\beta_{\mathrm{sp}}\) was calibrated on the same training site--years using
-the same training-only selection principle. The selected fold configuration
-and coefficient were then fixed for evaluation of the held-out site--year,
-so that no held-out observations entered either calibration stage. This
-candidate-based calibration and selection strategy follows the general
-principles of data-driven hyper-parameter optimization (Bergstra et al.,
-2011).
+Six leave-one-site--year-out folds each used five site--years for
+calibration and one for evaluation. Sensitivity screening and manual
+perturbations informed the three fixed and three adjustable FSIM
+parameters (\hyperref[_Ref226058574]{Table 2}). Adjustable parameters
+were evaluated jointly using training interval errors and a missing-window
+penalty. Among near-optimal candidates, selection favoured proximity to
+their normalized median parameter vector. With FSIM parameters fixed,
+\(\beta_{\mathrm{sp}}\) was compared on the same training records using
+training MAE. All positive candidates had identical training MAE, RMSE and
+bias within each fold, and the smallest positive candidate, 0.005, was
+retained in all six folds. Thus, this coefficient represents a tied
+optimum on the tested grid rather than a uniquely identified estimate;
+the median-centre rule applied to FSIM process parameters only.
+Both configurations were then fixed for held-out evaluation; held-out
+disease-onset observations did not enter selection. Candidate grids,
+selection rules and fold aggregation are detailed in Supplementary
+Methods S4.
 
-\newpage
-
+\clearpage
 \protect\phantomsection\label{_Ref226058574}{}
-\manualcaption{Table 2 Open calibration parameters for FSIM and FSIM-S.
-Parameter space and step describe the candidate evaluation; determined values
-are the selected deployment values.}
+\manualcaption{Table 2 Fixed and calibrated parameters for FSIM and FSIM-S.
+Space and step describe the candidate evaluation; values
+are the fixed settings or selected deployment values.}
 
 {\small\def\LTcaptype{none} % do not increment counter
 \begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.235}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.105}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.165}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.135}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.135}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.225}}@{}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.100}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.205}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.130}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.110}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.115}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.100}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.240}}@{}}
 \toprule\noalign{}
 \begin{minipage}[b]{\linewidth}\raggedright
-Parameter
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 Model
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Parameter space
+Parameter
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Space
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 Step
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Determined value
+Value
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Unit
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 Description
 \end{minipage} \\
@@ -710,35 +640,42 @@ Description
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-Infection degree-hour threshold (IDH) & FSIM / FSIM-S &
-150--200 degree-hours & 10 degree-hours & 170 degree-hours &
+FSIM / FSIM-S & Wind-speed threshold (WTH) &
+Fixed & / & 0.5 & m s\(^{-1}\) &
+Minimum wind speed for sporangial dispersal. \\
+FSIM / FSIM-S & Heavy-rain wash-off threshold (HWR) &
+Fixed & / & 5 & mm\,h\(^{-1}\) &
+Hourly rainfall at or above this threshold removes airborne cohorts. \\
+FSIM / FSIM-S & Minimum moist hours (MMH) &
+Fixed & / & 7 & h &
+Minimum night-time moist duration for sporulation. \\
+FSIM / FSIM-S & Infection degree-hour threshold (IDH) &
+150--200 & 10 & 170 & \(^{\circ}\mathrm{C}\,\mathrm{h}\) &
 Post-release infection requirement. \\
-Effective deposition rainfall threshold (EDR) & FSIM / FSIM-S &
-3.80--3.95 mm & 0.05 mm & 3.85 mm &
+FSIM / FSIM-S & Effective deposition rainfall threshold (EDR) &
+3.80--3.95 & 0.05 & 3.85 & mm\,h\(^{-1}\) &
 Minimum rainfall for effective deposition. \\
-Sporulation relative-humidity threshold (SRH) & FSIM / FSIM-S &
-80--100\% RH & 5\% RH & 85\% RH &
+FSIM / FSIM-S & Sporulation relative-humidity threshold (SRH) &
+80--100 & 5 & 85 & \% &
 Minimum relative humidity for sporulation initiation. \\
-Relative spore-pressure coefficient (\(\beta_{\mathrm{sp}}\)) & FSIM-S &
-0--1 & Nonuniform candidates & 0.005 &
+FSIM-S & Relative spore-pressure coefficient (\(\beta_{\mathrm{sp}}\)) &
+0--1 & Nonuniform candidates & 0.005 & 1 &
 Scales the positive relative spore-pressure dose. \\
 \end{longtable}
+{\footnotesize\itshape\noindent Note: The wind-speed threshold, heavy-rain wash-off
+threshold and minimum moist hours were fixed based on local meteorological
+conditions and their effects on model structure.\par}
 }
 
 \subsubsection{Performance metrics}\label{performance-metrics}
 
-Visible disease-onset observations were interval-censored by the survey schedule.
+Visible disease-onset observations were interval-censored by the
+three-day survey schedule during the susceptible period.
 For site--year \(i\), let \(t_i^{-}\) be the last disease-negative survey
-date and \(t_i^{+}\) the first disease-positive survey date. The observed
-onset window was therefore
-
-\begin{equation}
-O_i=[t_i^{-},t_i^{+}],\qquad t_i^{-}=t_i^{+}-3\,\mathrm{d}.
-\end{equation}
-
-For each model, \(\widehat{O}_i=[\widehat{t}_i^{-},\widehat{t}_i^{+}]\)
-was defined as the first complete simulated symptom-onset window. The signed
-interval distance, expressed in days, was
+date and \(t_i^{+}\) the first disease-positive date, defining
+\(O_i=[t_i^{-},t_i^{+}]\) with \(t_i^{-}=t_i^{+}-3\,\mathrm{d}\).
+For the first complete simulated window
+\(\widehat{O}_i=[\widehat{t}_i^{-},\widehat{t}_i^{+}]\), signed error was
 
 \begin{equation}
 e_i=\begin{cases}
@@ -748,80 +685,71 @@ e_i=\begin{cases}
 \end{cases}
 \end{equation}
 
-Thus, overlapping windows had zero error, whereas non-overlapping windows
-were assigned the signed distance between their nearest boundaries. For the
-set \(C\) of site--years with a complete predicted window, interval-based
-MAE and RMSE were calculated as
+Overlapping windows have zero error; positive and negative errors denote
+late and early predictions. For complete predictions \(C\),
 
 \begin{equation}
 \mathrm{MAE}=\frac{1}{|C|}\sum_{i\in C}|e_i|,\qquad
 \mathrm{RMSE}=\sqrt{\frac{1}{|C|}\sum_{i\in C}e_i^{2}}.
 \end{equation}
 
-If no complete symptom-onset window was simulated, the site--year received a fixed
-60-day penalty in the calibration objective. The corresponding penalized MAE
-was \(\{\sum_{i\in C}|e_i|+(n-|C|)\times60\,\mathrm{d}\}/n\), where \(n\)
-is the total number of site--years. Complete-window MAE, RMSE, signed mean
-error, and window coverage were retained for evaluation.
-
-\subsubsection{Cross-validation and robustness
-assessment}\label{cross-validation-and-robustness-assessment}
-
-Each held-out site--year was evaluated once with the calibrated FSIM
-parameter vector and once with the same vector augmented by the calibrated
-\(\beta_{\mathrm{sp}}\) and the spore-pressure dose. No observations from the
-held-out site--year were used during either calibration stage. Cross-validation
-summaries were based on the held-out interval errors and reported complete
-window coverage together with interval MAE, RMSE, and signed mean error for
-FSIM and FSIM-S.
+Missing complete windows received a 60-day calibration penalty.
+Evaluation reported complete-window MAE, RMSE, signed mean error and
+coverage. Penalty and aggregation definitions are given in Supplementary
+Methods S4.
 
 \subsubsection{Selection of global parameter
 configuration}\label{selection-of-global-parameter-configuration}
 
-To obtain a single deterministic model configuration for site--year
-simulations, the fold-specific best parameter sets (those achieving the
-lowest validation MAE within each fold) were evaluated on the full
-dataset. The configuration yielding the lowest overall MAE was selected
-as the final global parameter set. Direct averaging of parameters across
-folds was avoided, as it led to substantial error inflation due to the
-non-convex nature of the objective function and the presence of multiple
-near-optimal parameter regions.
+After validation, deployment parameters were obtained by fold consensus:
+identical values were retained; otherwise, the unique mode was selected,
+with the median used for tied modes. FSIM-S shared the FSIM process
+parameters, with \(\beta_{\mathrm{sp}}\) aggregated separately
+(\hyperref[_Ref226058574]{Table 2}; Supplementary Methods S4).
 
 
 \subsection{Regional simulation and disease-management scenario
 analysis}\label{regional-simulation-and-disease-management-scenario-analysis}
 
-To evaluate the applicability of the FSIM-S model at the regional scale
-and its potential value for risk-based disease management, regional
-simulations were conducted across Guangxi Province for the period
-2000--2024. Given the limited spatial coverage of field observations and
-the lack of a spatially explicit vineyard census layer, the regional
-analysis was framed as a scenario-based assessment rather than as a
-complete mapping of actual vineyard distribution. Three cultivar
-scenarios were constructed to ensure comparability across the region,
-assuming that vineyards were uniformly planted with Wink, Yeniang No. 2,
-or Kyoho cultivars, respectively. The model was driven by the hourly
-meteorological dataset described previously (\hyperref[_Ref214271335]{Fig
-3}).
+Regional simulations were conducted across Guangxi for 2000--2024 to
+assess the regional applicability of FSIM and its potential for disease
+management guided by predicted risk windows. Given the limited spatial
+coverage of field observations and the absence of a spatially explicit
+vineyard census layer, the analysis used hypothetical cultivation
+scenarios rather than a complete map of actual vineyard distribution.
+To represent differences in phenological progression and ripening among
+table and wine grape cultivars,\textsuperscript{25} two scenarios
+were defined for retrospective comparison, assuming table grapes or wine
+grapes throughout the region, respectively. FSIM was driven by hourly
+ERA5 weather for 342 grid cells at $0.25^{\circ}$ resolution and simulated
+phenology. The regional archive used existing Open-Meteo-derived ERA5
+records; the 2004 records were rebuilt from the Google Earth Engine
+ERA5 hourly collection. All hourly series and daily aggregations used
+Beijing time (UTC+8). Regional onset summaries used the midpoint of the
+first complete symptom window, whereas the savings calculation used its
+start to define the timing threshold. Dates are expressed as day of year (DOY).
 
-Considering that growers in the region commonly adopt similar preventive
-spraying schedules through peer-to-peer technical exchange, chemical
-disease management was represented using a schedule derived from the 2022
-Du'an (Hechi) experimental vineyard (\hyperref[_Ref214272651]{Fig 7})
-(Chavas and Nauges, 2020; Huffman, 2020; Norton and Alwang, 2020). The
-potential to avoid early preventive treatments was evaluated relative to
-this baseline schedule, whereby any preventive fungicide application
-conducted more than seven days before the simulated first symptom onset
-was classified as potentially avoidable. The seven-day buffer was used to
-remain consistent with the protection window commonly expected for
-vineyard fungicide applications and to avoid classifying near-risk sprays
-as redundant. Based on this criterion, the multi-year average number of
-potentially avoidable early applications and the corresponding reduction
-proportion were calculated.
+A fixed reference downy mildew fungicide programme was based on the 2022 records from
+the experimental vineyard in Du'an, Hechi
+(\hyperref[_Ref214272651]{Fig 7}). Potential reductions in early preventive
+applications were assessed retrospectively against this programme. A
+preventive application more than seven days before the start of the
+simulated first symptom window was classified as potentially avoidable.
+The seven-day buffer was a retrospective scenario assumption, informed
+by the lower end of recommended 7--10-day protectant spray
+intervals.\textsuperscript{26} Infection precedes symptoms, so this rule
+does not identify the start of infection risk or establish that earlier
+protection can safely be omitted. For grid--years with no complete
+simulated symptom window (eight per scenario), all reference applications
+were counted as potentially avoidable under this assumption. The fixed
+programme is a comparison baseline, not a survey of regional practice.
+The mean annual number of potentially avoidable early
+applications and the corresponding proportion of the reference programme
+were calculated for each scenario.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\linewidth]{fig/Figure_07.png}
+\includegraphics[width=0.95\linewidth]{fig/figure_07.png}
 \caption{Illustration of the empirically executed fungicide application
 pattern, documented by field investigators immediately after each
 grower-implemented spray event in the experimental vineyard in Du'an,
@@ -829,76 +757,33 @@ Hechi City, during the 2022 growing season. The management practice was
 characterized by preventive fungicide applications conducted after
 rainfall events and before the onset of first visible symptoms. The
 shaded region indicates the corresponding pre-symptomatic period of
-rainfall-triggered preventive sprays.}
+rainfall-triggered preventive sprays. DOY 128 is the start of the
+observed symptom-onset window (DOY 128--131); the first symptom-positive
+assessment was on DOY 131.}
 \label{_Ref214272651}
 \end{figure}
 
 \subsubsection{Phenology simulation}
 \label{phenology-simulation}
 
-To provide phenological inputs for regional simulations, we trained a
-temperature-driven grapevine phenology model from the historical
-phenology observations. The model follows the growing degree day (GDD)
-approach commonly used for grapevine phenology (Wang et al., 2020). For
-each day \(d\), daily GDD was calculated as
+Regional phenology used separate table- and wine-grape thermal-time
+profiles calibrated against local stage targets, including assumed
+Nanning budburst dates. Daily growing degree days (GDD) were calculated
+as follows:\textsuperscript{27}
 
 \begin{equation}
-GDD_d = \max(\overline{T}_d - T_b, 0),
+\mathrm{GDD}_{d,g} = \max(\overline{T}_d - T_{b,g}, 0)
 \end{equation}
 
-where \(\overline{T}_d\) is the daily mean air temperature and \(T_b\) is
-the base temperature. Starting on 1 January, thermal time was accumulated
-between consecutive stages as
+where \(\overline{T}_d\) is the Beijing-time daily mean temperature and
+\(T_{b,g}\) the profile-specific base temperature. Accumulation began at
+the fitted start DOY and reset after BBCH09, 65 and 81. When unobserved,
+BBCH53 was assigned 30\% of the BBCH09--65 forcing requirement as a fixed
+empirical interpolation. Calibration targets, profile comparison, stage
+thresholds and the basis of this auxiliary rule are given in Supplementary
+Methods S5 and Tables S2--S4.
 
-\begin{equation}
-C_s(t) = \sum_{d=t_{s-1}+1}^{t} GDD_d,
-\qquad
-t_s = \min\{t:C_s(t) \geq H_s\},
-\end{equation}
-
-where \(t_s\) is the date of stage \(s\) and \(H_s\) is its calibrated
-thermal requirement. The model generated dates for BBCH09, BBCH53, BBCH65,
-and BBCH81; BBCH53 was derived from the interval between BBCH09 and BBCH65
-using the calibrated auxiliary-stage rule. These dates were used as
-phenological inputs to the regional FSIM-S simulations.
-
-\subsubsection{Reconstruction of spore pressure
-fields}\label{reconstruction-of-spore-pressure-fields}
-
-Because continuous airborne spore observations were unavailable for the
-historical period (2000--2024), while the FSIM-S model requires inoculum
-pressure information, a meteorology-driven spore-pressure reconstruction
-module was developed. Field spore monitoring data collected during
-2022--2024 were used for parameter calibration, after which spatially
-explicit spore-pressure time series were reconstructed to drive historical
-simulations.
-
-The module follows a ``potential inoculum reservoir--pressure index''
-dynamic framework, in which meteorological effects on spore production and
-loss are represented as source and loss terms:
-
-\begin{equation}
-A_{t} = \max\left(0,\rho A_{t - 1} + Source_{t} - Loss_{t}\right)
-\end{equation}
-
-where \(A_{t}\) denotes the latent inoculum state. After logarithmic
-normalization and smoothing, the resulting daily spore-pressure index
-was used to construct the forcing field for historical FSIM-S simulations.
-
-To ensure consistency with the disease process model, meteorological
-drivers used in pressure reconstruction shared the same physical
-interpretation as those controlling infection processes in FSIM-S. The
-pressure module employed a simplified inoculum-reservoir dynamic that was
-independently calibrated, enabling forcing input under conditions lacking
-long-term spore observations. Calibration was performed using Bayesian
-optimization with cross-validation, and the resulting parameters were
-applied to reconstruct gridded spore-pressure fields for 2000--2024,
-which were subsequently coupled to FSIM-S through the spore-pressure dose
-pathway.
-
-
-
-\section{Results}\label{results}
+\section{RESULTS}\label{results}
 
 \subsection{Field observations of disease onset and spore
 dynamics}\label{field-observations-of-disease-onset-and-spore-dynamics}
@@ -917,7 +802,7 @@ assessment by 9 days in Hechi 2022 and 3 days in Nanning 2023.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\linewidth]{fig/Figure_08_core_timeline.png}
+\includegraphics[width=0.95\linewidth]{fig/figure_08.png}
 \caption{Experimental observations from Guangxi. Spore-positive and
 zero-count collections are shown on a common calendar axis; red bars denote
 disease-onset windows between the last negative and first positive
@@ -927,20 +812,26 @@ assessments.}
 
 \subsection{Sensitivity analysis}\label{sensitivity-analysis}
 
-The total-order sensitivity ranking was EDR > SRH > MMH > HWR > IDH > WTH
-(\hyperref[_Ref222510092]{Fig 9}). EDR was the most sensitive parameter,
-whereas WTH had zero total-order sensitivity; SRH, MMH, HWR, and IDH had
-intermediate sensitivities. This ranking was unchanged across the three
-Sobol sample sizes (\(N=256\), 512, and 1024), with only small changes in
-the corresponding \(S_T\) values.
+At \(N=1024\), the total-order sensitivity ranking across six site--years
+was EDR > SRH > WTH > HWR > IDH > MMH
+(\hyperref[_Ref222510092]{Fig 9}). EDR dominated the variation in the
+censored mean first symptom-onset day, with \(S_1=0.740\) and
+\(S_T=0.817\). Total-order indices were 0.097 for SRH, 0.093 for WTH,
+0.087 for HWR, 0.020 for IDH and 0.009 for MMH. Across \(N=256\), 512
+and 1024, EDR remained dominant (\(S_T=0.795\)--0.832) and SRH ranked
+second. WTH and HWR exchanged ranks, while IDH and MMH consistently had
+smaller effects. The overlapping 95\% confidence intervals for SRH, WTH
+and HWR indicate that their relative ordering was less clearly resolved
+than EDR's dominance.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\linewidth]{fig/Figure_Sobol_sensitivity.png}
+\includegraphics[width=0.95\linewidth]{fig/figure_09.png}
 \caption{Sobol sensitivity of six FSIM parameters for the censored mean
-first symptom-onset day. (a) First-order (\(S_1\)) and total-order
+first symptom-onset day across six site--years. (a) First-order (\(S_1\)) and total-order
 (\(S_T\)) indices at \(N=1024\); (b) total-order indices across
-\(N=256\), 512, and 1024. Parameter abbreviations: EDR = effective
+\(N=256\), 512, and 1024. Error bars show 95\% bootstrap confidence intervals.
+Parameter abbreviations: EDR = effective
 deposition rainfall threshold; SRH = sporulation relative-humidity
 threshold; MMH = minimum moist-hour threshold; HWR = heavy-rain wash-off
 threshold; IDH = infection degree-hour threshold; WTH = minimum wind-speed
@@ -959,327 +850,330 @@ validation-set MAE of 3.83 days and RMSE of 6.18 days. Relative to FSIM,
 MAE decreased by 32.4\% in both sets; RMSE decreased by 16.6\% in the
 training set and 14.9\% in the validation set.
 
-From FSIM to FSIM-S, the city--year errors changed as follows: Duan 2024,
-0 to 0 days; Duan 2023, -6 to +4 days; Duan 2022, -14 to -14 days;
-Mingyang 2024, +4 to +4 days; Mingyang 2023, +2 to +1 days; and Guilin
+From FSIM to FSIM-S, the site--year errors changed as follows: Hechi 2024,
+0 to 0 days; Hechi 2023, -6 to +4 days; Hechi 2022, -14 to -14 days;
+Nanning 2024, +4 to +4 days; Nanning 2023, +2 to +1 days; and Guilin
 2022, -8 to 0 days (\hyperref[fig:fsim-site-year-errors]{Fig 11}). Zero
-error occurred for Duan 2024 under both models and for Guilin 2022 under
-FSIM-S. The largest error magnitude was 14 days in Duan 2022 and remained
+error occurred for Hechi 2024 under both models and for Guilin 2022 under
+FSIM-S. The largest error magnitude was 14 days in Hechi 2022 and remained
 unchanged between models.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\linewidth]{fig/Figure_FSIM_vs_FSIM-S_error_metrics.png}
+\includegraphics[width=0.95\linewidth]{fig/figure_10.png}
 \caption{Aggregate first symptom-onset errors for FSIM and FSIM-S. (a) Mean
-absolute error (MAE); (b) root mean square error (RMSE). Bars distinguish
-training and validation sets; values are in days.}
+absolute error (MAE); (b) root mean square error (RMSE). Training values are
+means across six outer folds; validation values summarize the six held-out
+predictions. Error bars indicate $\pm$ one bootstrap standard error from
+site--year resampling with fitted models held fixed. Values are in days.}
 \label{fig:fsim-error-metrics}
 \end{figure}
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\linewidth]{fig/Figure_FSIM_vs_FSIM-S_site_year_errors.png}
-\caption{City--year errors in first symptom-onset timing for FSIM and FSIM-S.
-The shaded region indicates errors within $\pm 7$ days of the observed date.}
+\includegraphics[width=0.95\linewidth]{fig/figure_11.png}
+\caption{Site--year interval-based errors in first symptom-onset timing
+for FSIM and FSIM-S. The shaded region indicates signed distances between
+the simulated and observed windows within $\pm 7$ days; overlapping
+windows have zero error.}
 \label{fig:fsim-site-year-errors}
 \end{figure}
 
 \subsection{Spatial distribution of first symptom onset across Guangxi
 (2000--2024)}\label{spatial-distribution-of-first-symptom-onset-across-guangxi-2000-2024}
 
-Based on historical ERA5 meteorological data, the spatial distribution of
-first symptom onset across Guangxi from 2000 to 2024 was reconstructed
-using FSIM-S, simulated under three variety-specific phenology scenarios:
-Wink (WK), Kyoho (JF), and Yeniang No. 2 (MPT)
-(\hyperref[_Ref223011563]{Fig 12}).
+During 2000--2024, mean spring temperature was generally higher in
+southern than northern Guangxi. Cumulative spring precipitation was
+higher in the east, particularly the northeast, and lower in the west.
+Nighttime high-humidity duration was generally longer in the southeast
+and shorter in the northwest
+(\hyperref[fig:spring-weather-background]{Fig 12a--c}).
 
-Multi-year mean onset dates were similar across varieties, with WK and JF
-averaging DOY 195 and MPT DOY 198 (median: 196, 196, and 199,
-respectively). Spatially, earlier onset dates were consistently simulated
-in central--southern and parts of southwestern Guangxi, whereas later onset
-occurred in northern and northeastern areas
-(\hyperref[_Ref223011563]{Fig 12a--c}). This spatial gradient was
-consistent across all three varieties.
+Across Guangxi, the grid-cell mean first symptom-window midpoints for
+2000--2024 averaged DOY 130.4 under the table-grape scenario and DOY 136.3
+under the wine-grape scenario, a difference of 5.9 days
+(\hyperref[_Ref223011563]{Fig 13a,b}). Both scenarios showed earlier
+onset in eastern and southeastern Guangxi and later onset in western
+Guangxi, particularly the northwest.
 
-Frequency distributions (\hyperref[_Ref223011563]{Fig 12d}) showed that
-the majority of onset dates fell within DOY 180--210 across all varieties,
-with peak frequencies concentrated around DOY 190--200. The overall
-distribution structures were highly similar among varieties.
+The distribution of grid-cell mean onset dates was shifted towards later
+dates under the wine-grape scenario. The most frequent interval was DOY
+120--130 for table grapes and DOY 130--140 for wine grapes
+(\hyperref[_Ref223011563]{Fig 13c,d}). Annual regional mean symptom-window
+midpoints ranged from DOY 115.7 to 145.6 for table grapes and from DOY 122.8
+to 147.8 for wine grapes (Supplementary Figs S2 and S3).
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\linewidth]{fig/Figure_12.png}
-\caption{Simulated mean onset dates (day of year, DOY) of first visible
-symptoms under the FSIM-S model for three varieties: (a--c) spatial
-distributions of the Wink (WK), Kyoho (JF), and Yeniang No. 2 (MPT), and
-(d) their DOY frequency distributions.}
+\includegraphics[width=0.95\linewidth]{fig/figure_12.png}
+\caption{Spring meteorological conditions in Guangxi during 2000--2024
+(March--May). (a--c) Grid-cell means for temperature, cumulative
+precipitation and nighttime high-humidity duration (relative humidity
+$\geq85\%$; 20:00--07:59 local time). (d--f) Annual regional grid means;
+shading indicates spatial 25th--75th percentile ranges and dashed lines
+indicate descriptive linear trends.}
+\label{fig:spring-weather-background}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\linewidth]{fig/figure_13.png}
+\caption{Mean first symptom-window midpoint (day of year, DOY) per grid cell
+in Guangxi during 2000--2024 under the table- and wine-grape scenarios.}
 \label{_Ref223011563}
 \end{figure}
 
-\subsection{Regional disease-management implications
+\subsection{Regional potential for fungicide savings
 (2000--2024)}\label{regional-disease-management-implications-2000-2024}
 
-The potential to improve early disease-management timing across Guangxi
-from 2000 to 2024 was evaluated by comparing the FSIM-S-derived timing of
-first visible symptom onset with a representative conventional fixed-calendar
-programme (\hyperref[_Ref223012659]{Fig 13}). Across the three grapevine
-varieties, the model-guided strategy identified approximately three
-potentially avoidable early preventive applications per season on average
-(mean: 3.0 sprays; median: 2.7 sprays), with minimal variation among
-varieties. This result indicates that the main management value of FSIM-S
-lies in delaying unnecessary pre-risk sprays while retaining protection near
-the simulated symptom-onset window.
+Across Guangxi, the grid-cell mean potential fungicide savings for
+2000--2024 averaged approximately 3.5 applications per season under the
+table-grape scenario and 4.0 under the wine-grape scenario, a difference
+of 0.5 applications (\hyperref[_Ref223012659]{Fig 14a,b}). Both scenarios
+showed higher saving potential in western Guangxi, particularly the
+northwest, and lower potential in eastern and southeastern Guangxi.
 
-Spatially, higher saving potential was concentrated in central--southern
-and southwestern Guangxi, where simulated symptom onset tended to
-occur later relative to the representative calendar programme, whereas
-northern and northeastern areas showed relatively lower savings
-(\hyperref[_Ref223012659]{Fig 13a--c}). This spatial pattern was consistent
-across all three varieties.
-
-The frequency distribution (\hyperref[_Ref223012659]{Fig 13d}) showed that
-spray savings were predominantly two to four applications per season, with
-two or three sprays being the most common. Higher savings (\(\geq\)5 sprays)
-occurred less frequently but were present in certain locations. The overall
-distribution structures were highly similar among varieties, suggesting that
-spatial climatic variability exerted a stronger influence on early-season
-management timing than the simplified variety scenarios considered here.
+The distribution of grid-cell mean savings was shifted towards higher values
+under the wine-grape scenario. The most frequent category was centred on
+three applications for table grapes and four applications for wine grapes
+(\hyperref[_Ref223012659]{Fig 14c,d}). Annual regional mean potentially
+avoidable applications ranged from 2.30 to 4.82 under the table-grape
+scenario and from 2.72 to 5.17 under the wine-grape scenario (Supplementary
+Figs S4 and S5).
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\linewidth]{fig/Figure_13.png}
-\caption{Spatial distribution and frequency of model-guided spray savings
-under the FSIM-S model: (a--c) multi-year mean number of sprays saved per
-grid cell for the Wink (WK), Kyoho (JF), and Yeniang No. 2 (MPT), and (d)
-frequency distribution of spray savings.}
+\includegraphics[width=0.95\linewidth]{fig/figure_14.png}
+\caption{Mean potential fungicide savings (applications per season) per
+grid cell in Guangxi during 2000--2024 under the table- and wine-grape
+scenarios. Note: The display range is restricted to 1--6 applications.
+Eight table-grape grids and 16 wine-grape grids exceed six applications
+and are treated as outlying events; their values beyond six are not
+displayed. Figure statistics use values bounded to the display range;
+the regional means reported in the text include all original values.}
 \label{_Ref223012659}
 \end{figure}
 
 
 
-\section{Discussion}\label{discussion}
+\section{DISCUSSION}\label{discussion}
 
-This study addressed a key agronomic challenge in subtropical
-viticulture: improving early-season grapevine downy mildew management
-when viable inoculum may be present before weather and crop conditions
-become jointly favourable for infection establishment. By reconstructing Rossi's
-primary and secondary infection formulations into a First Seasonal
-Infection Model (FSIM), and then incorporating observation-based
-spore-pressure dynamics (FSIM-S), the study linked on-farm inoculum
-monitoring with agroclimatic modelling of symptom onset.
+\subsection{Airborne inoculum and first seasonal symptom onset under
+double cropping}\label{inoculum-dynamics-and-the-drivers-of-first-seasonal-symptom-onset}
 
-Across multiple site--year datasets from Guangxi, China, FSIM-S
-improved prediction accuracy and stability compared with FSIM while
-retaining the dominant influence of meteorological drivers. These
-results support the use of FSIM-S as a region-adapted mechanistic
-framework for field-based downy mildew decision support in subtropical
-vineyards, rather than as an empirical model fitted only to symptom
-dates.
+In temperate vineyards, winter dormancy interrupts the availability of green
+host tissue, and overwintered oospores provide an important source of
+initial inoculum.\textsuperscript{4} In subtropical double-cropping regions,
+however, successive production cycles can maintain green tissues in
+neighbouring vineyards even when an individual vineyard undergoes leaf fall.
+This can allow input of asexually produced sporangia before lesions appear
+in the new growing season, consistent with the importance of asexual
+infection reported in warm viticultural regions.\textsuperscript{13,15}
+Sporangia were captured before the first symptom-positive assessment in all
+six site--years (\hyperref[_Ref212492136]{Fig 8}), confirming the widespread
+occurrence of external sporangial input across the monitored site-years.
+However, this study did not trace the source vineyards of the captured
+sporangia, and a potential contribution from oospores cannot be entirely
+excluded. A limited role for oospores under these conditions remains
+possible, given evidence of their formation and germination in southern
+Brazil.\textsuperscript{28}
 
-\subsection{Inoculum dynamics and the drivers of first seasonal symptom
-onset}\label{inoculum-dynamics-and-the-drivers-of-first-seasonal-symptom-onset}
+Earlier sporangial detection did not consistently precede earlier disease
+onset. Nanning 2023 had earlier capture but later symptoms than Nanning
+2024, with detection-to-assessment intervals of 42 and 9 days, respectively;
+Guilin 2022 showed a 43-day interval. In Hechi, similar symptom dates in
+2022 and 2023 followed different capture timing and counts, whereas similar
+first capture dates in 2022 and 2024 preceded symptom assessments two weeks
+apart. These contrasts indicate that neither first detection nor maximum
+captured count alone can explain symptom onset; interpretation must also
+account for weather conditions and host susceptibility, consistent with the
+classical disease triangle framework.\textsuperscript{6}
 
-In temperate systems, seasonal epidemics are typically initiated by
-overwintering oospores after a distinct climatic break. In contrast, the
-continuous presence of airborne sporangia during the early growing
-season (\hyperref[_Ref214187767]{Fig 5}, \hyperref[_Ref212492136]{Fig
-8}) indicates that inoculum in the studied subtropical vineyards is not
-restricted to a discrete primary infection event. This distinction has
-direct implications for model structure, because frameworks centred on
-oospore-driven primary infection may not fully represent systems in
-which asexual inoculum is recurrently available.
+\subsection{Model performance and improvement}\label{model-enhancement}
 
-Despite this continuous inoculum presence, the timing of first visible
-symptom onset varied substantially across sites and years
-(\hyperref[_Ref212492136]{Fig 8}). This variability is consistent with
-interannual differences in early-season meteorological conditions.
-Temperature, relative humidity, and leaf wetness duration regulate
-infection establishment (Rossi and Caffi, 2012; Yi et al., 2019; Yu et
-al., 2022), whereas sustained rainfall can promote sporangial
-production, release and dispersal from vineyard inoculum sources
-(Orlandini et al., 2008). Accordingly, climate variability affects
-disease onset through both infection-establishment suitability and inoculum
-dynamics, explaining why first symptom onset cannot be inferred from weather
-suitability alone.
+FSIM achieved good predictive performance, with a cross-validated mean
+absolute error of 5.67 d. Incorporating spore-pressure dynamics into FSIM-S
+further reduced the error to 3.83 d, a reduction of 32.4\%
+(\hyperref[fig:fsim-error-metrics]{Fig 10}). Because both models retain the
+same infection-to-symptom core framework, these results indicate that
+inoculum availability carries information beyond meteorological suitability
+alone and can improve predictive performance.\textsuperscript{9}
 
-The temporal decoupling between sporangia detection and symptom onset
-provides further evidence for this interpretation. Across all datasets,
-the interval between first airborne sporangia detection and subsequent
-symptom appearance ranged from 9 to 72 days
-(\hyperref[_Ref212492136]{Fig 8}), indicating that the presence of
-inoculum is necessary but insufficient for infection establishment and
-subsequent symptom expression. Infection establishment depends also on host
-phenological susceptibility
-(Hui et al., 2022) and on sufficient inoculum pressure to support
-effective deposition and infection establishment (Scholthof, 2007; Van der Plank,
-2013; Zhang et al., 2025). This decoupling indicates that inoculum
-pressure should be represented as a dynamic constraint on infection
-triggering, rather than treated as a static prerequisite.
+The main methodological advance is the representation of seasonal
+initiation when the inoculum source is not synchronized with the local
+crop cycle. Models beginning with germinating oospores or visible lesions
+encode different starting conditions,\textsuperscript{8,10} whereas FSIM
+permits recurrent sporangial exposure before symptoms appear in the
+target vineyard. Tracking each cohort through attached survival,
+dispersal, airborne survival and deposition preserves the distinction
+between inoculum supply and successful infection. FSIM-S then constrains
+supply at cohort generation rather than shifting symptom dates after
+simulation. This structure gives the monitoring signal an explicit
+biological role and retains weather-dependent infection and incubation
+as separate filters. Its value in double-cropping systems is therefore
+the ability to represent a regional inoculum supply that may persist
+while susceptibility develops anew within an individual vineyard.
 
-\subsection{Model enhancement}\label{model-enhancement}
+The error pattern indicates that observation constraints reduce some
+timing mismatches without resolving all causes of premature onset.
+Validation RMSE decreased by 14.9\%, less than the 32.4\% decrease in MAE,
+and the 14-day early error in Hechi 2022 persisted. The remaining large
+error warrants targeted examination of inoculum viability, local wetness
+and host susceptibility, rather than assuming that more sporangial
+detections necessarily improve prediction. Furthermore, the three-day
+assessment schedule sets the resolution of the observed onset windows:
+zero interval error establishes temporal compatibility, not exact daily
+agreement. Prospective tests should therefore pair spore monitoring with
+direct leaf-wetness measurements and frequent symptom assessments to
+determine whether the improvement reflects better identification of
+infectious exposure and remains useful at the timescale of management
+decisions.
 
-The incorporation of spore-pressure dynamics into FSIM-S improved
-predictive performance relative to the baseline FSIM, with validation
-MAE reduced from 5.67 to 3.83 days (32.4\% reduction)
-(\hyperref[fig:fsim-error-metrics]{Fig 10}). The improvement suggests that first symptom onset tends to
-occur within comparatively narrow windows in which environmental
-suitability coincides with sufficient pathogen pressure, consistent with
-the disease triangle concept (Van der Plank, 2013). The model therefore
-adds process information beyond weather-only infection suitability while
-retaining direct biological interpretability.
+The distinction between airborne detection and effective inoculum is central
+to interpreting this gain. Brischetto et al.\textsuperscript{9} found that
+sporangium counts adjusted for weather-dependent survival were more closely
+associated with infection than total captured counts, and were particularly
+useful for identifying periods without infection. Thus, monitoring is most
+informative when interpreted together with the conditions governing survival
+and infection. In FSIM-S, the suppression associated with zero captures and
+the increase associated with positive spore pressure provide complementary
+constraints on inoculum availability, while subsequent biological processes
+remain weather dependent. These results demonstrate the value of deploying
+spore traps and maintaining continuous monitoring to further refine the
+model for early-season disease prevention.\textsuperscript{9,29} However,
+zero captures indicate non-detection rather than confirmed absence, and
+captured sporangia are not necessarily viable. Relative pressure derived
+from passive traps should therefore not be interpreted as an absolute
+concentration of infectious inoculum or assigned thresholds established with
+volumetric samplers.
 
-City--year errors showed the largest error magnitude in Duan 2022 (14 days;
-error = -14 days) for
-both models, whereas Duan 2024 had zero error under both models and Guilin
-2022 had zero error under FSIM-S (\hyperref[fig:fsim-site-year-errors]{Fig
-11}). FSIM-S reduced the absolute error in Duan 2023, Mingyang 2023, and
-Guilin 2022, while the remaining city--years were unchanged.
+Recent developments strengthen the case for connecting sporangium
+monitoring with disease models. Muthukumar et al.\textsuperscript{29} detected
+airborne \emph{P. viticola} using impaction traps and qPCR 10--14 days
+before visible symptoms. Malvessi Cattani et al.\textsuperscript{30} used automated
+air-flow cytometry, although agreement with reference measurements was
+weaker during early leaf development and flowering than later in the
+season. These findings highlight both the opportunity for earlier
+biological information and the difficulty of measuring sparse
+early-season inoculum. FSIM-S connects this measurable exposure signal
+with survival, dispersal, deposition, infection and symptom development,
+adding observation-based constraints on inoculum availability to predict
+first onset in subtropical double-cropping vineyards.
 
-Overall, FSIM provides a mechanistic representation of first seasonal
-infection-to-symptom processes in subtropical vineyards where recurrent sporangia
-production is a major inoculum source. FSIM-S further integrates an
-observation-derived spore-pressure field, improving responsiveness to
-symptom-onset timing variability while preserving the core biological
-processes inherited from mechanistic infection modelling. This balance
-between biological structure and field observation is important for
-developing transferable early-warning tools under variable subtropical
-conditions.
+\subsection{Regional implications for disease management}
+\label{regional-implications-for-disease-management}
 
-\subsection{Implications for inoculum-informed preventive
-timing}\label{implications-for-inoculum-informed-preventive-timing}
+The mean east--west contrast in symptom onset under both cultivation
+scenarios (\hyperref[_Ref223011563]{Fig 13}) indicates that a single
+province-wide onset date would obscure locally different disease
+trajectories. Earlier eastern and southeastern onset broadly coincided with
+greater spring rainfall and longer nighttime high-humidity duration
+(\hyperref[fig:spring-weather-background]{Fig 12a--c}). Humid nights support
+recurrent sporulation and sporangial survival, while suitable rain events
+enable deposition and subsequent infection.\textsuperscript{8,10} Lower
+western rainfall may delay the coincidence of viable inoculum, leaf wetness
+and susceptible host tissue. These results show that FSIM can use hourly
+weather data and host development information to simulate differences in
+symptom onset across space and time, indicating potential for broader
+application and further validation.
 
-Airborne inoculum monitoring can complement weather-based assessment by
-indicating the background pathogen pressure under which favourable
-infection conditions occur. FSIM-S connects these observations with a
-mechanistic sequence, providing a basis for investigating the timing
-of early-season risk. The evaluated endpoint is visible symptom onset,
-whereas preventive protection concerns the earlier infection-risk
-period. Reconstructed symptom-onset timing therefore requires prospective
-evaluation with inputs available at the time of a decision before they
-can be translated into treatment recommendations. Demonstrating reduced
-fungicide use with maintained disease control would additionally require
-field comparisons of conventional, model-guided and untreated programmes.
+These spatial patterns are best interpreted as the outcome of sequential
+biological filters rather than a response to a single climatic variable. The
+effective deposition rainfall threshold dominated the sensitivity analysis,
+while the sporulation humidity, wind-speed and heavy-rain wash-off
+thresholds had smaller total-order effects (\hyperref[_Ref222510092]{Fig
+9}), highlighting the roles of inoculum deposition, humid-night sporulation
+and dispersal in simulated onset. Within the model, rainfall can enable
+deposition or remove airborne cohorts under the assumed wash-off rule;
+seasonal totals alone therefore cannot identify individual infection
+opportunities. Similarly, higher southern temperatures need not produce the
+earliest symptoms if moisture or host susceptibility is limiting. These
+mechanisms provide a coherent explanation for the spatial contrasts in
+symptom onset, indicating that FSIM can effectively capture the effects of
+spatiotemporal variation in influential variables.
 
-\subsection{Agronomic implications for climate-smart vineyard disease
-management}
+Annual reconstructions show that the timing and spatial extent of early
+symptom expression vary among seasons under both cultivation scenarios
+(Supplementary Figs S2 and S3). The long-term mean maps therefore provide a
+regional background for surveillance, while seasonal decisions also depend
+on the timing of individual weather events and host development. The
+interannual meteorological variability in Fig 12d--f provides context for
+these differences, although the contributions of individual drivers were not
+separated. Because the process framework is evaluated hourly at each grid,
+current-season weather and meteorological forecasts could support repeated
+updates of regional onset windows and season-specific surveillance, subject
+to forecast uncertainty and operational evaluation.
 
-The regional simulations provide an agronomic interpretation of when
-model-guided protection would be most relevant across Guangxi. FSIM-S
-  predicted a mean first symptom-onset date between DOY 195 and 198, with a
-high-frequency window spanning DOY 180--210
-(\hyperref[_Ref223011563]{Fig 12}). This period overlaps with the regional
-flowering--fruit-set stage, when young tissues are particularly susceptible
-(Wang et al., 2020; Cheng et al., 2022), and with the Meiyu season,
-characterized by warm, humid conditions and intermittent rainfall (Song et
-al., 2021; Tian et al., 2022). Thus, the regional results are not only
-spatial reconstructions of symptom-onset timing; they also identify the
-seasonal context in which downy mildew decisions are most consequential for
-vineyard production.
+The spatial correspondence between later symptom onset and greater potential
+spray savings has a clear disease-management basis. Compared with a fixed
+calendar-based fungicide programme, later symptom onset in western and
+northwestern Guangxi leaves more early applications potentially avoidable
+(\hyperref[_Ref223012659]{Fig 14}). Full-grid means of 3.5 and 4.0
+applications are scenario estimates, not measured reductions or
+vineyard-area-weighted totals. The annual maps further show that the spatial
+extent of high saving potential changes among years (Supplementary Figs S4
+and S5); the multi-year means should therefore not be treated as fixed
+annual reduction targets. Together, these results highlight FSIM's potential
+to guide reductions in fungicide applications under regional cultivation
+scenarios.
 
-Within this context, the management implication of FSIM-S is to translate
-infection biology and agroclimatic variability into a time-explicit risk
-signal. This signal can support decisions on early scouting, spore
-monitoring intensity, protection timing and chemical intervention. When
-model outputs were compared with conventional calendar-based programmes,
-the model-guided scenario avoided an average of approximately three early
-preventive sprays per season (range: 2--5), equivalent to a 20--50\%
-reduction in the simulated early-season programme (Gisi and Sierotzki,
-2008; Rossi et al., 2008; Rossin et al., 2015; Koledenkova et al., 2022).
-This result should be interpreted as a timing benefit rather than as a
-generic fungicide-reduction claim: the model delays pre-risk sprays while
-retaining protection near the simulated symptom-onset window.
-
-The climate-smart value of this framework therefore lies in shifting
-subtropical downy mildew management from fixed calendar schedules toward
-risk-informed decision support. FSIM-S does not imply that early protection
-can be omitted; rather, it identifies periods when host susceptibility,
-spore-pressure dynamics and agroclimatic suitability converge. Such
-information can improve the biological justification of interventions,
-increase pesticide-use efficiency, and support more sustainable viticulture
-under humid subtropical conditions (Russell, 1995; Zubrod et al., 2019;
-Zhang et al., 2020).
+For the grape industry, this spatial and annual differentiation could
+support earlier surveillance and protection readiness in zones with earlier
+onset, while identifying where routine early applications warrant closer
+reassessment. Regional warning services could combine a common
+weather-driven framework with local observations to prioritize scouting,
+technical advice and application resources. The practical aim is to
+concentrate protection around locally relevant infection periods while
+limiting poorly timed inputs, rather than applying a uniform reduction
+target across the province.
 
 \subsection{Limitations and future
 directions}\label{limitations-and-future-directions}
 
-First, model parameterization used observations from two commercial
-vineyards and one experimental orchard over three growing seasons. This
-provides multi-site and multi-year evidence under realistic subtropical
-production conditions, while additional observations across more
-regions, cultivars and management systems would further broaden the
-calibration domain. The 2022 Guilin season, for example, provided a
-useful contrast because unusually low early-season humidity and
-irregular rainfall (\hyperref[_Ref214271335]{Fig 3}) may have delayed
-or suppressed infection establishment. Such contrasting cases are
-valuable for testing model behaviour, but wider datasets would support
-more explicit cultivar- or region-specific parameterization (Bellin et
-al., 2009; Gessler et al., 2011; Koledenkova et al., 2022).
+This initial framework relies on observations from two commercial
+vineyards and one experimental vineyard over three growing seasons.
+Additional regions, cultivars and management systems would broaden
+calibration and evaluation. Guilin 2022, with relatively low April
+humidity and uneven rainfall, illustrates conditions that may delay or
+suppress infection establishment and help test whether the model
+distinguishes inoculum presence from conditions permitting infection.
 
-Second, FSIM-S currently uses a deterministic mechanistic structure to
-describe the coupling between meteorological conditions and
-spore-pressure dynamics. This formulation favours stability,
-interpretability and transparent biological assumptions. Future probabilistic extensions could complement this structure
-by quantifying uncertainty associated with rainfall variability, spore
-sampling error and fine-scale atmospheric heterogeneity, particularly
-when the model is applied to operational warning systems or climate
-scenario analysis.
+FSIM-S uses a deterministic structure coupling weather and spore-pressure
+dynamics, favouring stability, interpretability and transparent
+biological assumptions. Probabilistic extensions could quantify
+uncertainty from rainfall variability, spore sampling error and
+fine-scale atmospheric heterogeneity. The regional analysis also
+represents scenarios rather than vineyard-specific operational risk,
+using simplified vineyard, canopy and cultivar assumptions. Vineyard
+land-use layers, cultivar distribution, remote-sensing information and
+canopy microclimate observations would support more spatially resolved
+deployment.
 
-Third, the regional analysis was designed as a scenario-based assessment
-rather than a vineyard-by-vineyard operational map. It therefore used
-simplified assumptions about vineyard distribution, canopy structure and
-cultivar allocation. These assumptions are appropriate for evaluating broad
-regional patterns and management windows, but finer-scale implementation
-would benefit from vineyard land-use layers, cultivar distribution data,
-remote-sensing information and canopy microclimate observations (Tesic et
-al., 2007; Perria et al., 2022). Such additions would extend the framework
-from regional risk assessment toward more spatially resolved
-disease-management support.
+\section{CONCLUSION}\label{conclusion}
 
-Finally, the six site--years provide a limited basis for geographical
-or cultivar transfer because site and cultivar are confounded. Further
-independent observations and prospective evaluation are needed to
-establish the applicability of the framework beyond these vineyards.
+FSIM provides a process-based framework for predicting first-season
+grapevine downy mildew symptom onset under subtropical double cropping,
+linking airborne sporangial inoculum, weather and host development.
+Across six site--years in Guangxi, its validation mean absolute error was
+5.67 days. Incorporating observed spore pressure in FSIM-S reduced this
+error to 3.83 days, a 32.4\% improvement, demonstrating the additional
+predictive value of spore monitoring within the mechanistic framework.
 
-\section{Conclusion}\label{conclusion}
+Regional FSIM simulations for 2000--2024 showed earlier mean symptom onset
+in eastern and southeastern Guangxi and later onset in western and
+northwestern areas. Mean onset was 5.9 days later in the wine-grape scenario
+than in the table-grape scenario. Relative to the reference spray
+programme, estimated potential savings averaged 3.5 early applications per
+season for table grapes and 4.0 for wine grapes. These spatial and
+phenological differences support adapting early-season protection to local
+disease risk and crop development. Prospective field trials are needed to
+establish whether the estimated savings can be achieved while maintaining
+disease control. Together, these findings provide a basis for risk-based
+preventive programmes that use weather and phenology, supplemented by
+spore monitoring where available, to reduce unnecessary fungicide use in
+subtropical double-cropping vineyards.
 
-FSIM links established cohort-based and airborne-sporangium processes
-under a recurrent-airborne-inoculum premise to reconstruct first visible
-downy mildew symptom onset in subtropical vineyards. FSIM-S incorporates
-field-observed spore pressure within the same process chain, enabling
-assessment of its incremental information for symptom-onset estimation.
-Multi-year and multi-site validation demonstrated that FSIM-S reproduced
-first visible symptom-onset timing with a mean absolute error of 6.3 days and
-a root mean square error of 6.5 days. Long-term regional simulations
-(2000--2024) captured spatial patterns of symptom onset and indicated
-that model-guided timing could avoid 2--5 early preventive sprays per season
-compared with a conventional calendar-based programme. Overall, the
-framework connects inoculum monitoring with infection biology and provides
-a basis for climate-smart, model-guided disease management under subtropical
-conditions.
-
-\section{CRediT authorship contribution
-statement}\label{credit-authorship-contribution-statement}
-
-Linjia Yao: Investigation, Writing -- original draft, Visualization,
-Software, Methodology, Formal analysis, Conceptualization. Bin Chen:
-Investigation, Writing -- original draft, Formal analysis. Writing
--review \& editing. Vittorio Rossi: Formal analysis, Writing -review \&
-editing. Ling Yin: Funding acquisition, Writing -review \& editing.
-Shumei Wei: Investigation. Qi Tian: Investigation. Changqing Yan:
-Writing -review \& editing. Hui Wang: Writing -review \& editing.
-Antonio Fernandes Nogueira Júnior: Writing -review \& editing. Yu Huang:
-Investigation. Qiang Yu: Conceptualization, Supervision. Junjie Qu:
-Funding acquisition. Gang Zhao: Software, Methodology,
-Conceptualization, Supervision.
-
-\section{Declaration of competing
-interest}\label{declaration-of-competing-interest}
-
-The authors declare that they have no known competing financial
-interests or personal relationships that could have appeared to
-influence the work reported in this paper.
-
-\section{Acknowledgements}\label{acknowledgements}
+\section*{Acknowledgements}\label{acknowledgements}
 
 This work was funded by Guangxi Key R\&D Program Project (Grant No. Gui
 Ke AB24010121, AB21076001) and the Key Research and Development Program
@@ -1287,360 +1181,97 @@ of Shaanxi (Grant No. 2023-ZDLNY-64). We gratefully acknowledge Mr. Yunlong Chen
 Yaokang Liang, local growers in Guilin and Hechi, for their valuable
 assistance in fieldwork.
 
-\section{Data Availability}\label{data-availability}
-
-The model structure, code, and data supporting the findings of this
-study are publicly available at:
-\url{https://github.com/SmartAG-Team/grape_disease.git}. The repository
-includes (i) field observations of first visible symptom onset, (ii)
-airborne sporangia monitoring data, (iii) site--year
-meteorological data used for model calibration and validation, and (iv)
-code for model implementation, calibration, and figure generation.
-Additional materials may be available from the corresponding author upon
-reasonable request (\ul{gang.zhao@nwafu.edu.cn (Gang Zhao)}).
-
-\section{References}\label{references}
-
-Baldacci, E., 1947. Epifitie di Plasmopara viticola (1941-46)
-nell'oltrepò pavese ed adizione del calendario di incubazione come
-strumento di lotta.
-
-Barrett, J., 1939. Overwintering mycelium of Plasmopara viticola (B. \&
-C.) Berl. \& de T. in the California wild grape, Vitis californica
-Benth.
-
-Bellin, D., Peressotti, E., Merdinoglu, D., Wiedemann-Merdinoglu, S.,
-Adam-Blondon, A.-F., Cipriani, G., Morgante, M., Testolin, R., Di
-Gaspero, G., 2009. Resistance to Plasmopara viticola in grapevine
-`bianca' is controlled by a major dominant gene causing localised
-necrosis at the infection site. Theor. Appl. Genet. 120, 163--176.
-https://doi.org/10.1007/s00122-009-1167-2
-
-Bergstra, J., Bardenet, R., Bengio, Y., Kégl, B., 2011. Algorithms for
-hyper-parameter optimization, in: Advances in Neural Information
-Processing Systems 24. Curran Associates, Inc.
-
-Bitencourt, C., Pierre, P.M.O., Pinto, F.A.M.F., Fermino-Junior, P.C.P.,
-Gomes, B.R., De Morais, A.C., Dias, J.M., Welter, L.J., 2021. First
-report of oospore formation in \emph{Plasmopara viticola}, the causal
-agent of grapevine downy mildew, in highland regions of southern Brazil.
-Plant Pathol. 70, 1897--1907. https://doi.org/10.1111/ppa.13431
-
-Brischetto, C., Bove, F., Languasco, L., Rossi, V., 2020. Can spore
-sampler data be used to predict \emph{Plasmopara viticola} infection in
-vineyards? Front. Plant Sci. 11, 1187.
-https://doi.org/10.3389/fpls.2020.01187
-
-Brischetto, C., Bove, F., Fedele, G., Rossi, V., 2021. A weather-driven
-model for predicting infections of grapevines by sporangia of Plasmopara
-viticola. Front. Plant Sci. 12, 636607.
-https://doi.org/10.3389/fpls.2021.636607
-
-Caffi, T., Rossi, V., Bugiani, R., 2010. Evaluation of a warning system
-for controlling primary infections of grapevine downy mildew. Plant Dis.
-94, 709--716. https://doi.org/10.1094/PDIS-94-6-0709
-
-Caffi, T., Rossi, V., Cossu, A., Fronteddu, F., 2007. Empirical vs.
-mechanistic models for primary infections of \emph{Plasmopara viticola}
-*. EPPO Bull. 37, 261--271.
-https://doi.org/10.1111/j.1365-2338.2007.01120.x
-
-Camargo, M.P., Hong, C.F., Amorim, L., Scherm, H., 2019. Cryptic species
-and population genetic structure of \emph{Plasmopara viticola} in São
-Paulo State, Brazil. Plant Pathol. 68, 719--726.
-https://doi.org/10.1111/ppa.12993
-
-Carisse, O., 2016. Development of grape downy mildew (plasmopara
-viticola) under northern viticulture conditions: Influence of fall
-disease incidence. Eur. J. Plant Pathol. 144, 773--783.
-https://doi.org/10.1007/s10658-015-0748-y
-
-Carisse, O., Van Der Heyden, H., Tremblay, D.M., Hébert, P.O., Delmotte,
-F., 2021. Evidence for differences in the temporal progress of
-\emph{Plasmopara viticola} Clades \emph{riparia} and \emph{aestivalis}
-airborne inoculum monitored in vineyards in eastern Canada using a
-specific multiplex quantitative PCR assay. Plant Dis. 105, 1666--1676.
-https://doi.org/10.1094/PDIS-06-20-1164-RE
-
-Chavas, J., Nauges, C., 2020. Uncertainty, Learning, and Technology
-Adoption in Agriculture. Appl. Econ. Perspect. Policy 42, 42--53.
-https://doi.org/10.1002/aepp.13003
-
-Chen, M., Brun, F., Raynal, M., Makowski, D., 2019. Timing of grape
-downy mildew onset in Bordeaux vineyards. Phytopathology 109, 787--795.
-https://doi.org/10.1094/PHYTO-12-17-0412-R
-
-Chen, M., Brun, F., Raynal, M., Makowski, D., 2020. Forecasting severe
-grape downy mildew attacks using machine learning. PLOS ONE 15,
-e0230254. https://doi.org/10.1371/journal.pone.0230254
-
-Chen, W.-K., Bai, X.-J., Cao, M.-M., Cheng, G., Cao, X.-J., Guo, R.-R.,
-Wang, Y., He, L., Yang, X.-H., He, F., Duan, C.-Q., Wang, J., 2017.
-Dissecting the variations of ripening progression and flavonoid metabolism
-in grape berries grown under double cropping system. Front. Plant Sci. 8,
-1912. https://doi.org/10.3389/fpls.2017.01912
-
-Cheng, X., Sun, S., Liu, Z., Yang, X., 2022. Drought analysis during the
-growth stages of grape in the main grape-growing regions in China.
-Theor. Appl. Climatol. 149, 1497--1507.
-https://doi.org/10.1007/s00704-022-04070-z
-
-García-Esparza, M., Capri, E., Pirzadeh, P., Trevisan, M., 2006. Copper
-content of grape and wine from Italian farms. Food Addit. Contam. 23,
-274--280. https://doi.org/10.1080/02652030500429117
-
-Gessler, C., Pertot, I., Perazzolli, M., 2011. Plasmopara viticola: A
-review of knowledge on downy mildew of grapevine and effective disease
-management. Phytopathol. Mediterr. 50, 3--44.
-https://www.jstor.org/stable/26458675
-
-Gisi, U., Sierotzki, H., 2008. Fungicide modes of action and resistance
-in downy mildews. Eur. J. Plant Pathol. 122, 157--167.
-https://doi.org/10.1007/s10658-008-9290-5
-
-Gobbin, D., Jermini, M., Loskill, B., Pertot, I., Raynal, M., Gessler,
-C., 2005. Importance of secondary inoculum of \emph{Plasmopara viticola}
-to epidemics of grapevine downy mildew. Plant Pathol. 54, 522--534.
-https://doi.org/10.1111/j.1365-3059.2005.01208.x
-
-Gobbin, D., Rumbou, A., Linde, C.C., Gessler, C., 2006. Population
-genetic structure of \emph{Plasmopara viticola} after 125 years of
-colonization in European vineyards. Mol. Plant Pathol. 7, 519--531.
-https://doi.org/10.1111/j.1364-3703.2006.00357.x
-
-Hersbach, H., Bell, B., Berrisford, P., Hirahara, S., Horányi, A.,
-Muñoz-Sabater, J., Nicolas, J., Peubey, C., Radu, R., Schepers, D.,
-Simmons, A., Soci, C., Abdalla, S., Abellan, X., Balsamo, G., Bechtold,
-P., Biavati, G., Bonavita, M., et al., 2020. The ERA5 global reanalysis.
-Q. J. R. Meteorol. Soc. 146, 1999--2049. https://doi.org/10.1002/qj.3803
-
-Hill, G., 1990. Plasmopara risk oppenheim--a deterministic computer
-model for the viticultural extension service. Not. Sulle Mal. Delle
-Piante 111, 231--238.
-
-Huffman, W.E., 2020. Human capital and adoption of innovations: Policy
-implications. Appl. Econ. Perspect. Policy 42, 92--99.
-https://doi.org/10.1002/aepp.13010
-
-Huber, L., Gillespie, T.J., 1992. Modeling leaf wetness in relation to
-plant disease epidemiology. Annu. Rev. Phytopathol. 30, 553--577.
-https://doi.org/10.1146/annurev.py.30.090192.003005
-
-Hug, F., 2005. Genetic structure and epidemiology of Plasmopara viticola
-populations from Australian grape-growing regions 54 S.
-https://doi.org/10.3929/ETHZ-A-004997559
-
-Hui, W., Shuyi, Y., Wei, Z., Junbo, P., Haiyun, T., Chunhao, L., Jiye,
-Y., 2023. Modeling the dynamic changes in Plasmopara viticola sporangia
-concentration based on LSTM and understanding the impact of relative
-factor variability. Int. J. Biometeorol. 67, 993--1002.
-https://doi.org/10.1007/s00484-022-02419-7
-
-Hui, W., Wei, Z., Bregaglio, S., Shuyi, Y., Xinghong, L., Yonghua, L.,
-Chunhao, L., Jiye, Y., 2022. Adoption of Sobol's analysis method
-improved the application of a coupled primary and secondary infection
-grape downy mildew model in northern China. Comput. Electron. Agric.
-199, 107154. https://doi.org/10.1016/j.compag.2022.107154
-
-Iooss, B., Lemaître, P., 2015. A review on global sensitivity analysis
-methods. Uncertain. Manag. Simul.-Optim. Complex Syst. Algorithms Appl.
-101--122. https://doi.org/10.1007/978-1-4899-7547-8\_5
-
-Kiefer, B., Riemann, M., Büche, C., Kassemeyer, H.-H., Nick, P., 2002.
-The host guides morphogenesis and stomatal targeting in the grapevine
-pathogen Plasmopara viticola. Planta 215, 387--393.
-https://doi.org/10.1007/s00425-002-0760-2
-
-Killigrew, B., Sivasithamparam, K., Scott, E., 2005. Absence of oospores
-of downy mildew of grape caused by Plasmopara viticola as the source of
-primary inoculum in most Western Australian vineyards. Plant Dis. 89,
-777. https://doi.org/10.1094/PD-89-0777C
-
-Kocsis, I., Petróczy, M., Markó, G., 2024. Bridging boundaries:
-Exploring vineyard, management and variety characteristics influencing
-long-term infection of grapevine pathogens. OENO One 58.
-https://doi.org/10.20870/oeno-one.2024.58.1.7677
-
-Koledenkova, K., Esmaeel, Q., Jacquard, C., Nowak, J., Clément, C., Ait
-Barka, E., 2022. Plasmopara viticola, the causal agent of downy mildew of
-grapevine: From its taxonomy to disease management. Front. Microbiol.
-13, 889472. https://doi.org/10.3389/fmicb.2022.889472
-
-Koopman, T., Linde, C.C., Fourie, P.H., Mcleod, A., 2007. Population
-genetic structure of \emph{Plasmopara viticola} in the Western Cape
-Province of South Africa. Mol. Plant Pathol. 8, 723--736.
-https://doi.org/10.1111/j.1364-3703.2007.00429.x
-
-Lorenz, D.H., Eichhorn, K.W., Bleiholder, H., Klose, R., Meier, U.,
-Weber, E., 1995. Growth stages of the grapevine: Phenological growth
-stages of the grapevine (Vitis vinifera L. ssp. vinifera)---Codes and
-descriptions according to the extended BBCH scale. Aust. J. Grape Wine
-Res. 1, 100--103. https://doi.org/10.1111/j.1755-0238.1995.tb00085.x
-
-Lu, H.-C., Chen, W.-K., Wang, Y., Bai, X.-J., Cheng, G., Duan, C.-Q.,
-Wang, J., He, F., 2022. Effect of the seasonal climatic variations on the
-accumulation of fruit volatiles in four grape varieties under the double
-cropping system. Front. Plant Sci. 12, 809558.
-https://doi.org/10.3389/fpls.2021.809558
-
-Morris, M.D., 1991. Factorial sampling plans for preliminary
-computational experiments. Technometrics 33, 161--174.
-https://doi.org/10.1080/00401706.1991.10484804
-
-Mouafo-Tchinda, R.A., Fall, M.L., Beaulieu, C., Carisse, O., 2022.
-Competition between \emph{Plasmopara viticola} Clade \emph{riparia} and
-Clade \emph{aestivalis}\,: A race to lead grape downy mildew epidemics.
-Plant Dis. 106, 2866--2875. https://doi.org/10.1094/PDIS-11-21-2465-RE
-
-National Bureau of Statistics of China, 2024. China statistical yearbook
-2024. China Statistics Press.
-
-Nogueira Júnior, A.F., Ribeiro, R.V., Marcos, F.C.C., Amorim, L., 2019.
-Virtual lesions and photosynthetic damage caused by Plasmopara viticola
-in Vitis labrusca. Eur. J. Plant Pathol. 155, 545--555.
-https://doi.org/10.1007/s10658-019-01791-2
-
-Norton, G.W., Alwang, J., 2020. Changes in agricultural extension and
-implications for farmer adoption of new practices. Appl. Econ. Perspect.
-Policy 42, 8--20. https://doi.org/10.1002/aepp.13008
-
-Orlandini, S., Massetti, L., Marta, A.D., 2008. An agrometeorological
-approach for the simulation of Plasmopara viticola. Comput. Electron.
-Agric. 64, 149--161. https://doi.org/10.1016/j.compag.2008.04.004
-
-Peng, J., Wang, X., Wang, H., Li, X., Zhang, Q., Wang, M., Yan, J.,
-2024. Advances in understanding grapevine downy mildew: From pathogen
-infection to disease management. Mol. Plant Pathol. 25, e13401.
-https://doi.org/10.1111/mpp.13401
-
-Perria, R., Ciofini, A., Petrucci, W.A., D'Arcangelo, M.E.M., Valentini,
-P., Storchi, P., Carella, G., Pacetti, A., Mugnai, L., 2022. A study on
-the efficiency of sustainable wine grape vineyard management strategies.
-Agronomy 12, 392. https://doi.org/10.3390/agronomy12020392
-
-Puelles, M., Arbizu-Milagro, J., Castillo-Ruiz, F.J., Peña, J.M., 2024.
-Predictive models for grape downy mildew (Plasmopara viticola) as a
-decision support system in Mediterranean conditions. Crop Prot. 175,
-106450. https://doi.org/10.1016/j.cropro.2023.106450
-
-Ramanathan, N., Sivapalan, A., 1988. Some observations on the downy
-mildew disease of grapevine caused by Plasmopara viticola in Jaffna. J.
-Natl. Sci. Found. Sri Lanka 16.
-
-Rossi, V., Caffi, T., 2012. The role of rain in dispersal of the primary
-inoculum of \emph{Plasmopara viticola}. Phytopathology® 102, 158--165.
-https://doi.org/10.1094/PHYTO-08-11-0223
-
-Rossi, V., Caffi, T., Giosuè, S., Bugiani, R., 2008. A mechanistic model
-simulating primary infections of downy mildew in grapevine. Ecol. Model.
-212, 480--491. https://doi.org/10.1016/j.ecolmodel.2007.10.046
-
-Rossin, G., Villalta, D., Martelli, P., Cecconi, D., Polverari, A.,
-Zoccatelli, G., 2015. Grapevine downy mildew \emph{Plasmopara
-viticola} infection elicits the expression of allergenic
-pathogenesis-related proteins. Int. Arch. Allergy Immunol. 168, 90--95.
-https://doi.org/10.1159/000441792
-
-Rumbou, A., Gessler, C., 2006. Particular structure of \emph{Plasmopara
-viticola} populations evolved under Greek island conditions.
-Phytopathology® 96, 501--509. https://doi.org/10.1094/PHYTO-96-0501
-
-Russell, P., 1995. Fungicide resistance: Occurrence and management. J.
-Agric. Sci. 124, 317--323.
-\url{https://doi.org/10.1017/S0021859600073275}
-
-Scholthof, K.-B.G., 2007. The disease triangle: pathogens, the
-environment and society. Nat. Rev. Microbiol. 5, 152--156.
-https://doi.org/10.1038/nrmicro1596
-
-Sobol, I.M., 2001. Global sensitivity indices for nonlinear mathematical
-models and their Monte Carlo estimates. Math. Comput. Simul. 55, 271--280.
-https://doi.org/10.1016/S0378-4754(00)00270-6
-
-Song, K., Liu, X., Gao, T., 2021. Real-time rainfall estimation using
-microwave links: A case study in east China during the plum rain season
-in 2020. Sensors 21, 858. https://doi.org/10.3390/s21030858
-
-Strizyk, S., 1983. Modèle d'état potentiel d'infection: Application à
-Plasmopara viticola. Assoc. Coord. Tech. Agric. Maison Natl. Elev.
-1--46.
-
-Taylor, A., 2018. Genetic structure, survival mechanisms and spread of
-downy mildew in Western Australian and Australian vineyards.
-
-Tesic, D., Keller, M., Hutton, R.J., 2007. Influence of vineyard floor
-management practices on grapevine vegetative growth, yield, and fruit
-composition. Am. J. Enol. Vitic. 58, 1--11.
-https://doi.org/10.5344/ajev.2007.58.1.1
-
-Tian, Y., Yao, R., Zhao, E., Yao, Q., Pan, X., 2022. The space
-conceptual models and water vapor characteristics of typical rainstorms
-during plum rain season. Adv. Meteorol. 2022, 6971110.
-https://doi.org/10.1155/2022/6971110
-
-Van der Plank, J.E., 2013. Plant diseases: Epidemics and control.
-Elsevier.
-
-Vercesi, A., Toffolatti, S.L., Zocchi, G., Guglielmann, R., Ironi, L., 2010.
-A new approach to modelling the dynamics of oospore germination of
-\emph{Plasmopara viticola}. Eur. J. Plant Pathol. 128, 113--126.
-
-Wang, X., Li, H., García De Cortázar Atauri, I., 2020. Assessing
-grapevine phenological models under Chinese climatic conditions. OENO
-One. https://doi.org/10.20870/oeno-one.2020.54.3.3195
-
-Yan, C., Liang, Z., Yin, L., Wei, S., Tian, Q., Li, Y., Cheng, H., Liu,
-J., Yu, Q., Zhao, G., et al., 2024. AFM-YOLOv8s: An accurate, fast, and
-highly robust model for detection of sporangia of Plasmopara viticola
-with various morphological variants. Plant Phenomics 6, 0246.
-https://doi.org/10.34133/plantphenomics.0246
-
-Yi, T., Hong, Y., Li, M., Li, X., 2019. Examination and characterization
-of key factors to seasonal epidemics of downy mildew in native grape
-species Vitis davidii in southern China with the use of disease warning
-systems. Eur. J. Plant Pathol. 154, 389--404.
-https://doi.org/10.1007/s10658-018-01663-1
-
-Yin, Y., Miao, J., Shao, W., Liu, X., Zhao, Y., Ma, Z., 2023. Fungicide
-resistance: Progress in understanding mechanism, monitoring, and
-management. Phytopathology® 113, 707--718.
-https://doi.org/10.1094/PHYTO-10-22-0370-KD
-
-Yu, S., Li, B., Guan, T., Liu, L., Wang, H., Liu, C., Zang, C., Huang,
-Y., Liang, C., 2022. A comparison of three types of vineyard management
-and their effects on the structure of Plasmopara viticola populations
-and epidemic dynamics of grape downy mildew. Plants 11,
-2175. https://doi.org/10.3390/plants11162175
-
-Yu, S., Li, B., Wang, H., Liu, L., Guan, T., Liu, C., 2021. Study on
-estimation model for grape downy mildew prediction based on airborne
-sporangium concentration of Plasmopara viticola in field. Mag. Publ.
-House. https://doi.org/10.13925/j.cnki.gsxb.20210164
-
-Zhang, C., Zhou, T., Xu, Y., Du, Z., Li, B., Wang, Jinhua, Wang, Jun,
-Zhu, L., 2020. Ecotoxicology of strobilurin fungicides. Sci. Total
-Environ. 742, 140611. https://doi.org/10.1016/j.scitotenv.2020.140611
-
-Zhang, Z., Niu, Z., Chen, Z., Zhao, Y., Yang, L., 2025. Review of the
-pathogenic mechanism of grape downy mildew (Plasmopara viticola) and
-strategies for its control. Microorganisms 13, 1279.
-\url{https://doi.org/10.3390/microorganisms13061279}
-
-Zhao, G., Zhao, Q., Webber, H., Johnen, A., Rossi, V., Nogueira Junior,
-A.F., 2024. Integrating machine learning and change detection for
-enhanced crop disease forecasting in rice farming: A multi-regional
-study. Eur. J. Agron. 160, 127317.
-https://doi.org/10.1016/j.eja.2024.127317
-
-Zubrod, J.P., Bundschuh, M., Arts, G., Brühl, C.A., Imfeld, G., Knäbel,
-A., Payraudeau, S., Rasmussen, J.J., Rohr, J., Scharmüller, A., et al.,
-2019. Fungicides: an overlooked pesticide class? Environ. Sci. Technol.
-53, 3347--3365. https://doi.org/10.1021/acs.est.8b04392
-
-\subsection{Appendix A. Supplementary
-material}\label{appendix-a.-supplementary-material}
-
-Supplementary data associated with this article can be found in the
-online version.
+\section*{Conflict of Interest}\label{declaration-of-competing-interest}
+
+The authors declare that they have no known competing financial
+interests or personal relationships that could have appeared to
+influence the work reported in this paper.
+
+\section*{CRediT authorship contribution
+statement}\label{credit-authorship-contribution-statement}
+
+Linjia Yao: Investigation, Writing -- original draft, Visualization,
+Software, Methodology, Formal analysis, Conceptualization. Bin Chen:
+Investigation, Writing -- original draft, Formal analysis, Writing
+-- review \& editing. Vittorio Rossi: Formal analysis, Writing -- review \&
+editing. Ling Yin: Funding acquisition, Writing -- review \& editing.
+Shumei Wei: Investigation. Qi Tian: Investigation. Changqing Yan:
+Writing -- review \& editing. Hui Wang: Writing -- review \& editing.
+Antonio Fernandes Nogueira Júnior: Writing -- review \& editing. Yu Huang:
+Investigation. Qiang Yu: Conceptualization, Supervision. Junjie Qu:
+Funding acquisition. Gang Zhao: Software, Methodology,
+Conceptualization, Supervision.
+
+\section*{Data Availability}\label{data-availability}
+
+The model structure, code, and data supporting the findings of this study
+are available from the corresponding author upon reasonable request
+(\ul{gang.zhao@nwafu.edu.cn (Gang Zhao)}).
+
+\section*{Supporting information}\label{supporting-information}
+
+Supporting information may be found in the online version of this article.
+
+\section*{References}\label{references}
+
+1 Koledenkova K, Esmaeel Q, Jacquard C, Nowak J, Clément C and Ait Barka E, \emph{Plasmopara viticola}, the causal agent of downy mildew of grapevine: From its taxonomy to disease management. \emph{Front Microbiol} \textbf{13}:889472. \url{https://doi.org/10.3389/fmicb.2022.889472} (2022).
+
+2 Peng J, Wang X, Wang H, Li X, Zhang Q, Wang M et al., Advances in understanding grapevine downy mildew: From pathogen infection to disease management. \emph{Mol Plant Pathol} \textbf{25}:e13401. \url{https://doi.org/10.1111/mpp.13401} (2024).
+
+3 Nogueira Júnior AF, Ribeiro RV, Marcos FCC and Amorim L, Virtual lesions and photosynthetic damage caused by \emph{Plasmopara viticola} in \emph{Vitis labrusca}. \emph{Eur J Plant Pathol} \textbf{155}:545--555. \url{https://doi.org/10.1007/s10658-019-01791-2} (2019).
+
+4 Gessler C, Pertot I and Perazzolli M, \emph{Plasmopara viticola}: A review of knowledge on downy mildew of grapevine and effective disease management. \emph{Phytopathol Mediterr} \textbf{50}:3--44. \url{https://www.jstor.org/stable/26458675} (2011).
+
+5 Caffi T, Rossi V and Bugiani R, Evaluation of a warning system for controlling primary infections of grapevine downy mildew. \emph{Plant Dis} \textbf{94}:709--716. \url{https://doi.org/10.1094/PDIS-94-6-0709} (2010).
+
+6 Scholthof K-BG, The disease triangle: pathogens, the environment and society. \emph{Nat Rev Microbiol} \textbf{5}:152--156. \url{https://doi.org/10.1038/nrmicro1596} (2007).
+
+7 Caffi T, Rossi V, Cossu A and Fronteddu F, Empirical vs. mechanistic models for primary infections of \emph{Plasmopara viticola}. \emph{EPPO Bull} \textbf{37}:261--271. \url{https://doi.org/10.1111/j.1365-2338.2007.01120.x} (2007).
+
+8 Rossi V, Caffi T, Giosuè S and Bugiani R, A mechanistic model simulating primary infections of downy mildew in grapevine. \emph{Ecol Model} \textbf{212}:480--491. \url{https://doi.org/10.1016/j.ecolmodel.2007.10.046} (2008).
+
+9 Brischetto C, Bove F, Languasco L and Rossi V, Can spore sampler data be used to predict \emph{Plasmopara viticola} infection in vineyards? \emph{Front Plant Sci} \textbf{11}:1187. \url{https://doi.org/10.3389/fpls.2020.01187} (2020).
+
+10 Brischetto C, Bove F, Fedele G and Rossi V, A weather-driven model for predicting infections of grapevines by sporangia of \emph{Plasmopara viticola}. \emph{Front Plant Sci} \textbf{12}:636607. \url{https://doi.org/10.3389/fpls.2021.636607} (2021).
+
+11 Chen W-K, Bai X-J, Cao M-M, Cheng G, Cao X-J, Guo R-R et al., Dissecting the variations of ripening progression and flavonoid metabolism in grape berries grown under double cropping system. \emph{Front Plant Sci} \textbf{8}:1912. \url{https://doi.org/10.3389/fpls.2017.01912} (2017).
+
+12 Lu H-C, Chen W-K, Wang Y, Bai X-J, Cheng G, Duan C-Q et al., Effect of the seasonal climatic variations on the accumulation of fruit volatiles in four grape varieties under the double cropping system. \emph{Front Plant Sci} \textbf{12}:809558. \url{https://doi.org/10.3389/fpls.2021.809558} (2022).
+
+13 Camargo MP, Hong CF, Amorim L and Scherm H, Cryptic species and population genetic structure of \emph{Plasmopara viticola} in São Paulo State, Brazil. \emph{Plant Pathol} \textbf{68}:719--726. \url{https://doi.org/10.1111/ppa.12993} (2019).
+
+14 Vercesi A, Toffolatti SL, Zocchi G, Guglielmann R and Ironi L, A new approach to modelling the dynamics of oospore germination in \emph{Plasmopara viticola}. \emph{Eur J Plant Pathol} \textbf{128}:113--126. \url{https://doi.org/10.1007/s10658-010-9635-8} (2010).
+
+15 Koopman T, Linde CC, Fourie PH and McLeod A, Population genetic structure of \emph{Plasmopara viticola} in the Western Cape Province of South Africa. \emph{Mol Plant Pathol} \textbf{8}:723--736. \url{https://doi.org/10.1111/j.1364-3703.2007.00429.x} (2007).
+
+16 Killigrew BX, Sivasithamparam K and Scott ES, Absence of oospores of downy mildew of grape caused by \emph{Plasmopara viticola} as the source of primary inoculum in most Western Australian vineyards. \emph{Plant Dis} \textbf{89}:777. \url{https://doi.org/10.1094/PD-89-0777C} (2005).
+
+17 Lorenz DH, Eichhorn KW, Bleiholder H, Klose R, Meier U and Weber E, Growth stages of the grapevine: Phenological growth stages of the grapevine (\emph{Vitis vinifera} L. ssp. vinifera)---Codes and descriptions according to the extended BBCH scale. \emph{Aust J Grape Wine Res} \textbf{1}:100--103. \url{https://doi.org/10.1111/j.1755-0238.1995.tb00085.x} (1995).
+
+18 Hersbach H, Bell B, Berrisford P, Hirahara S, Horányi A, Muñoz-Sabater J et al., The ERA5 global reanalysis. \emph{Q J R Meteorol Soc} \textbf{146}:1999--2049. \url{https://doi.org/10.1002/qj.3803} (2020).
+
+19 Huber L and Gillespie TJ, Modeling leaf wetness in relation to plant disease epidemiology. \emph{Annu Rev Phytopathol} \textbf{30}:553--577. \url{https://doi.org/10.1146/annurev.py.30.090192.003005} (1992).
+
+20 Sobol IM, Global sensitivity indices for nonlinear mathematical models and their Monte Carlo estimates. \emph{Math Comput Simul} \textbf{55}:271--280. \url{https://doi.org/10.1016/S0378-4754(00)00270-6} (2001).
+
+21 Wang H, Zhang W, Bregaglio S, Yu S, Li X, Li Y et al., Adoption of Sobol's analysis method improved the application of a coupled primary and secondary infection grape downy mildew model in northern China. \emph{Comput Electron Agric} \textbf{199}:107154. \url{https://doi.org/10.1016/j.compag.2022.107154} (2022).
+
+22 Iooss B and Lemaître P, A review on global sensitivity analysis methods, in \emph{Uncertainty Management in Simulation-Optimization of Complex Systems}, ed. by Dellino G and Meloni C. Springer, Boston, MA, pp. 101--122. \url{https://doi.org/10.1007/978-1-4899-7547-8\_5} (2015).
+
+23 Kennelly MM, Gadoury DM, Wilcox WF, Magarey PA and Seem RC, Seasonal development of ontogenic resistance to downy mildew in grape berries and rachises. \emph{Phytopathology} \textbf{95}:1445--1452. \url{https://doi.org/10.1094/PHYTO-95-1445} (2005).
+
+24 Reuveni M, Relationships between leaf age, peroxidase and \(\beta\)-1,3-glucanase activity, and resistance to downy mildew in grapevines. \emph{J Phytopathol} \textbf{146}:525--530. \url{https://doi.org/10.1111/j.1439-0434.1998.tb04615.x} (1998).
+
+25 Karabektaşoğlu Ş, Köse B and Svyantek A, Investigation of the phenological and climate indices of some table and wine grapes and their growing status in the Samsun-Bafra Plain (Türkiye). \emph{Anadolu J Agric Sci} \textbf{39}:143--162. \url{https://doi.org/10.7161/omuanajas.1394670} (2024).
+
+26 Hu M and Fiola J, Downy mildew management. University of Maryland Extension. \url{https://extension.umd.edu/resource/downy-mildew-management} (2024) [accessed 9 October 2026].
+
+27 Wang X, Li H and García De Cortázar Atauri I, Assessing grapevine phenological models under Chinese climatic conditions. \emph{OENO One} \textbf{54}:637--656. \url{https://doi.org/10.20870/oeno-one.2020.54.3.3195} (2020).
+
+28 Bitencourt C, Perazzoli V, de Freitas FR, Soldi C, da Silva AL and Welter LJ, Sexual reproduction of \emph{Plasmopara viticola} in wine regions of southern Brazil, climatic suitability, oospore formation and germination. \emph{Plant Pathol} \textbf{75}:e70175. \url{https://doi.org/10.1111/ppa.70175} (2026).
+
+29 Muthukumar G, Kamalakannan A, Johnson I, Kamaraj P, Muthuvel I, Varanavasiappan S et al., Early detection and quantification of airborne inocula of \emph{Plasmopara viticola} causing grapevine downy mildew using impaction spore trap. \emph{Physiol Mol Plant Pathol} \textbf{139}:102842. \url{https://doi.org/10.1016/j.pmpp.2025.102842} (2025).
+
+30 Malvessi Cattani A, Zeder Y, Graf E, Schwendimann A, Coronelli R, Smit-Sadki T et al., Automated air-flow cytometry enables real-time monitoring of \emph{Plasmopara viticola} sporangia in vineyards. \emph{Appl Environ Microbiol} \textbf{92}:e02152-25. \url{https://doi.org/10.1128/aem.02152-25} (2026).
 
 \end{document}

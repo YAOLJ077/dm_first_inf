@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Iterable, Mapping
 
 
-DEFAULT_CONFIG = Path(__file__).with_name("config.json")
+DEFAULT_CONFIG = Path(__file__).with_name("observed_anchor_fallback.json")
 
 
 @dataclass(frozen=True)

@@ -1,12 +1,11 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "n_years": 25,
   "n_grids": 342,
   "n_grid_year_rows": 8550,
   "periods": {
     "annual": "January 1 through December 31",
-    "spring": "March 1 through May 31",
-    "bbch9_65": "inclusive calendar dates from modeled BBCH9 to modeled BBCH65"
+    "spring": "March 1 through May 31"
   },
   "rain_day_threshold_mm": 0.1,
   "night_hours": "20:00-23:00 and 00:00-07:00 local time",
