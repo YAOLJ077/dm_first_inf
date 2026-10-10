@@ -1,53 +1,53 @@
-# 广西葡萄霜霉病初次显症模型
+# Grapevine Downy Mildew Symptom-Onset Modelling
 
-这是一个面向科研的葡萄霜霉病建模仓库。项目关注一个具体问题：在广西等亚热带葡萄产区，结合逐小时天气、物候和孢子监测信息，估计一个生长季中葡萄霜霉病首次出现可见症状的时间窗口。
+This is a research-oriented repository for modelling grapevine downy mildew in Guangxi and other subtropical production environments. The project focuses on a specific question: given hourly weather, host phenology and spore-monitoring information, when is the first visible symptom window likely to occur during a growing season?
 
-仓库中的模型把病害看作一个连续过程：环境条件适合时产生孢子囊，孢子囊在风和降雨作用下传播并沉降，随后经历孢子释放、叶片感染、潜育和显症。研究还比较了只使用天气信息的基础模型，以及加入田间孢子监测信息的扩展模型。
+The models represent disease development as a sequence of processes. Weather conditions can generate sporangial cohorts, which survive, disperse with wind, deposit under suitable rainfall, release zoospores, infect leaves, incubate and produce visible symptoms. The repository includes a weather-driven baseline model and an extension that adds field-based spore pressure.
 
-## 适用情景
+## Intended Uses
 
-本仓库适合以下用途：
+The repository is intended for:
 
-- 研究广西葡萄霜霉病首次显症时间及其影响因素；
-- 比较天气条件、孢子压力和寄主物候对病害时间的影响；
-- 在已有逐小时天气数据的基础上，测试不同的产孢、传播、沉降和感染假设；
-- 使用广西区域天气资料，比较鲜食葡萄（Table）和酿酒葡萄（Wine）两种物候情景；
-- 进行参数敏感性分析、交叉验证和研究图表分析。
+- studying the timing and environmental drivers of first visible downy mildew symptoms in Guangxi;
+- comparing the effects of weather, airborne spore pressure and host phenology;
+- testing alternative assumptions for sporulation, dispersal, deposition and infection with hourly weather data;
+- comparing Table and Wine grape phenology scenarios using regional Guangxi weather;
+- conducting parameter sensitivity analysis, cross-validation and research data analysis.
 
-它是一个研究模型，不是面向生产者的实时诊断工具，也不能直接替代当地病害调查、品种试验或植保决策。现有参数主要基于广西的 6 个 site-year 资料进行校准；换到其他地区、品种或栽培制度时，需要重新检查天气格式、物候过程和参数适用性。
+This is a research model, not a real-time diagnostic service or a substitute for local disease scouting, cultivar trials or plant-protection decisions. The current parameters were calibrated primarily with six Guangxi site-years. Applying the model to another region, cultivar or production system requires checking the weather contract, phenology assumptions and parameter values.
 
-## 仓库内容
+## Repository Contents
 
 ### `data/`
 
-这里保存模型使用的原始或整理后数据，主要包括：
+This directory contains the source and prepared data used by the models:
 
-- `disease_data/`：田间病害调查和首次显症日期；
-- `weather_data/`：按 site-year 整理的逐小时天气数据，以及部分秋冬季天气资料；
-- `spore_data/`：田间孢子囊（CK）监测数据和观测说明；
-- `phenology_data/`：葡萄物候观测、校准目标和日尺度温度资料；
-- `management_data/`：用于潜在施药节省分析的管理记录；
-- `shapefile/`：广西行政边界和区域网格，用于空间分析和制图。
+- `disease_data/`: field disease observations and first symptom dates;
+- `weather_data/`: hourly weather files for the site-years and selected autumn-winter weather series;
+- `spore_data/`: field airborne-sporangia monitoring data and observation notes;
+- `phenology_data/`: phenology observations, calibration targets and daily temperatures;
+- `management_data/`: management records used for potential spray-savings analysis;
+- `shapefile/`: Guangxi boundaries and regional grid files used for spatial analysis.
 
-天气数据采用北京时间（Asia/Shanghai）。孢子监测中的空白值表示缺失，数值 0 表示确实观测到零孢子，这两个情况在 FSIM-S 中有不同含义。
+Weather timestamps use Beijing time (`Asia/Shanghai`). In the spore-monitoring data, a blank value means missing information, while a numeric zero means that zero target sporangia were observed. FSIM-S treats these cases differently.
 
 ### `model/`
 
-这里是模型本体：
+This directory contains the model implementations:
 
-- `model/FSIM/`：基础的无性孢子囊过程模型（FSIM），从天气触发的产孢队列一直模拟到首次显症窗口；
-- `model/FSIM-S/`：FSIM-S 扩展，将观测到的孢子压力和零计数信息加入 FSIM；
-- `model/phenology/`：Table/Wine 物候模型，以及随生育阶段变化的寄主感病性调节。
+- `model/FSIM/`: the baseline FSIM process model, from weather-triggered sporangial cohorts to the first symptom window;
+- `model/FSIM-S/`: the FSIM-S extension, which adds observed spore pressure and numeric zero-count gating;
+- `model/phenology/`: separate Table and Wine phenology profiles and host-susceptibility modulation across developmental stages.
 
-FSIM 和 FSIM-S 共用相同的天气驱动和感染后过程。FSIM-S 只增加孢子观测形成的外部接种压力，因此便于比较“天气驱动”与“天气加观测孢子压力”两种情景。
+FSIM and FSIM-S share the same weather drivers and post-infection processes. FSIM-S adds an observation-derived inoculum pressure, allowing weather-only and weather-plus-observation scenarios to be compared within the same process framework.
 
-### `src/` 和 `run/`
+### `src/` and `run/`
 
-`run/` 提供单个 site-year 的直接运行入口；`src/` 保存数据整理、物候校准、模型校准、区域模拟、敏感性分析和绘图前的数据处理脚本。常用命令和完整流程见 [`src/COMMANDS.md`](src/COMMANDS.md)。
+`run/` contains direct entry points for individual site-year simulations. `src/` contains data preparation, phenology calibration, model calibration, regional simulation, sensitivity analysis and plotting-data scripts. Public command examples are collected in [`src/COMMANDS.md`](src/COMMANDS.md).
 
-## 基本运行方式
+## Basic Usage
 
-从仓库根目录运行。单个天气文件可以这样执行基础 FSIM：
+Run commands from the repository root. A single included weather file can be passed to the baseline FSIM route:
 
 ```bash
 python run/run_sporangia.py \
@@ -56,7 +56,7 @@ python run/run_sporangia.py \
   --output-dir /tmp/fsim_example
 ```
 
-FSIM-S 需要同时提供孢子监测文件，并显式开启观测压力扩展：
+FSIM-S additionally requires the spore-monitoring workbook and must be enabled explicitly:
 
 ```bash
 PYTHONPATH=. python run/run_spore_plus.py \
@@ -66,10 +66,10 @@ PYTHONPATH=. python run/run_spore_plus.py \
   --output /tmp/fsim_s_example.json
 ```
 
-开展新的分析时，可以使用 `model/FSIM/config.json` 等仓库内配置，也可以通过命令行传入经过校准的外部配置。`result/`、`fig/` 等目录用于保存本地生成的分析产物和图表，不是公开仓库中模型输入的必要组成部分。
+New analyses can use the portable configurations under `model/`, or pass a separately calibrated configuration through the command line. `result/` and `fig/` are local destinations for generated analysis products and figures; they are not required inputs for the core model packages.
 
-## 研究范围与解释方式
+## Scope and Interpretation
 
-模型预测的是“首次完整显症窗口”，而不是病斑数量、流行强度或产量损失。区域模拟使用 2000--2024 年、342 个网格，并分别假设全区为 Table 或 Wine 葡萄；这些是用于比较的情景，不代表广西真实葡萄园分布图。
+The model predicts a first complete symptom window. It does not predict lesion counts, epidemic severity or yield loss. Regional scenarios cover 342 grid cells from 2000 to 2024 and assume either Table or Wine grapes throughout the region for comparison. They are scenario analyses, not a map of actual vineyard distribution in Guangxi.
 
-模型中的雨量阈值、风速门槛、感染积温和物候参数都应被理解为当前研究设计下的参数。它们可以用于敏感性分析和方法比较，但不应在没有当地验证的情况下直接解释为普适生物学常数。
+Rainfall thresholds, wind thresholds, infection degree-hours and phenology parameters represent the current study design. They are useful for sensitivity analysis and methodological comparison, but should not be treated as universal biological constants without local validation.
