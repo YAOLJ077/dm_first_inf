@@ -10,8 +10,7 @@ The local analysis is restricted to the six Guangxi site-years listed in
 - `spore_data/`: the CK airborne-sporangia workbook and its observation
   notes for all six Guangxi site-years.
 - `phenology_data/`: the field workbook and compact local Table/Wine
-  calibration inputs; literature observations and obsolete merged weather
-  tables have been removed.
+  calibration inputs.
 
 Blank CK cells are missing collection results. Numeric zeroes are observed
 zero-count collections. The first measured collection interval starts three

@@ -22,8 +22,8 @@ if str(REPO_ROOT) not in sys.path:
 from model.phenology.model import PhenologyConfig, load_config, simulate
 
 
-DEFAULT_WEATHER_ROOT = Path(r"D:\yaolinjia\Grape\input_weather_json\guangxi")
-DEFAULT_OUTPUT_ROOT = Path(r"D:\yaolinjia\Grape\guangxi_phenology")
+DEFAULT_WEATHER_ROOT = REPO_ROOT / "data" / "weather_data" / "regional"
+DEFAULT_OUTPUT_ROOT = REPO_ROOT / "result" / "regional_phenology"
 PROFILE_CONFIGS = {
     "table": REPO_ROOT / "model" / "phenology" / "profile_config_table.json",
     "vine": REPO_ROOT / "model" / "phenology" / "profile_config_vine.json",

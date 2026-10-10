@@ -14,6 +14,9 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
+# ArcGIS sidecars can embed local processing lineage and machine paths.
+data/shapefile/*.shp.xml
+
 # ===== Local research artifacts (keep locally, do not push) =====
 paper/
 result/

@@ -499,7 +499,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--susceptibility-config", type=Path, default=DEFAULT_SUSCEPTIBILITY_CONFIG)
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--analyse-only", action="store_true", help="Recompute indices from saved sample and site-year outputs without rerunning the model")
-    parser.add_argument("--limit", type=int, default=None, help="Limit site-years for a smoke test")
+    parser.add_argument("--limit", type=int, default=None, help="Limit the number of site-years processed")
     parser.add_argument("--no-second-order", dest="second_order", action="store_false")
     parser.set_defaults(second_order=True)
     args = parser.parse_args(argv)

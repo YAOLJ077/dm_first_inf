@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_DISEASE_ROOT = Path(r"D:\yaolinjia\Grape\guangxi_disease_window")
+DEFAULT_DISEASE_ROOT = REPO_ROOT / "result" / "regional_disease_window"
 DEFAULT_OUTPUT_ROOT = REPO_ROOT / "result" / "guangxi_2000_2024_onset_windows"
 PROFILES = ("table", "vine")
 

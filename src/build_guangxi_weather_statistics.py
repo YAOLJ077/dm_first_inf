@@ -12,7 +12,7 @@ import pandas as pd
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_WEATHER_ROOT = Path(r"D:\yaolinjia\Grape\input_weather_json\guangxi")
+DEFAULT_WEATHER_ROOT = REPO_ROOT / "data" / "weather_data" / "regional"
 DEFAULT_OUTPUT_ROOT = REPO_ROOT / "result" / "guangxi_2000_2024_weather"
 
 _RAIN_DAY_THRESHOLD = 0.1

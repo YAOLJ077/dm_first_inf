@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_PHENOLOGY_ROOT = Path(r"D:\yaolinjia\Grape\guangxi_phenology")
+DEFAULT_PHENOLOGY_ROOT = ROOT / "result" / "regional_phenology"
 DEFAULT_OUTPUT_ROOT = ROOT / "result/guangxi_2000_2024_onset_windows"
 STAGES = ("budburst", "inflorescence_emergence", "flowering", "veraison")
 

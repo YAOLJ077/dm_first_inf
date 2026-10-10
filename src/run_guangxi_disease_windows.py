@@ -22,10 +22,10 @@ from model.FSIM.cropseason import CropSeason
 from model.FSIM.model import run_cropseason
 
 
-DEFAULT_WEATHER_ROOT = Path(r"D:\yaolinjia\Grape\input_weather_json\guangxi")
-DEFAULT_PHENOLOGY_ROOT = Path(r"D:\yaolinjia\Grape\guangxi_phenology")
-DEFAULT_OUTPUT_ROOT = Path(r"D:\yaolinjia\Grape\guangxi_disease_window")
-DEFAULT_CONFIG = REPO_ROOT / "result" / "deployment_parameters" / "fsim_deployment_config.json"
+DEFAULT_WEATHER_ROOT = REPO_ROOT / "data" / "weather_data" / "regional"
+DEFAULT_PHENOLOGY_ROOT = REPO_ROOT / "result" / "regional_phenology"
+DEFAULT_OUTPUT_ROOT = REPO_ROOT / "result" / "regional_disease_window"
+DEFAULT_CONFIG = REPO_ROOT / "model" / "FSIM" / "config.json"
 DEFAULT_SUSCEPTIBILITY = REPO_ROOT / "model" / "phenology" / "susceptibility_modulation.json"
 PROFILE_CONFIGS = {
     "table": REPO_ROOT / "model" / "phenology" / "profile_config_table.json",

@@ -18,9 +18,9 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_INPUT_ROOT = Path(r"D:\yaolinjia\Grape\input_weather_json")
+DEFAULT_INPUT_ROOT = REPO_ROOT / "data" / "weather_data"
 DEFAULT_SOURCE_ROOT = DEFAULT_INPUT_ROOT / "jf"
-DEFAULT_TARGET_ROOT = DEFAULT_INPUT_ROOT / "guangxi"
+DEFAULT_TARGET_ROOT = DEFAULT_INPUT_ROOT / "regional"
 DEFAULT_GRID_INDEX = REPO_ROOT / "data" / "shapefile" / "gx_grid_inside_0.25.csv"
 DEFAULT_GEE_DIR = REPO_ROOT / "tmp"
 

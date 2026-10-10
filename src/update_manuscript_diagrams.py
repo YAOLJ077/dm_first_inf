@@ -7,12 +7,13 @@ import shutil
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib import font_manager
 from matplotlib.patches import Rectangle
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
-BACKUP = Path('/private/tmp/pms_review/original_figures')
-FONT = '/System/Library/Fonts/Supplemental/Times New Roman.ttf'
+BACKUP = ROOT / 'tmp' / 'pms_review' / 'original_figures'
+FONT = font_manager.findfont('Times New Roman', fallback_to_default=True)
 
 
 def source_image(name):

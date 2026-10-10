@@ -6,5 +6,4 @@
   censored stage targets and the required daily temperatures.
 
 The active calibration script is `src/calibrate_phenology_profiles.py`;
-the accepted profile configurations are in `model/phenology/` and their
-results are in `result/phenology_calibration/`.
+the runtime profile configurations are in `model/phenology/`.

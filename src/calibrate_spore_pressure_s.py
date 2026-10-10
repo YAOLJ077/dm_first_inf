@@ -1041,9 +1041,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--cv-scheme", nargs="+", choices=CV_SCHEMES, default=["site_year"],
-        help="Outer grouped leave-out schemes; site_year is primary, site and year are supplementary stress tests",
+        help="Outer grouped leave-out schemes; site_year is primary, site and year are supplementary evaluations",
     )
-    parser.add_argument("--limit", type=int, default=None, help="Limit site-years for a smoke test")
+    parser.add_argument("--limit", type=int, default=None, help="Limit the number of site-years processed")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args(argv)
