@@ -13,3 +13,12 @@ __pycache__/
 # ===== OS =====
 .DS_Store
 Thumbs.db
+
+# ===== Local research artifacts (keep locally, do not push) =====
+paper/
+result/
+fig/
+tmp/
+utils/
+references/
+dm_first_os/

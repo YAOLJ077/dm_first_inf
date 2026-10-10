@@ -1,3 +1,0 @@
-cv_scheme,model,n,complete,missing,window_coverage,mae_days,bias_days,rmse_days
-site_year,FSIM,6,6,0,1.0,5.666666666666667,-3.6666666666666665,7.2571803523590805
-site_year,FSIM-S-observed-zero-gate,6,6,0,1.0,3.8333333333333335,-0.8333333333333334,6.177917664283546
